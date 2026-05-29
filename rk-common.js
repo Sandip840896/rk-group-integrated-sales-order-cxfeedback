@@ -1,10 +1,10 @@
 const RK_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDMcHok-Q-w6a0BwG2w1sFvSxQwgTXlnUg",
-  authDomain: "rk-group-feedback.firebaseapp.com",
-  projectId: "rk-group-feedback",
-  storageBucket: "rk-group-feedback.firebasestorage.app",
-  messagingSenderId: "89598658685",
-  appId: "1:89598658685:web:398d8a06db8bea367ec914"
+  apiKey: "AIzaSyDQSWV0QrVQx2C_t-BDndqjuQLnxELdClA",
+  authDomain: "rk-rail-cx.firebaseapp.com",
+  projectId: "rk-rail-cx",
+  storageBucket: "rk-rail-cx.firebasestorage.app",
+  messagingSenderId: "18449306424",
+  appId: "1:18449306424:web:3721f82cc1095f90bce7cd"
 };
 
 firebase.initializeApp(RK_FIREBASE_CONFIG);
