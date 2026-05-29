@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Unified Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main">
+    <div class="tabs">
+      <button class="tab-btn" data-tab="overview"><i data-lucide="activity"></i> Overview</button>
+      <button class="tab-btn" data-tab="orders"><i data-lucide="receipt-text"></i> Customer Orders</button>
+      <button class="tab-btn" data-tab="feedback"><i data-lucide="messages-square"></i> Feedback</button>
+      <button class="tab-btn" data-tab="indent"><i data-lucide="send"></i> Base Kitchen Indent</button>
+      <button class="tab-btn" data-tab="invoice"><i data-lucide="file-check-2"></i> Delivery Invoice</button>
+      <button class="tab-btn" data-tab="masters"><i data-lucide="database"></i> Masters</button>
+    </div>
+
+    <section data-tab-panel="overview" class="stack">
+      <div class="grid four">
+        <div class="metric"><b id="mOrders">0</b><span>Live customer orders</span></div>
+        <div class="metric"><b id="mFeedback">0</b><span>Feedback / complaints</span></div>
+        <div class="metric"><b id="mIndents">0</b><span>Base kitchen indents</span></div>
+        <div class="metric"><b id="mFill">0%</b><span>Average kitchen fill rate</span></div>
+      </div>
+      <div class="grid two">
+        <div class="panel pad">
+          <div class="section-title"><div><h2>Recent Customer Orders</h2><p>New orders from passenger app appear immediately.</p></div></div>
+          <div id="recentOrders" class="list"></div>
+        </div>
+        <div class="panel pad">
+          <div class="section-title"><div><h2>Kitchen Fill Rate</h2><p>Approved quantity against requested quantity.</p></div></div>
+          <div id="fillRateList" class="list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section data-tab-panel="orders" class="panel pad stack hidden">
+      <div class="section-title">
+        <div><h2>Customer Orders</h2><p>Accept, prepare and deliver passenger food orders.</p></div>
+        <button class="btn secondary" id="refreshOrdersBtn"><i data-lucide="refresh-cw"></i> Refresh</button>
+      </div>
+      <div id="ordersList" class="list"></div>
+    </section>
+
+    <section data-tab-panel="feedback" class="panel pad stack hidden">
+      <div class="section-title"><div><h2>Feedback and Complaint Desk</h2><p>Close complaints with a resolution note.</p></div></div>
+      <div id="feedbackList" class="list"></div>
+    </section>
+
+    <section data-tab-panel="indent" class="grid two hidden">
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Create Base Kitchen Indent</h2><p>Train manager sends ready-food requirement to selected base kitchen.</p></div></div>
+        <form id="indentForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Train Number</span><input class="input" name="train" required placeholder="12345"></label>
+            <label class="field"><span>Rack / Train Manager</span><input class="input" name="rackManager" required placeholder="Manager name"></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Base Kitchen</span><select class="select" id="indentKitchen" name="baseKitchenId" required></select></label>
+            <label class="field"><span>Required By</span><input class="input" name="requiredBy" type="datetime-local" required></label>
+          </div>
+          <label class="field"><span>Remarks</span><textarea class="textarea" name="remarks" placeholder="Station, platform, coach loading point, special instruction"></textarea></label>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Food Item</th><th>Qty</th><th></th></tr></thead>
+              <tbody id="indentItems"></tbody>
+            </table>
+          </div>
+          <div class="row wrap">
+            <select class="select grow" id="indentItemSelect"></select>
+            <input class="input qty" id="indentQty" type="number" min="1" value="1">
+            <button class="btn secondary" type="button" id="addIndentItemBtn"><i data-lucide="plus"></i> Add</button>
+          </div>
+          <button class="btn" type="submit"><i data-lucide="send"></i> Send Indent</button>
+        </form>
+      </div>
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Live Indents</h2><p>Base kitchen acceptance, edits and invoice status.</p></div></div>
+        <div id="indentList" class="list"></div>
+      </div>
+    </section>
+
+    <section data-tab-panel="invoice" class="panel pad stack hidden">
+      <div class="section-title"><div><h2>Base Kitchen Invoices and Delivery</h2><p>Rack manager accepts delivery or raises dispute with photo proof.</p></div></div>
+      <div id="invoiceList" class="list"></div>
+    </section>
+
+    <section data-tab-panel="masters" class="grid two hidden">
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Food Item Master</h2><p>Items added here show in customer order and indent screens.</p></div></div>
+        <form id="masterForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Item Name</span><input class="input" name="name" required placeholder="Veg Biryani"></label>
+            <label class="field"><span>Category</span><select class="select" name="category" id="masterCategory"></select></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Price</span><input class="input" name="price" type="number" min="0" required placeholder="120"></label>
+            <label class="field"><span>Type</span><select class="select" name="type"><option>veg</option><option>non-veg</option><option>beverage</option><option>other</option></select></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Source</span><select class="select" name="source"><option>pantry</option><option>base kitchen</option></select></label>
+            <label class="field"><span>Available Stock</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
+          </div>
+          <button class="btn" type="submit"><i data-lucide="save"></i> Save Item</button>
+        </form>
+      </div>
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Base Kitchen Master</h2><p>Create kitchen name and ID for train manager indent selection.</p></div></div>
+        <form id="kitchenMasterForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Kitchen ID</span><input class="input" name="id" required placeholder="BK-XYZ"></label>
+            <label class="field"><span>Kitchen Name</span><input class="input" name="name" required placeholder="Station Base Kitchen"></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>City / Station</span><input class="input" name="city" required placeholder="Howrah"></label>
+            <label class="field"><span>Status</span><select class="select" name="active"><option value="true">Active</option><option value="false">Inactive</option></select></label>
+          </div>
+          <button class="btn" type="submit"><i data-lucide="save"></i> Save Kitchen</button>
+        </form>
+        <div id="kitchenAdminList" class="list"></div>
+      </div>
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Current Menu / Pantry Upload</h2><p>Toggle availability or update train pantry stock.</p></div></div>
+        <div id="menuAdminList" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="disputeModal" class="modal-backdrop hidden">
+    <div class="modal stack">
+      <div class="section-title">
+        <div><h2>Raise Delivery Dispute</h2><p>Attach photo proof from mobile camera if needed.</p></div>
+        <button class="icon-btn" id="closeDisputeBtn"><i data-lucide="x"></i></button>
+      </div>
+      <form id="disputeForm" class="stack">
+        <input type="hidden" name="invoiceId">
+        <label class="field"><span>Dispute Reason</span><textarea class="textarea" name="reason" required placeholder="Describe missing / damaged / wrong item"></textarea></label>
+        <label class="field"><span>Photo Proof</span><input class="input" name="photo" type="file" accept="image/*" capture="environment"></label>
+        <button class="btn danger" type="submit"><i data-lucide="alert-triangle"></i> Submit Dispute</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("RK Unified Command Center", "Live rail catering control room");
+      lucide.createIcons();
+      wireTabs("overview");
+      await ensureSeedData();
+
+      let menuItems = [];
+      let kitchens = [];
+      let orders = [];
+      let feedbacks = [];
+      let indents = [];
+      let invoices = [];
+      const pendingIndentItems = [];
+
+      $("masterCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
+
+      function renderMetrics() {
+        $("mOrders").textContent = orders.length;
+        $("mFeedback").textContent = feedbacks.length;
+        $("mIndents").textContent = indents.length;
+        const requested = indents.flatMap((indent) => indent.items || []).reduce((sum, line) => sum + Number(line.requestedQty || line.qty || 0), 0);
+        const approved = indents.flatMap((indent) => indent.items || []).reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? line.qty ?? 0), 0);
+        $("mFill").textContent = requested ? `${Math.round((approved / requested) * 100)}%` : "0%";
+        $("recentOrders").innerHTML = orders.slice(0, 5).map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
+        renderFillRates();
+      }
+
+      function orderCard(order) {
+        return `<div class="item">
+          <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
+          <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | Train ${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+          <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")} | ${money(order.total)}</p>
+          <div class="row wrap" style="margin-top:10px;">
+            ${["accepted", "preparing", "delivered"].map((status) => `<button class="btn secondary" data-order-status="${status}" data-id="${order.id}">${status}</button>`).join("")}
+          </div>
+        </div>`;
+      }
+
+      function renderOrders() {
+        $("ordersList").innerHTML = orders.map(orderCard).join("") || `<div class="empty">No live customer order yet.</div>`;
+        renderMetrics();
+        lucide.createIcons();
+      }
+
+      $("ordersList").addEventListener("click", async (event) => {
+        const btn = event.target.closest("[data-order-status]");
+        if (!btn) return;
+        await db.collection("customerOrders").doc(btn.dataset.id).update({
+          status: btn.dataset.orderStatus,
+          updatedAt: FieldValue.serverTimestamp(),
+          statusLog: FieldValue.arrayUnion({ status: btn.dataset.orderStatus, at: new Date().toISOString(), note: "Updated from command center" })
+        });
+        toast("Order status updated.");
+      });
+
+      function renderFeedbacks() {
+        $("feedbackList").innerHTML = feedbacks.map((fb) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(fb.category || "Feedback")} | Rating ${escapeHtml(fb.rating || "-")}</h3>${statusBadge(fb.status)}</div>
+            <p>${escapeHtml(fb.customer?.name || fb.name || "")} | ${escapeHtml(fb.customer?.phone || fb.phone || "")} | Train ${escapeHtml(fb.train || fb.customer?.train || "")}</p>
+            <p>${escapeHtml(fb.message || fb.feedback || "")}</p>
+            ${fb.managerResponse ? `<p><b>Resolution:</b> ${escapeHtml(fb.managerResponse)}</p>` : ""}
+            <div class="row mobile-stack" style="margin-top:10px;">
+              <input class="input grow" placeholder="Resolution note" data-resolution="${fb.id}">
+              <button class="btn" data-resolve-feedback="${fb.id}"><i data-lucide="check"></i> Resolve</button>
+            </div>
+          </div>`).join("") || `<div class="empty">No feedback yet.</div>`;
+        lucide.createIcons();
+      }
+
+      $("feedbackList").addEventListener("click", async (event) => {
+        const btn = event.target.closest("[data-resolve-feedback]");
+        if (!btn) return;
+        const note = document.querySelector(`[data-resolution="${btn.dataset.resolveFeedback}"]`).value;
+        await db.collection("feedbacks").doc(btn.dataset.resolveFeedback).update({
+          status: "resolved",
+          managerResponse: note || "Resolved by RK command center",
+          resolvedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        toast("Feedback marked resolved.");
+      });
+
+      function renderKitchenSelects() {
+        const options = kitchens
+          .filter((k) => k.active !== false)
+          .map((k) => `<option value="${k.id}">${escapeHtml(k.name)} (${escapeHtml(k.id)})</option>`)
+          .join("");
+        $("indentKitchen").innerHTML = options;
+      }
+
+      function renderIndentItemSelect() {
+        $("indentItemSelect").innerHTML = menuItems.map((item) => `<option value="${item.id}">${escapeHtml(item.name)} | ${escapeHtml(item.category || "")}</option>`).join("");
+      }
+
+      function renderPendingIndentItems() {
+        $("indentItems").innerHTML = pendingIndentItems.map((line, idx) => `
+          <tr><td>${escapeHtml(line.name)}</td><td>${line.requestedQty}</td><td><button class="icon-btn" type="button" data-remove-indent-line="${idx}"><i data-lucide="trash-2"></i></button></td></tr>
+        `).join("") || `<tr><td colspan="3">Add food items for this indent.</td></tr>`;
+        lucide.createIcons();
+      }
+
+      $("addIndentItemBtn").addEventListener("click", () => {
+        const item = menuItems.find((entry) => entry.id === $("indentItemSelect").value);
+        const qty = Math.max(1, Number($("indentQty").value || 1));
+        if (!item) return;
+        pendingIndentItems.push({ itemId: item.id, name: item.name, category: item.category || "", requestedQty: qty, approvedQty: qty });
+        renderPendingIndentItems();
+      });
+
+      $("indentItems").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-remove-indent-line]");
+        if (!btn) return;
+        pendingIndentItems.splice(Number(btn.dataset.removeIndentLine), 1);
+        renderPendingIndentItems();
+      });
+
+      $("indentForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!pendingIndentItems.length) {
+          toast("Add at least one food item to send indent.");
+          return;
+        }
+        const data = getForm(event.currentTarget);
+        const kitchen = kitchens.find((entry) => entry.id === data.baseKitchenId);
+        await db.collection("indents").add({
+          indentNo: shortId("IND"),
+          train: data.train,
+          rackManager: data.rackManager,
+          baseKitchenId: data.baseKitchenId,
+          baseKitchenName: kitchen?.name || data.baseKitchenId,
+          requiredBy: data.requiredBy,
+          remarks: data.remarks || "",
+          items: pendingIndentItems.map((line) => ({ ...line })),
+          requestedQty: pendingIndentItems.reduce((sum, line) => sum + Number(line.requestedQty || 0), 0),
+          approvedQty: pendingIndentItems.reduce((sum, line) => sum + Number(line.approvedQty || 0), 0),
+          status: "sent",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        pendingIndentItems.length = 0;
+        renderPendingIndentItems();
+        event.currentTarget.reset();
+        renderKitchenSelects();
+        toast("Indent sent live to base kitchen.");
+      });
+
+      function renderIndents() {
+        $("indentList").innerHTML = indents.map((indent) => {
+          const req = (indent.items || []).reduce((sum, line) => sum + Number(line.requestedQty || 0), 0);
+          const app = (indent.items || []).reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0), 0);
+          return `<div class="item">
+            <div class="row between"><h3>${escapeHtml(indent.indentNo || indent.id)}</h3>${statusBadge(indent.status)}</div>
+            <p>Train ${escapeHtml(indent.train || "")} | ${escapeHtml(indent.baseKitchenName || "")} | Fill ${req ? Math.round(app / req * 100) : 0}%</p>
+            <p>${(indent.items || []).map((line) => `${escapeHtml(line.name)} ${line.approvedQty ?? line.requestedQty}/${line.requestedQty}`).join(", ")}</p>
+          </div>`;
+        }).join("") || `<div class="empty">No indent has been sent yet.</div>`;
+        renderMetrics();
+      }
+
+      function renderFillRates() {
+        const byKitchen = {};
+        indents.forEach((indent) => {
+          const key = indent.baseKitchenId || "unknown";
+          byKitchen[key] ||= { name: indent.baseKitchenName || key, requested: 0, approved: 0 };
+          (indent.items || []).forEach((line) => {
+            byKitchen[key].requested += Number(line.requestedQty || 0);
+            byKitchen[key].approved += Number(line.approvedQty ?? line.requestedQty ?? 0);
+          });
+        });
+        const rows = Object.values(byKitchen);
+        $("fillRateList").innerHTML = rows.length ? rows.map((row) => {
+          const rate = row.requested ? Math.round((row.approved / row.requested) * 100) : 0;
+          return `<div class="item"><div class="row between"><h3>${escapeHtml(row.name)}</h3><span class="badge ${rate >= 90 ? "ok" : rate >= 70 ? "warn" : "danger"}">${rate}%</span></div><p>${row.approved} approved out of ${row.requested} requested</p></div>`;
+        }).join("") : `<div class="empty">No fill rate data yet.</div>`;
+      }
+
+      function renderInvoices() {
+        $("invoiceList").innerHTML = invoices.map((invoice) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
+            <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)}</p>
+            <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.qty ?? 0}`).join(", ")}</p>
+            ${invoice.disputeReason ? `<p><b>Dispute:</b> ${escapeHtml(invoice.disputeReason)}</p>` : ""}
+            ${invoice.disputePhoto ? `<img class="proof-img" src="${invoice.disputePhoto}" alt="Dispute proof">` : ""}
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn" data-accept-invoice="${invoice.id}"><i data-lucide="check-circle"></i> Accept Delivery</button>
+              <button class="btn danger" data-dispute-invoice="${invoice.id}"><i data-lucide="alert-triangle"></i> Dispute</button>
+            </div>
+          </div>`).join("") || `<div class="empty">No invoice received from base kitchen yet.</div>`;
+        lucide.createIcons();
+      }
+
+      $("invoiceList").addEventListener("click", async (event) => {
+        const accept = event.target.closest("[data-accept-invoice]");
+        const dispute = event.target.closest("[data-dispute-invoice]");
+        if (accept) {
+          const invoice = invoices.find((entry) => entry.id === accept.dataset.acceptInvoice);
+          await db.collection("invoices").doc(invoice.id).update({ status: "accepted", acceptedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+          if (invoice.indentId) await db.collection("indents").doc(invoice.indentId).update({ status: "closed", updatedAt: FieldValue.serverTimestamp() });
+          toast("Delivery accepted and invoice closed.");
+        }
+        if (dispute) {
+          $("disputeForm").invoiceId.value = dispute.dataset.disputeInvoice;
+          $("disputeModal").classList.remove("hidden");
+        }
+      });
+
+      $("closeDisputeBtn").addEventListener("click", () => $("disputeModal").classList.add("hidden"));
+      $("disputeForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        const photo = await compressImage(event.currentTarget.photo.files[0]);
+        const invoice = invoices.find((entry) => entry.id === data.invoiceId);
+        await db.collection("invoices").doc(data.invoiceId).update({
+          status: "disputed",
+          disputeReason: data.reason,
+          disputePhoto: photo || "",
+          disputedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        if (invoice?.indentId) await db.collection("indents").doc(invoice.indentId).update({ status: "disputed", updatedAt: FieldValue.serverTimestamp() });
+        $("disputeModal").classList.add("hidden");
+        event.currentTarget.reset();
+        toast("Dispute raised with available proof.");
+      });
+
+      $("masterForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        await db.collection("menuItems").add({
+          ...data,
+          price: Number(data.price || 0),
+          stockQty: Number(data.stockQty || 0),
+          available: Number(data.stockQty || 0) > 0,
+          masterItem: true,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        event.currentTarget.reset();
+        toast("Food item saved and reflected live.");
+      });
+
+      $("kitchenMasterForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        await db.collection("baseKitchens").doc(data.id.trim().toUpperCase()).set({
+          name: data.name,
+          city: data.city,
+          active: data.active === "true",
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        event.currentTarget.reset();
+        toast("Base kitchen master saved.");
+      });
+
+      function renderMenuAdmin() {
+        $("menuAdminList").innerHTML = menuItems.map((item) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(item.name)}</h3><span class="badge ${item.available !== false ? "ok" : "danger"}">${item.available !== false ? "available" : "hidden"}</span></div>
+            <p>${escapeHtml(item.category || "")} | ${money(item.price)} | ${escapeHtml(item.source || "")}</p>
+            <div class="row mobile-stack" style="margin-top:10px;">
+              <input class="input qty" type="number" min="0" value="${Number(item.stockQty || 0)}" data-stock-input="${item.id}">
+              <button class="btn secondary" data-update-stock="${item.id}"><i data-lucide="package-check"></i> Update Stock</button>
+              <button class="btn ${item.available !== false ? "danger" : "info"}" data-toggle-item="${item.id}">${item.available !== false ? "Hide" : "Show"}</button>
+            </div>
+          </div>`).join("") || `<div class="empty">No food item master yet.</div>`;
+        lucide.createIcons();
+      }
+
+      $("menuAdminList").addEventListener("click", async (event) => {
+        const stock = event.target.closest("[data-update-stock]");
+        const toggle = event.target.closest("[data-toggle-item]");
+        if (stock) {
+          const qty = Number(document.querySelector(`[data-stock-input="${stock.dataset.updateStock}"]`).value || 0);
+          await db.collection("menuItems").doc(stock.dataset.updateStock).update({ stockQty: qty, available: qty > 0, updatedAt: FieldValue.serverTimestamp() });
+          toast("Pantry stock updated.");
+        }
+        if (toggle) {
+          const item = menuItems.find((entry) => entry.id === toggle.dataset.toggleItem);
+          await db.collection("menuItems").doc(item.id).update({ available: item.available === false, updatedAt: FieldValue.serverTimestamp() });
+          toast("Item availability updated.");
+        }
+      });
+
+      function renderKitchenAdmin() {
+        $("kitchenAdminList").innerHTML = kitchens.map((kitchen) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(kitchen.name)}</h3><span class="badge ${kitchen.active === false ? "danger" : "ok"}">${escapeHtml(kitchen.id)}</span></div>
+            <p>${escapeHtml(kitchen.city || "")} | ${kitchen.active === false ? "Inactive" : "Active"}</p>
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn secondary" data-edit-kitchen="${kitchen.id}"><i data-lucide="pencil"></i> Edit</button>
+              <button class="btn ${kitchen.active === false ? "info" : "danger"}" data-toggle-kitchen="${kitchen.id}">${kitchen.active === false ? "Activate" : "Deactivate"}</button>
+            </div>
+          </div>`).join("") || `<div class="empty">No base kitchen master yet.</div>`;
+        lucide.createIcons();
+      }
+
+      $("kitchenAdminList").addEventListener("click", async (event) => {
+        const edit = event.target.closest("[data-edit-kitchen]");
+        const toggle = event.target.closest("[data-toggle-kitchen]");
+        if (edit) {
+          const kitchen = kitchens.find((entry) => entry.id === edit.dataset.editKitchen);
+          $("kitchenMasterForm").id.value = kitchen.id;
+          $("kitchenMasterForm").name.value = kitchen.name || "";
+          $("kitchenMasterForm").city.value = kitchen.city || "";
+          $("kitchenMasterForm").active.value = kitchen.active === false ? "false" : "true";
+        }
+        if (toggle) {
+          const kitchen = kitchens.find((entry) => entry.id === toggle.dataset.toggleKitchen);
+          await db.collection("baseKitchens").doc(kitchen.id).update({ active: kitchen.active === false, updatedAt: FieldValue.serverTimestamp() });
+          toast("Base kitchen status updated.");
+        }
+      });
+
+      onLive("customerOrders", (rows) => { orders = rows; renderOrders(); }, "createdAt", "desc", 200);
+      onLive("feedbacks", (rows) => { feedbacks = rows; renderFeedbacks(); renderMetrics(); }, "timestamp", "desc", 200);
+      onLive("indents", (rows) => { indents = rows; renderIndents(); }, "createdAt", "desc", 200);
+      onLive("invoices", (rows) => { invoices = rows; renderInvoices(); }, "createdAt", "desc", 200);
+      onLive("menuItems", (rows) => { menuItems = rows.sort((a, b) => String(a.name).localeCompare(String(b.name))); renderIndentItemSelect(); renderMenuAdmin(); }, "name", "asc", 300);
+      db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
+        kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        renderKitchenSelects();
+        renderKitchenAdmin();
+      });
+      renderPendingIndentItems();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Rail Catering Digital Suite</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="logo">RK</div>
+          <div>
+            <h1>RK Rail Catering Digital Suite</h1>
+            <p>Live feedback, customer orders, pantry operations, base kitchen indent and invoice flow</p>
+          </div>
+        </div>
+        <div class="support">System developer and support<br>Sandip Nandi | 8584833366<br>sandipnandi2000@gmail.com</div>
+      </div>
+    </div>
+    <main class="main">
+      <div class="grid three">
+        <a class="panel pad stack" href="customer-app.html">
+          <div class="row between">
+            <span class="badge ok">Passenger</span>
+            <i data-lucide="smartphone"></i>
+          </div>
+          <div>
+            <h2>Customer Feedback and Order</h2>
+            <p>Passenger details, food ordering by meal slot, feedback, complaint and live order status.</p>
+          </div>
+        </a>
+        <a class="panel pad stack" href="command-center.html">
+          <div class="row between">
+            <span class="badge info">Train Manager</span>
+            <i data-lucide="layout-dashboard"></i>
+          </div>
+          <div>
+            <h2>Unified Command Center</h2>
+            <p>All feedback, customer orders, pantry stock, master food items, base kitchen indents and invoice acceptance.</p>
+          </div>
+        </a>
+        <a class="panel pad stack" href="base-kitchen.html">
+          <div class="row between">
+            <span class="badge warn">Base Kitchen</span>
+            <i data-lucide="chef-hat"></i>
+          </div>
+          <div>
+            <h2>Base Kitchen Operations</h2>
+            <p>Accept indent, adjust quantities, process delivery, create invoice and track disputes.</p>
+          </div>
+        </a>
+      </div>
+    </main>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Base Kitchen Operations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main">
+    <div class="panel pad stack">
+      <div class="section-title">
+        <div><h2>Choose Base Kitchen</h2><p>Only indents sent to the selected kitchen will appear.</p></div>
+        <a class="btn secondary" href="index.html"><i data-lucide="home"></i> Apps</a>
+      </div>
+      <div class="row mobile-stack">
+        <select id="kitchenSelect" class="select grow"></select>
+        <button class="btn" id="saveKitchenBtn"><i data-lucide="check"></i> Start</button>
+      </div>
+    </div>
+
+    <div class="grid four" style="margin-top:14px;">
+      <div class="metric"><b id="bkNew">0</b><span>New indents</span></div>
+      <div class="metric"><b id="bkProcess">0</b><span>Processing</span></div>
+      <div class="metric"><b id="bkInvoices">0</b><span>Invoices sent</span></div>
+      <div class="metric"><b id="bkDisputes">0</b><span>Disputes</span></div>
+    </div>
+
+    <div class="tabs" style="margin-top:14px;">
+      <button class="tab-btn" data-tab="incoming"><i data-lucide="inbox"></i> Incoming Indents</button>
+      <button class="tab-btn" data-tab="invoice"><i data-lucide="file-plus-2"></i> Invoices</button>
+      <button class="tab-btn" data-tab="dispute"><i data-lucide="alert-triangle"></i> Disputes</button>
+    </div>
+
+    <section class="panel pad stack" data-tab-panel="incoming">
+      <div class="section-title"><div><h2>Indent Processing</h2><p>Edit approved quantity or set quantity to zero if item is unavailable.</p></div></div>
+      <div id="indentWorkList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="invoice">
+      <div class="section-title"><div><h2>Invoices Sent to Train</h2><p>Rack manager can accept or dispute these invoices from command center.</p></div></div>
+      <div id="bkInvoiceList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="dispute">
+      <div class="section-title"><div><h2>Delivery Disputes</h2><p>Disputes include note and photo proof when uploaded.</p></div></div>
+      <div id="bkDisputeList" class="list"></div>
+    </section>
+  </main>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("RK Base Kitchen Operations", "Indent acceptance, delivery planning and invoice");
+      lucide.createIcons();
+      wireTabs("incoming");
+      await ensureSeedData();
+
+      let kitchens = [];
+      let activeKitchenId = localStorage.getItem("rkBaseKitchen") || "";
+      let indents = [];
+      let invoices = [];
+
+      db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
+        kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        $("kitchenSelect").innerHTML = kitchens
+          .filter((k) => k.active !== false)
+          .map((k) => `<option value="${k.id}">${escapeHtml(k.name)} (${escapeHtml(k.id)})</option>`)
+          .join("");
+        if (activeKitchenId) $("kitchenSelect").value = activeKitchenId;
+      });
+
+      $("saveKitchenBtn").addEventListener("click", () => {
+        activeKitchenId = $("kitchenSelect").value;
+        localStorage.setItem("rkBaseKitchen", activeKitchenId);
+        toast("Kitchen selected. Live indents loaded.");
+        renderAll();
+      });
+
+      function visibleIndents() {
+        return indents.filter((indent) => !activeKitchenId || indent.baseKitchenId === activeKitchenId);
+      }
+
+      function visibleInvoices() {
+        return invoices.filter((invoice) => !activeKitchenId || invoice.baseKitchenId === activeKitchenId);
+      }
+
+      function renderMetrics() {
+        const rows = visibleIndents();
+        const inv = visibleInvoices();
+        $("bkNew").textContent = rows.filter((i) => i.status === "sent").length;
+        $("bkProcess").textContent = rows.filter((i) => ["accepted", "processing"].includes(i.status)).length;
+        $("bkInvoices").textContent = inv.length;
+        $("bkDisputes").textContent = inv.filter((i) => i.status === "disputed").length;
+      }
+
+      function renderIndentWork() {
+        const rows = visibleIndents();
+        $("indentWorkList").innerHTML = rows.map((indent) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(indent.indentNo || indent.id)}</h3>${statusBadge(indent.status)}</div>
+            <p>Train ${escapeHtml(indent.train || "")} | Manager ${escapeHtml(indent.rackManager || "")} | Required ${escapeHtml(indent.requiredBy || "")}</p>
+            <p>${escapeHtml(indent.remarks || "")}</p>
+            <div class="table-wrap" style="margin-top:10px;">
+              <table>
+                <thead><tr><th>Item</th><th>Requested</th><th>Approved</th><th>Reason / Note</th></tr></thead>
+                <tbody>${(indent.items || []).map((line, idx) => `
+                  <tr>
+                    <td>${escapeHtml(line.name)}</td>
+                    <td>${Number(line.requestedQty || 0)}</td>
+                    <td><input class="input qty" type="number" min="0" value="${Number(line.approvedQty ?? line.requestedQty ?? 0)}" data-indent="${indent.id}" data-line="${idx}" data-field="approvedQty"></td>
+                    <td><input class="input" value="${escapeHtml(line.note || "")}" placeholder="If edited, mention why" data-indent="${indent.id}" data-line="${idx}" data-field="note"></td>
+                  </tr>`).join("")}</tbody>
+              </table>
+            </div>
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn secondary" data-save-indent="${indent.id}"><i data-lucide="save"></i> Save Qty</button>
+              <button class="btn info" data-mark-indent="accepted" data-id="${indent.id}">Accept</button>
+              <button class="btn warn" data-mark-indent="processing" data-id="${indent.id}">Processing</button>
+              <button class="btn" data-create-invoice="${indent.id}"><i data-lucide="file-plus-2"></i> Create Invoice</button>
+            </div>
+          </div>
+        `).join("") || `<div class="empty">Select kitchen to see incoming indents.</div>`;
+        lucide.createIcons();
+      }
+
+      $("indentWorkList").addEventListener("click", async (event) => {
+        const save = event.target.closest("[data-save-indent]");
+        const mark = event.target.closest("[data-mark-indent]");
+        const invoice = event.target.closest("[data-create-invoice]");
+
+        if (save) {
+          const indent = indents.find((entry) => entry.id === save.dataset.saveIndent);
+          const items = (indent.items || []).map((line, idx) => {
+            const approvedInput = document.querySelector(`[data-indent="${indent.id}"][data-line="${idx}"][data-field="approvedQty"]`);
+            const noteInput = document.querySelector(`[data-indent="${indent.id}"][data-line="${idx}"][data-field="note"]`);
+            return { ...line, approvedQty: Number(approvedInput.value || 0), note: noteInput.value || "" };
+          });
+          await db.collection("indents").doc(indent.id).update({
+            items,
+            approvedQty: items.reduce((sum, line) => sum + Number(line.approvedQty || 0), 0),
+            status: indent.status === "sent" ? "accepted" : indent.status,
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Approved quantities saved.");
+        }
+
+        if (mark) {
+          await db.collection("indents").doc(mark.dataset.id).update({ status: mark.dataset.markIndent, updatedAt: FieldValue.serverTimestamp() });
+          toast("Indent status updated.");
+        }
+
+        if (invoice) {
+          const indent = indents.find((entry) => entry.id === invoice.dataset.createInvoice);
+          const approvedItems = (indent.items || []).filter((line) => Number(line.approvedQty ?? line.requestedQty ?? 0) > 0);
+          if (!approvedItems.length) {
+            toast("No approved quantity available to invoice.");
+            return;
+          }
+          await db.collection("invoices").add({
+            invoiceNo: shortId("INV"),
+            indentId: indent.id,
+            indentNo: indent.indentNo || "",
+            train: indent.train || "",
+            rackManager: indent.rackManager || "",
+            baseKitchenId: indent.baseKitchenId,
+            baseKitchenName: indent.baseKitchenName || "",
+            items: approvedItems,
+            totalQty: approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0), 0),
+            status: "sent",
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          await db.collection("indents").doc(indent.id).update({ status: "invoiced", updatedAt: FieldValue.serverTimestamp() });
+          toast("Invoice created and sent to rack manager.");
+        }
+      });
+
+      function renderInvoices() {
+        const rows = visibleInvoices();
+        $("bkInvoiceList").innerHTML = rows.map((invoice) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
+            <p>Train ${escapeHtml(invoice.train || "")} | Qty ${Number(invoice.totalQty || 0)} | ${nowLabel(invoice.createdAt)}</p>
+            <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.requestedQty ?? 0}`).join(", ")}</p>
+          </div>`).join("") || `<div class="empty">No invoice created yet.</div>`;
+      }
+
+      function renderDisputes() {
+        const rows = visibleInvoices().filter((invoice) => invoice.status === "disputed");
+        $("bkDisputeList").innerHTML = rows.map((invoice) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
+            <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.disputeReason || "")}</p>
+            ${invoice.disputePhoto ? `<img class="proof-img" src="${invoice.disputePhoto}" alt="Dispute proof">` : ""}
+          </div>`).join("") || `<div class="empty">No disputed invoice for this kitchen.</div>`;
+      }
+
+      function renderAll() {
+        renderMetrics();
+        renderIndentWork();
+        renderInvoices();
+        renderDisputes();
+      }
+
+      onLive("indents", (rows) => { indents = rows; renderAll(); }, "createdAt", "desc", 250);
+      onLive("invoices", (rows) => { invoices = rows; renderAll(); }, "createdAt", "desc", 250);
+    });
+  </script>
+</body>
+</html>

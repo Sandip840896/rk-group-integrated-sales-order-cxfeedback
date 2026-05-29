@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Customer Feedback and Order</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main mobile-main">
+    <div class="tabs">
+      <button class="tab-btn" data-tab="order"><i data-lucide="utensils"></i> Order Food</button>
+      <button class="tab-btn" data-tab="feedback"><i data-lucide="message-square"></i> Feedback</button>
+      <button class="tab-btn" data-tab="track"><i data-lucide="map-pin"></i> Track</button>
+    </div>
+
+    <section class="panel pad stack" data-tab-panel="order">
+      <div class="section-title">
+        <div>
+          <h2>Passenger Details</h2>
+          <p>Required for both food order and service feedback.</p>
+        </div>
+      </div>
+      <form id="customerForm" class="grid two">
+        <label class="field"><span>Name</span><input class="input" name="name" required placeholder="Passenger name"></label>
+        <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
+        <label class="field"><span>Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
+        <label class="field"><span>Train Number</span><input class="input" name="train" required placeholder="12345"></label>
+        <label class="field"><span>Coach</span><input class="input" name="coach" required placeholder="B2"></label>
+        <label class="field"><span>Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
+      </form>
+      <div class="row wrap">
+        <label class="field grow"><span>Meal</span><select id="mealFilter" class="select"></select></label>
+        <button class="btn secondary" id="savePassengerBtn"><i data-lucide="save"></i> Save</button>
+      </div>
+      <div id="menuList" class="list"></div>
+      <div class="cart-bar">
+        <div class="row between">
+          <div>
+            <b id="cartCount">0 item</b>
+            <p id="cartTotal" style="margin:2px 0 0;color:var(--muted);font-size:12px;">Rs 0</p>
+          </div>
+          <button class="btn" id="placeOrderBtn"><i data-lucide="send"></i> Place Order</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="feedback">
+      <div class="section-title">
+        <div>
+          <h2>Feedback or Complaint</h2>
+          <p>Your feedback goes live to the RK command center.</p>
+        </div>
+      </div>
+      <form id="feedbackForm" class="stack">
+        <div class="grid two">
+          <label class="field"><span>Rating</span><select class="select" name="rating" required>
+            <option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Average</option><option value="2">2 - Poor</option><option value="1">1 - Bad</option>
+          </select></label>
+          <label class="field"><span>Type</span><select class="select" name="category" required>
+            <option>Food Quality</option><option>Staff Behaviour</option><option>Cleanliness</option><option>Late Delivery</option><option>Billing</option><option>Other</option>
+          </select></label>
+        </div>
+        <label class="field"><span>Message</span><textarea class="textarea" name="message" required placeholder="Write your feedback or complaint"></textarea></label>
+        <button class="btn" type="submit"><i data-lucide="message-circle"></i> Submit Feedback</button>
+      </form>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="track">
+      <div class="section-title">
+        <div>
+          <h2>Live Order Tracking</h2>
+          <p>Orders linked with your phone number will appear here.</p>
+        </div>
+        <button class="icon-btn" id="refreshTrackBtn" title="Refresh"><i data-lucide="refresh-cw"></i></button>
+      </div>
+      <div id="trackList" class="list"></div>
+    </section>
+  </main>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("RK Customer Feedback and Order", "Railway Catering Services");
+      lucide.createIcons();
+      wireTabs("order");
+      await ensureSeedData();
+
+      const saved = JSON.parse(localStorage.getItem("rkPassenger") || "{}");
+      Object.entries(saved).forEach(([key, value]) => {
+        const input = document.querySelector(`#customerForm [name="${key}"]`);
+        if (input) input.value = value;
+      });
+
+      const cart = new Map();
+      let menuItems = [];
+      $("mealFilter").innerHTML = ["All", ...mealSlots].map((m) => `<option>${m}</option>`).join("");
+
+      function passenger() {
+        const data = getForm($("customerForm"));
+        data.phone = cleanPhone(data.phone);
+        return data;
+      }
+
+      function validatePassenger() {
+        if (!$("customerForm").reportValidity()) return null;
+        const data = passenger();
+        if (data.phone.length !== 10) {
+          toast("Please enter a valid 10 digit phone number.");
+          return null;
+        }
+        localStorage.setItem("rkPassenger", JSON.stringify(data));
+        return data;
+      }
+
+      function renderMenu() {
+        const selectedMeal = $("mealFilter").value;
+        const items = menuItems.filter((item) => item.available !== false && (selectedMeal === "All" || item.category === selectedMeal));
+        $("menuList").innerHTML = items.length ? items.map((item) => {
+          const inCart = cart.get(item.id)?.qty || 0;
+          return `
+            <div class="item">
+              <div class="row between">
+                <div>
+                  <h3>${escapeHtml(item.name)}</h3>
+                  <p>${escapeHtml(item.category || "Food")} | ${escapeHtml(item.type || "veg")} | ${escapeHtml(item.source || "pantry")} stock: ${Number(item.stockQty ?? 0)}</p>
+                </div>
+                <b>${money(item.price)}</b>
+              </div>
+              <div class="row between" style="margin-top:10px;">
+                <span class="badge ${Number(item.stockQty || 0) > 0 ? "ok" : "warn"}">${Number(item.stockQty || 0) > 0 ? "Available" : "Limited"}</span>
+                <div class="row">
+                  <button class="icon-btn" data-minus="${item.id}" title="Reduce"><i data-lucide="minus"></i></button>
+                  <b style="min-width:24px;text-align:center;">${inCart}</b>
+                  <button class="icon-btn" data-plus="${item.id}" title="Add"><i data-lucide="plus"></i></button>
+                </div>
+              </div>
+            </div>`;
+        }).join("") : `<div class="empty">No food item is available for this meal right now.</div>`;
+        lucide.createIcons();
+        renderCart();
+      }
+
+      function renderCart() {
+        const lines = [...cart.values()];
+        const count = lines.reduce((sum, line) => sum + line.qty, 0);
+        const total = lines.reduce((sum, line) => sum + line.qty * Number(line.price || 0), 0);
+        $("cartCount").textContent = `${count} item${count === 1 ? "" : "s"}`;
+        $("cartTotal").textContent = money(total);
+        $("placeOrderBtn").disabled = count === 0;
+      }
+
+      $("menuList").addEventListener("click", (event) => {
+        const plus = event.target.closest("[data-plus]");
+        const minus = event.target.closest("[data-minus]");
+        const id = plus?.dataset.plus || minus?.dataset.minus;
+        if (!id) return;
+        const item = menuItems.find((entry) => entry.id === id);
+        const current = cart.get(id) || { ...item, qty: 0 };
+        current.qty += plus ? 1 : -1;
+        if (current.qty <= 0) cart.delete(id); else cart.set(id, current);
+        renderMenu();
+      });
+
+      $("mealFilter").addEventListener("change", renderMenu);
+      $("savePassengerBtn").addEventListener("click", () => {
+        if (validatePassenger()) toast("Passenger details saved.");
+      });
+
+      $("placeOrderBtn").addEventListener("click", async () => {
+        const customer = validatePassenger();
+        if (!customer) return;
+        const items = [...cart.values()].map((line) => ({
+          itemId: line.id,
+          name: line.name,
+          category: line.category || "",
+          qty: line.qty,
+          price: Number(line.price || 0),
+          source: line.source || "pantry"
+        }));
+        const total = items.reduce((sum, line) => sum + line.qty * line.price, 0);
+        await db.collection("customerOrders").add({
+          orderNo: shortId("ORD"),
+          customer,
+          train: customer.train,
+          coach: customer.coach,
+          seat: customer.seat,
+          mealSlot: $("mealFilter").value === "All" ? "Other" : $("mealFilter").value,
+          items,
+          total,
+          status: "new",
+          statusLog: [{ status: "new", at: new Date().toISOString(), note: "Order placed by passenger" }],
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        cart.clear();
+        renderMenu();
+        toast("Order placed. RK team can see it live now.");
+        showTab("track");
+        loadTracking();
+      });
+
+      $("feedbackForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const customer = validatePassenger();
+        if (!customer) return;
+        const data = getForm(event.currentTarget);
+        await db.collection("feedbacks").add({
+          ...data,
+          rating: Number(data.rating),
+          customer,
+          train: customer.train,
+          coach: customer.coach,
+          seat: customer.seat,
+          status: Number(data.rating) <= 3 ? "open" : "new",
+          source: "customer-app",
+          timestamp: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        event.currentTarget.reset();
+        toast("Feedback submitted. Thank you.");
+      });
+
+      async function loadTracking() {
+        const data = passenger();
+        if (!data.phone || data.phone.length !== 10) {
+          $("trackList").innerHTML = `<div class="empty">Save your phone number first to track orders.</div>`;
+          return;
+        }
+        db.collection("customerOrders")
+          .where("customer.phone", "==", data.phone)
+          .orderBy("createdAt", "desc")
+          .limit(20)
+          .onSnapshot((snapshot) => {
+            const orders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+            $("trackList").innerHTML = orders.length ? orders.map((order) => `
+              <div class="item">
+                <div class="row between">
+                  <h3>${escapeHtml(order.orderNo || order.id)}</h3>
+                  ${statusBadge(order.status)}
+                </div>
+                <p>${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
+                <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")}</p>
+              </div>`).join("") : `<div class="empty">No order found for this phone number.</div>`;
+          });
+      }
+
+      $("refreshTrackBtn").addEventListener("click", loadTracking);
+      onLive("menuItems", (items) => {
+        menuItems = items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        renderMenu();
+      }, "name", "asc", 200);
+      loadTracking();
+    });
+  </script>
+</body>
+</html>
