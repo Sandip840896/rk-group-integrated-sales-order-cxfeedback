@@ -15,6 +15,19 @@
 </head>
 <body>
   <main class="main">
+    <section class="panel pad" id="loginPanel">
+      <div class="section-title">
+        <div><h2>Command Center Login</h2><p>Prototype access control. Use Firebase Auth before production launch.</p></div>
+        <span class="badge warn" id="loginRoleBadge">not logged in</span>
+      </div>
+      <div class="row mobile-stack">
+        <input class="input grow" id="loginEmail" type="email" placeholder="email id">
+        <input class="input grow" id="loginPassword" type="password" placeholder="password">
+        <button class="btn" id="loginBtn"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary hidden" id="logoutBtn"><i data-lucide="log-out"></i> Logout</button>
+      </div>
+    </section>
+
     <div class="tabs">
       <button class="tab-btn" data-tab="overview"><i data-lucide="activity"></i> Overview</button>
       <button class="tab-btn" data-tab="orders"><i data-lucide="receipt-text"></i> Customer Orders</button>
@@ -22,6 +35,8 @@
       <button class="tab-btn" data-tab="indent"><i data-lucide="send"></i> Base Kitchen Indent</button>
       <button class="tab-btn" data-tab="invoice"><i data-lucide="file-check-2"></i> Delivery Invoice</button>
       <button class="tab-btn" data-tab="masters"><i data-lucide="database"></i> Masters</button>
+      <button class="tab-btn" data-tab="admin"><i data-lucide="user-cog"></i> Admin</button>
+      <button class="tab-btn hidden" id="superAdminTabBtn" data-tab="super"><i data-lucide="shield"></i> Super Admin</button>
     </div>
 
     <section data-tab-panel="overview" class="stack">
@@ -135,12 +150,52 @@
           </div>
           <button class="btn" type="submit"><i data-lucide="save"></i> Save Kitchen</button>
         </form>
+        <div class="row mobile-stack">
+          <button class="btn secondary" id="downloadKitchenSampleBtn" type="button"><i data-lucide="download"></i> Sample CSV</button>
+          <label class="field grow"><span>Bulk Upload Base Kitchens</span><input class="input" id="kitchenBulkFile" type="file" accept=".csv,text/csv"></label>
+          <button class="btn" id="uploadKitchenBulkBtn" type="button"><i data-lucide="upload"></i> Upload</button>
+        </div>
         <div id="kitchenAdminList" class="list"></div>
       </div>
       <div class="panel pad stack">
         <div class="section-title"><div><h2>Current Menu / Pantry Upload</h2><p>Toggle availability or update train pantry stock.</p></div></div>
         <div id="menuAdminList" class="list"></div>
       </div>
+    </section>
+
+    <section data-tab-panel="admin" class="grid two hidden">
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Admin User Master</h2><p>Create prototype users for page-level access. Production must use Firebase Auth.</p></div></div>
+        <form id="adminUserForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Email ID</span><input class="input" name="email" type="email" required placeholder="manager@rkgroup.in"></label>
+            <label class="field"><span>Password</span><input class="input" name="password" required placeholder="temporary password"></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Role</span><select class="select" name="role"><option>manager</option><option>base-kitchen</option><option>viewer</option><option>admin</option></select></label>
+            <label class="field"><span>Access</span><input class="input" name="access" placeholder="customer, command-center, base-kitchen, all"></label>
+          </div>
+          <button class="btn" type="submit"><i data-lucide="save"></i> Save User</button>
+        </form>
+      </div>
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Created IDs</h2><p>Visible to command center admins in this prototype.</p></div></div>
+        <div id="adminUserList" class="list"></div>
+      </div>
+    </section>
+
+    <section data-tab-panel="super" class="panel pad stack hidden">
+      <div class="section-title"><div><h2>Super Admin</h2><p>Only Sandip super admin login can open this panel in the prototype.</p></div></div>
+      <div class="row wrap">
+        <button class="btn secondary" id="downloadBackupBtn"><i data-lucide="database-backup"></i> Download Data Backup</button>
+        <button class="btn secondary" id="downloadCodeBtn"><i data-lucide="file-code-2"></i> Download Code Backup</button>
+      </div>
+      <div class="grid three">
+        <button class="btn danger" data-clear-master="menuItems"><i data-lucide="trash-2"></i> Delete Food Master</button>
+        <button class="btn danger" data-clear-master="baseKitchens"><i data-lucide="trash-2"></i> Delete Kitchen Master</button>
+        <button class="btn danger" data-clear-master="adminUsers"><i data-lucide="trash-2"></i> Delete Admin Users</button>
+      </div>
+      <div class="empty danger-soft"><b>Production note:</b> client-side super admin is not secure. Before launch we must enable Firebase Authentication, role claims and Firestore Rules.</div>
     </section>
   </main>
 
@@ -172,9 +227,52 @@
       let feedbacks = [];
       let indents = [];
       let invoices = [];
+      let adminUsers = [];
+      let currentUser = JSON.parse(sessionStorage.getItem("rkCurrentUser") || "null");
+      let seenOrders = new Set();
+      let seenFeedbacks = new Set();
       const pendingIndentItems = [];
+      const SUPER_ADMIN_EMAIL = "sandipnandi2000@gmail.com";
+      const SUPER_ADMIN_PASSWORD = "Sanju@1234";
 
       $("masterCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
+
+      function updateLoginUi() {
+        const isSuper = currentUser?.role === "super-admin";
+        $("loginRoleBadge").textContent = currentUser ? `${currentUser.email} | ${currentUser.role}` : "not logged in";
+        $("logoutBtn").classList.toggle("hidden", !currentUser);
+        $("superAdminTabBtn").classList.toggle("hidden", !isSuper);
+        if (!isSuper && document.querySelector("[data-tab-panel='super']") && !document.querySelector("[data-tab-panel='super']").classList.contains("hidden")) {
+          showTab("overview");
+        }
+      }
+
+      $("loginBtn").addEventListener("click", () => {
+        const email = $("loginEmail").value.trim().toLowerCase();
+        const password = $("loginPassword").value;
+        if (email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD) {
+          currentUser = { email, role: "super-admin", access: "all" };
+        } else {
+          const found = adminUsers.find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password);
+          if (!found) {
+            toast("Login failed. Please check ID and password.");
+            return;
+          }
+          currentUser = { email: found.email, role: found.role || "viewer", access: found.access || "" };
+        }
+        sessionStorage.setItem("rkCurrentUser", JSON.stringify(currentUser));
+        $("loginPassword").value = "";
+        updateLoginUi();
+        toast(`Logged in as ${currentUser.role}.`);
+      });
+
+      $("logoutBtn").addEventListener("click", () => {
+        currentUser = null;
+        sessionStorage.removeItem("rkCurrentUser");
+        updateLoginUi();
+        showTab("overview");
+      });
+      updateLoginUi();
 
       function renderMetrics() {
         $("mOrders").textContent = orders.length;
@@ -193,11 +291,13 @@
         const canCancel = canCommandCancelCustomerOrder(order);
         return `<div class="item">
           <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
-          <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | Train ${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+          <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
           <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")} | ${money(order.total)}</p>
+          ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}${order.deliveryVanNo ? ` | Van ${escapeHtml(order.deliveryVanNo)}` : ""}</p>` : ""}
           ${order.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(order.cancelReason)}</p>` : ""}
           ${canMove ? `<div class="row wrap" style="margin-top:10px;">
             ${["accepted", "preparing", "delivered"].map((status) => `<button class="btn secondary" data-order-status="${status}" data-id="${order.id}">${status}</button>`).join("")}
+            ${orderStatus === "preparing" ? `<button class="btn" data-init-delivery="${order.id}"><i data-lucide="bike"></i> Initiate Delivery</button>` : ""}
             ${canCancel ? `<button class="btn danger" data-cancel-customer-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>` : ""}
           </div>` : ""}
         </div>`;
@@ -212,6 +312,7 @@
       async function handleCustomerOrderAction(event) {
         const btn = event.target.closest("[data-order-status]");
         const cancel = event.target.closest("[data-cancel-customer-order]");
+        const initDelivery = event.target.closest("[data-init-delivery]");
         if (btn) {
           await db.collection("customerOrders").doc(btn.dataset.id).update({
             status: btn.dataset.orderStatus,
@@ -219,6 +320,22 @@
             statusLog: FieldValue.arrayUnion({ status: btn.dataset.orderStatus, at: new Date().toISOString(), note: "Updated from command center" })
           });
           toast("Order status updated.");
+        }
+        if (initDelivery) {
+          const name = prompt("Delivery person name");
+          if (!name) return;
+          const phone = cleanPhone(prompt("Delivery person mobile number") || "");
+          const van = prompt("Van / delivery vehicle number", "") || "";
+          await db.collection("customerOrders").doc(initDelivery.dataset.initDelivery).update({
+            status: "out-for-delivery",
+            deliveryPersonName: name,
+            deliveryPersonPhone: phone,
+            deliveryVanNo: van,
+            deliveryStartedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: `Delivery by ${name}` })
+          });
+          toast("Delivery initiated and visible to customer.");
         }
         if (cancel) {
           const order = orders.find((entry) => entry.id === cancel.dataset.cancelCustomerOrder);
@@ -425,6 +542,7 @@
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
             <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)} | Cost total ${money(invoiceCostTotal(invoice))}${invoice.revisionNo ? ` | Revision ${Number(invoice.revisionNo)}` : ""}</p>
+            ${invoice.deliveryPersonName ? `<p><b>Base kitchen delivery:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")} | Van ${escapeHtml(invoice.deliveryVanNo || "")}</p>` : ""}
             <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.qty ?? 0} @ ${money(costPriceOf(line))}`).join(", ")}</p>
             ${invoice.disputeReason ? `<p><b>${invoice.disputeClosed ? "Closed dispute" : "Dispute"}:</b> ${escapeHtml(invoice.disputeReason)}</p>` : ""}
             ${invoice.settlementNote ? `<p><b>Base kitchen note:</b> ${escapeHtml(invoice.settlementNote)}</p>` : ""}
@@ -567,6 +685,36 @@
         toast("Base kitchen master saved.");
       });
 
+      $("downloadKitchenSampleBtn").addEventListener("click", () => {
+        const csv = "id,name,city,active\nBK-HWH,Howrah Base Kitchen,Kolkata,true\nBK-NDLS,New Delhi Base Kitchen,New Delhi,true\n";
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        link.download = "base-kitchen-sample.csv";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+
+      $("uploadKitchenBulkBtn").addEventListener("click", async () => {
+        const file = $("kitchenBulkFile").files[0];
+        if (!file) return toast("Choose a CSV file first.");
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        const batch = db.batch();
+        lines.slice(1).forEach((line) => {
+          const [id, name, city, active = "true"] = line.split(",").map((part) => part.trim());
+          if (!id || !name) return;
+          batch.set(db.collection("baseKitchens").doc(id.toUpperCase()), {
+            name,
+            city: city || "",
+            active: String(active).toLowerCase() !== "false",
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
+        await batch.commit();
+        $("kitchenBulkFile").value = "";
+        toast("Base kitchen bulk upload completed.");
+      });
+
       function renderMenuAdmin() {
         $("menuAdminList").innerHTML = menuItems.map((item) => `
           <div class="item">
@@ -640,8 +788,97 @@
         }
       });
 
-      onLive("customerOrders", (rows) => { orders = rows; renderOrders(); }, "createdAt", "desc", 200);
-      onLive("feedbacks", (rows) => { feedbacks = rows; renderFeedbacks(); renderMetrics(); }, "timestamp", "desc", 200);
+      $("adminUserForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        await db.collection("systemSettings").doc(`adminUser__${data.email.trim().toLowerCase()}`).set({
+          type: "adminUser",
+          email: data.email.trim().toLowerCase(),
+          password: data.password,
+          role: data.role,
+          access: data.access || "",
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        event.currentTarget.reset();
+        toast("Admin user saved.");
+      });
+
+      function renderAdminUsers() {
+        $("adminUserList").innerHTML = adminUsers.map((user) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(user.email)}</h3><span class="badge info">${escapeHtml(user.role || "viewer")}</span></div>
+            <p>Access: ${escapeHtml(user.access || "")}</p>
+            <button class="btn danger" data-delete-admin-user="${escapeHtml(user.id)}"><i data-lucide="trash-2"></i> Delete</button>
+          </div>`).join("") || `<div class="empty">No admin user created yet.</div>`;
+        lucide.createIcons();
+      }
+
+      $("adminUserList").addEventListener("click", async (event) => {
+        const del = event.target.closest("[data-delete-admin-user]");
+        if (!del || !confirm("Delete this admin user?")) return;
+        await db.collection("systemSettings").doc(del.dataset.deleteAdminUser).delete();
+        toast("Admin user deleted.");
+      });
+
+      async function collectCollection(name) {
+        const snapshot = await db.collection(name).get();
+        return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      }
+
+      function downloadJson(filename, data) {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+
+      $("downloadBackupBtn").addEventListener("click", async () => {
+        if (currentUser?.role !== "super-admin") return toast("Super admin login required.");
+        const names = ["menuItems", "customerOrders", "feedbacks", "baseKitchens", "indents", "invoices", "systemSettings"];
+        const backup = {};
+        for (const name of names) backup[name] = await collectCollection(name);
+        downloadJson(`rk-firestore-backup-${new Date().toISOString().slice(0, 10)}.json`, backup);
+      });
+
+      $("downloadCodeBtn").addEventListener("click", async () => {
+        if (currentUser?.role !== "super-admin") return toast("Super admin login required.");
+        const files = ["index.html", "customer-app.html", "command-center.html", "base-kitchen.html", "rk-common.js", "rk-app.css"];
+        const code = {};
+        for (const file of files) code[file] = await fetch(file).then((res) => res.text());
+        downloadJson(`rk-code-backup-${new Date().toISOString().slice(0, 10)}.json`, code);
+      });
+
+      document.querySelectorAll("[data-clear-master]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (currentUser?.role !== "super-admin") return toast("Super admin login required.");
+          const name = btn.dataset.clearMaster;
+          if (!confirm(`Delete all documents from ${name}? This cannot be undone.`)) return;
+          const snapshot = name === "adminUsers"
+            ? await db.collection("systemSettings").where("type", "==", "adminUser").get()
+            : await db.collection(name).get();
+          const batch = db.batch();
+          snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+          await batch.commit();
+          toast(`${name} deleted.`);
+        });
+      });
+
+      onLive("customerOrders", (rows) => {
+        const incoming = rows.filter((row) => !seenOrders.has(row.id));
+        if (seenOrders.size && incoming.length) playBuzz(`${incoming.length} new customer order received.`);
+        seenOrders = new Set(rows.map((row) => row.id));
+        orders = rows;
+        renderOrders();
+      }, "createdAt", "desc", 200);
+      onLive("feedbacks", (rows) => {
+        const incoming = rows.filter((row) => !seenFeedbacks.has(row.id));
+        if (seenFeedbacks.size && incoming.length) playBuzz(`${incoming.length} new feedback / complaint received.`);
+        seenFeedbacks = new Set(rows.map((row) => row.id));
+        feedbacks = rows;
+        renderFeedbacks();
+        renderMetrics();
+      }, "timestamp", "desc", 200);
       onLive("indents", (rows) => { indents = rows; renderIndents(); }, "createdAt", "desc", 200);
       onLive("invoices", (rows) => { invoices = rows; renderInvoices(); }, "createdAt", "desc", 200);
       onLive("menuItems", (rows) => { menuItems = rows.sort((a, b) => String(a.name).localeCompare(String(b.name))); renderIndentItemSelect(); renderMenuAdmin(); }, "name", "asc", 300);
@@ -649,6 +886,10 @@
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         renderKitchenSelects();
         renderKitchenAdmin();
+      });
+      db.collection("systemSettings").where("type", "==", "adminUser").onSnapshot((snapshot) => {
+        adminUsers = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
+        renderAdminUsers();
       });
       renderPendingIndentItems();
     });

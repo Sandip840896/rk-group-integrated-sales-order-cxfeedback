@@ -66,6 +66,7 @@
       let activeKitchenId = localStorage.getItem("rkBaseKitchen") || "";
       let indents = [];
       let invoices = [];
+      let seenIndents = new Set();
 
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -175,6 +176,10 @@
             toast("No approved quantity available to invoice.");
             return;
           }
+          const deliveryPersonName = prompt("Delivery person name for this base kitchen dispatch");
+          if (!deliveryPersonName) return;
+          const deliveryPersonPhone = cleanPhone(prompt("Delivery person mobile number") || "");
+          const deliveryVanNo = prompt("Van / vehicle number", "") || "";
           const totalCost = approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0) * costPriceOf(line), 0);
           await db.collection("invoices").add({
             invoiceNo: shortId("INV"),
@@ -184,6 +189,9 @@
             rackManager: indent.rackManager || "",
             baseKitchenId: indent.baseKitchenId,
             baseKitchenName: indent.baseKitchenName || "",
+            deliveryPersonName,
+            deliveryPersonPhone,
+            deliveryVanNo,
             items: approvedItems,
             totalQty: approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0), 0),
             totalCost,
@@ -202,6 +210,7 @@
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
             <p>Train ${escapeHtml(invoice.train || "")} | Qty ${Number(invoice.totalQty || 0)} | Cost ${money(invoiceCostTotal(invoice))} | ${nowLabel(invoice.createdAt)}</p>
+            ${invoice.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")} | Van ${escapeHtml(invoice.deliveryVanNo || "")}</p>` : ""}
             <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.requestedQty ?? 0} @ ${money(costPriceOf(line))}`).join(", ")}</p>
             <div class="row wrap" style="margin-top:10px;">
               <button class="btn secondary" data-print-invoice="${invoice.id}"><i data-lucide="printer"></i> Invoice PDF</button>
@@ -292,7 +301,14 @@
         renderDisputes();
       }
 
-      onLive("indents", (rows) => { indents = rows; renderAll(); }, "createdAt", "desc", 250);
+      onLive("indents", (rows) => {
+        const visible = rows.filter((indent) => !activeKitchenId || indent.baseKitchenId === activeKitchenId);
+        const incoming = visible.filter((row) => !seenIndents.has(row.id));
+        if (seenIndents.size && incoming.length) playBuzz(`${incoming.length} new base kitchen indent received.`);
+        seenIndents = new Set(visible.map((row) => row.id));
+        indents = rows;
+        renderAll();
+      }, "createdAt", "desc", 250);
       onLive("invoices", (rows) => { invoices = rows; renderAll(); }, "createdAt", "desc", 250);
     });
   </script>

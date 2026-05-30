@@ -16,6 +16,7 @@ const SUPPORT_HTML = "System developer and support<br>Sandip Nandi | 8584833366<
 const mealSlots = ["Breakfast", "Lunch", "Snacks", "Dinner", "Beverage", "Other"];
 const complaintNatures = ["Over Charging", "Staff Behavior", "Food Quality", "Food Qty", "Expiry Product", "Hygiene", "Others"];
 const complaintStatuses = ["open", "acknowledged", "investigating", "waiting for vendor", "resolved", "closed"];
+const orderStatuses = ["new", "accepted", "preparing", "out-for-delivery", "delivered"];
 
 const seedBaseKitchens = [
   { id: "BK-NDLS", name: "New Delhi Base Kitchen", city: "New Delhi", active: true },
@@ -106,8 +107,10 @@ function orderPrintableHtml(order) {
   <div class="box">
     <p><b>Passenger:</b> ${escapeHtml(order.customer?.name || "")}</p>
     <p><b>Phone:</b> ${escapeHtml(order.customerPhone || order.customer?.phone || "")}</p>
+    <p><b>PNR:</b> ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
     <p><b>Train / Coach / Seat:</b> ${escapeHtml(order.train || "")} / ${escapeHtml(order.coach || "")} / ${escapeHtml(order.seat || "")}</p>
     <p><b>Order Date:</b> ${nowLabel(order.createdAt)}</p>
+    ${order.deliveryPersonName ? `<p><b>Delivery By:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}${order.deliveryVanNo ? ` | Van ${escapeHtml(order.deliveryVanNo)}` : ""}</p>` : ""}
   </div>
   <table>
     <thead><tr><th>Sl</th><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
@@ -192,6 +195,7 @@ function invoicePrintableHtml(invoice) {
     <p><b>Supplier Base Kitchen:</b> ${escapeHtml(invoice.baseKitchenName || "")}</p>
     <p><b>Indent No:</b> ${escapeHtml(invoice.indentNo || "")}</p>
     <p><b>Invoice Date:</b> ${nowLabel(invoice.createdAt)}</p>
+    ${invoice.deliveryPersonName ? `<p><b>Delivery Person:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")} | Van ${escapeHtml(invoice.deliveryVanNo || "")}</p>` : ""}
   </div>
   <table>
     <thead><tr><th>Sl</th><th>Item</th><th>Qty</th><th>Cost Rate</th><th>Amount</th></tr></thead>
@@ -226,6 +230,37 @@ function cleanPhone(value) {
   return String(value || "").replace(/\D/g, "").slice(-10);
 }
 
+function cleanPnr(value) {
+  return String(value || "").replace(/\D/g, "").slice(0, 10);
+}
+
+function playBuzz(label = "New live update") {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) {
+      toast(label);
+      return;
+    }
+    const ctx = new AudioCtx();
+    const beep = (delay, freq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + 0.22);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.24);
+    };
+    beep(0, 740);
+    beep(0.28, 980);
+    toast(label);
+  } catch (error) {
+    toast(label);
+  }
+}
+
 function nowLabel(value) {
   if (!value) return "-";
   const date = value.toDate ? value.toDate() : new Date(value);
@@ -252,7 +287,7 @@ function statusBadge(status) {
   const s = String(status || "new").toLowerCase();
   let tone = "info";
   if (["delivered", "accepted", "closed", "resolved", "invoiced"].includes(s)) tone = "ok";
-  if (["processing", "preparing", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor"].includes(s)) tone = "warn";
+  if (["processing", "preparing", "out-for-delivery", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor"].includes(s)) tone = "warn";
   if (["disputed", "cancelled", "rejected", "open"].includes(s)) tone = "danger";
   return `<span class="badge ${tone}">${escapeHtml(s.replace(/-/g, " "))}</span>`;
 }

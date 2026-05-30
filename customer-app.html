@@ -56,6 +56,7 @@
         <label class="field"><span>Name</span><input class="input" name="name" required placeholder="Passenger name"></label>
         <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
         <label class="field"><span>Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
+        <label class="field"><span>PNR Number</span><input class="input" name="pnr" required inputmode="numeric" maxlength="10" placeholder="10 digit PNR, e.g. 1234567890"></label>
         <label class="field"><span>Train Number</span><input class="input" name="train" required placeholder="12345"></label>
         <label class="field"><span>Coach</span><input class="input" name="coach" required placeholder="B2"></label>
         <label class="field"><span>Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
@@ -147,6 +148,7 @@
       function passenger() {
         const data = getForm($("customerForm"));
         data.phone = cleanPhone(data.phone);
+        data.pnr = cleanPnr(data.pnr);
         return data;
       }
 
@@ -155,6 +157,10 @@
         const data = passenger();
         if (data.phone.length !== 10) {
           toast("Please enter a valid 10 digit phone number.");
+          return null;
+        }
+        if (data.pnr.length !== 10) {
+          toast("Please enter a valid 10 digit PNR number.");
           return null;
         }
         localStorage.setItem("rkPassenger", JSON.stringify(data));
@@ -262,6 +268,7 @@
               orderNo,
               customer,
               customerPhone: customer.phone,
+              pnr: customer.pnr,
               train: customer.train,
               coach: customer.coach,
               seat: customer.seat,
@@ -339,8 +346,13 @@
               <h3>${escapeHtml(order.orderNo || order.id)}</h3>
               ${statusBadge(order.status)}
             </div>
-            <p>${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
-            <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")}</p>
+            <p>PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
+            ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}${order.deliveryVanNo ? ` | Van ${escapeHtml(order.deliveryVanNo)}` : ""}</p>` : ""}
+            <div class="order-lines">${(order.items || []).map((line) => `
+              <div class="order-line">
+                ${line.itemImage ? `<img class="food-img small" src="${line.itemImage}" alt="${escapeHtml(line.name)}">` : ""}
+                <div><b>${escapeHtml(line.name)}</b><p>${escapeHtml(line.category || "Food")} | Qty ${Number(line.qty || 0)} x ${money(line.price ?? line.sellingPrice ?? 0)} = ${money(Number(line.qty || 0) * Number(line.price ?? line.sellingPrice ?? 0))}</p></div>
+              </div>`).join("")}</div>
             ${order.status === "cancelled" ? `<div class="ack danger-soft" style="margin-top:10px;">${order.cancelledBy === "customer" ? "Your order has been cancelled as requested. Stock has been released back to the menu." : "We are sorry for the inconvenience caused. Due to high demand we are not able to complete this order. You may choose another available product and place a new order."}</div>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               ${order.status !== "cancelled" ? `<button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>` : ""}
