@@ -14,6 +14,8 @@ const FieldValue = firebase.firestore.FieldValue;
 const SUPPORT_HTML = "System developer and support<br>Sandip Nandi | 8584833366<br>sandipnandi2000@gmail.com";
 
 const mealSlots = ["Breakfast", "Lunch", "Snacks", "Dinner", "Beverage", "Other"];
+const complaintNatures = ["Over Charging", "Staff Behavior", "Food Quality", "Food Qty", "Expiry Product", "Hygiene", "Others"];
+const complaintStatuses = ["open", "acknowledged", "investigating", "waiting for vendor", "resolved", "closed"];
 
 const seedBaseKitchens = [
   { id: "BK-NDLS", name: "New Delhi Base Kitchen", city: "New Delhi", active: true },
@@ -54,6 +56,81 @@ function invoiceCostTotal(invoice) {
   const stored = Number(invoice?.totalCost || 0);
   if (stored > 0) return stored;
   return (invoice?.items || []).reduce((sum, line) => sum + invoiceItemQty(line) * costPriceOf(line), 0);
+}
+
+function orderPrintableHtml(order) {
+  const items = order.items || [];
+  const rows = items.map((line, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(line.name || "")}</td>
+      <td>${Number(line.qty || 0)}</td>
+      <td>${money(line.price ?? line.sellingPrice ?? 0)}</td>
+      <td>${money(Number(line.qty || 0) * Number(line.price ?? line.sellingPrice ?? 0))}</td>
+    </tr>`).join("");
+  const totalQty = items.reduce((sum, line) => sum + Number(line.qty || 0), 0);
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(order.orderNo || "Customer Invoice")}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #17202a; margin: 28px; }
+    .head { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #17202a; padding-bottom: 14px; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    p { margin: 4px 0; }
+    .muted { color: #5f6b7a; }
+    table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+    th, td { border: 1px solid #ccd4df; padding: 10px; text-align: left; font-size: 13px; }
+    th { background: #f2f5f9; }
+    .total { text-align: right; font-weight: 700; }
+    .box { margin-top: 18px; padding: 12px; border: 1px solid #ccd4df; }
+    @media print { button { display: none; } body { margin: 18px; } }
+  </style>
+</head>
+<body>
+  <button onclick="window.print()" style="float:right;padding:10px 14px;margin-bottom:12px;">Print / Save PDF</button>
+  <div class="head">
+    <div>
+      <h1>RK Group Passenger Food Invoice</h1>
+      <p class="muted">Railway Catering Services</p>
+      <p><b>Order No:</b> ${escapeHtml(order.orderNo || "")}</p>
+      <p><b>Status:</b> ${escapeHtml(order.status || "")}</p>
+    </div>
+    <div>
+      <p><b>Developer Support:</b> Sandip Nandi</p>
+      <p>8584833366</p>
+      <p>sandipnandi2000@gmail.com</p>
+    </div>
+  </div>
+  <div class="box">
+    <p><b>Passenger:</b> ${escapeHtml(order.customer?.name || "")}</p>
+    <p><b>Phone:</b> ${escapeHtml(order.customerPhone || order.customer?.phone || "")}</p>
+    <p><b>Train / Coach / Seat:</b> ${escapeHtml(order.train || "")} / ${escapeHtml(order.coach || "")} / ${escapeHtml(order.seat || "")}</p>
+    <p><b>Order Date:</b> ${nowLabel(order.createdAt)}</p>
+  </div>
+  <table>
+    <thead><tr><th>Sl</th><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr><td colspan="2" class="total">Total</td><td><b>${totalQty}</b></td><td></td><td><b>${money(order.total)}</b></td></tr>
+    </tfoot>
+  </table>
+  <div class="box">Thank you for giving RK Group the opportunity to serve you. We wish you a comfortable and pleasant journey.</div>
+</body>
+</html>`;
+}
+
+function printCustomerOrder(order) {
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    toast("Please allow popup to print customer invoice.");
+    return;
+  }
+  popup.document.open();
+  popup.document.write(orderPrintableHtml(order));
+  popup.document.close();
+  popup.focus();
 }
 
 function invoicePrintableHtml(invoice) {
@@ -101,6 +178,7 @@ function invoicePrintableHtml(invoice) {
       <p class="muted">Railway Catering Services</p>
       <p><b>Invoice No:</b> ${escapeHtml(invoice.invoiceNo || "")}</p>
       <p><b>Status:</b> ${escapeHtml(invoice.status || "")}</p>
+      ${invoice.revisionNo ? `<p><b>Revision:</b> ${Number(invoice.revisionNo)}</p>` : ""}
     </div>
     <div>
       <p><b>Developer Support:</b> Sandip Nandi</p>
@@ -123,6 +201,7 @@ function invoicePrintableHtml(invoice) {
     </tfoot>
   </table>
   ${invoice.disputeReason ? `<div class="box"><b>Dispute Note:</b> ${escapeHtml(invoice.disputeReason)}</div>` : ""}
+  ${invoice.settlementNote ? `<div class="box"><b>Settlement Note:</b> ${escapeHtml(invoice.settlementNote)}</div>` : ""}
   <div class="sign">
     <div class="line">Base Kitchen Signature</div>
     <div class="line">Train / Rack Manager Signature</div>
@@ -173,7 +252,7 @@ function statusBadge(status) {
   const s = String(status || "new").toLowerCase();
   let tone = "info";
   if (["delivered", "accepted", "closed", "resolved", "invoiced"].includes(s)) tone = "ok";
-  if (["processing", "preparing", "sent", "new", "pending"].includes(s)) tone = "warn";
+  if (["processing", "preparing", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor"].includes(s)) tone = "warn";
   if (["disputed", "cancelled", "rejected", "open"].includes(s)) tone = "danger";
   return `<span class="badge ${tone}">${escapeHtml(s.replace(/-/g, " "))}</span>`;
 }
@@ -264,6 +343,25 @@ async function compressImage(file, maxSize = 760, quality = 0.72) {
   canvas.height = Math.round(img.height * scale);
   canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", quality);
+}
+
+async function proofFileData(file) {
+  if (!file) return null;
+  if (file.type.startsWith("image/")) {
+    return { name: file.name, type: file.type, dataUrl: await compressImage(file, 900, 0.72) };
+  }
+  const maxBytes = 650 * 1024;
+  if (file.size > maxBytes) {
+    toast("Audio/video proof is too large for this demo. Please upload a smaller file below 650 KB.");
+    return null;
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  return { name: file.name, type: file.type || "application/octet-stream", dataUrl };
 }
 
 function appHeader(title, subtitle) {
