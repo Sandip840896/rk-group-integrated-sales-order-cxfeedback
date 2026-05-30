@@ -46,6 +46,103 @@ function costPriceOf(item) {
   return Number(item?.costPrice ?? item?.baseKitchenCost ?? item?.price ?? 0);
 }
 
+function invoiceItemQty(line) {
+  return Number(line?.approvedQty ?? line?.qty ?? line?.requestedQty ?? 0);
+}
+
+function invoiceCostTotal(invoice) {
+  const stored = Number(invoice?.totalCost || 0);
+  if (stored > 0) return stored;
+  return (invoice?.items || []).reduce((sum, line) => sum + invoiceItemQty(line) * costPriceOf(line), 0);
+}
+
+function invoicePrintableHtml(invoice) {
+  const items = invoice.items || [];
+  const totalQty = Number(invoice.totalQty || items.reduce((sum, line) => sum + invoiceItemQty(line), 0));
+  const totalCost = invoiceCostTotal(invoice);
+  const rows = items.map((line, index) => {
+    const qty = invoiceItemQty(line);
+    const rate = costPriceOf(line);
+    return `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(line.name || "")}</td>
+        <td>${qty}</td>
+        <td>${money(rate)}</td>
+        <td>${money(qty * rate)}</td>
+      </tr>`;
+  }).join("");
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(invoice.invoiceNo || "Invoice")}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #17202a; margin: 28px; }
+    .head { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #17202a; padding-bottom: 14px; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    p { margin: 4px 0; }
+    .muted { color: #5f6b7a; }
+    table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+    th, td { border: 1px solid #ccd4df; padding: 10px; text-align: left; font-size: 13px; }
+    th { background: #f2f5f9; }
+    .total { text-align: right; font-weight: 700; }
+    .box { margin-top: 18px; padding: 12px; border: 1px solid #ccd4df; }
+    .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; }
+    .line { border-top: 1px solid #17202a; padding-top: 8px; text-align: center; }
+    @media print { button { display: none; } body { margin: 18px; } }
+  </style>
+</head>
+<body>
+  <button onclick="window.print()" style="float:right;padding:10px 14px;margin-bottom:12px;">Print / Save PDF</button>
+  <div class="head">
+    <div>
+      <h1>RK Group Base Kitchen Invoice</h1>
+      <p class="muted">Railway Catering Services</p>
+      <p><b>Invoice No:</b> ${escapeHtml(invoice.invoiceNo || "")}</p>
+      <p><b>Status:</b> ${escapeHtml(invoice.status || "")}</p>
+    </div>
+    <div>
+      <p><b>Developer Support:</b> Sandip Nandi</p>
+      <p>8584833366</p>
+      <p>sandipnandi2000@gmail.com</p>
+    </div>
+  </div>
+  <div class="box">
+    <p><b>Train No:</b> ${escapeHtml(invoice.train || "")}</p>
+    <p><b>Train / Rack Manager:</b> ${escapeHtml(invoice.rackManager || "")}</p>
+    <p><b>Supplier Base Kitchen:</b> ${escapeHtml(invoice.baseKitchenName || "")}</p>
+    <p><b>Indent No:</b> ${escapeHtml(invoice.indentNo || "")}</p>
+    <p><b>Invoice Date:</b> ${nowLabel(invoice.createdAt)}</p>
+  </div>
+  <table>
+    <thead><tr><th>Sl</th><th>Item</th><th>Qty</th><th>Cost Rate</th><th>Amount</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr><td colspan="2" class="total">Total</td><td><b>${totalQty}</b></td><td></td><td><b>${money(totalCost)}</b></td></tr>
+    </tfoot>
+  </table>
+  ${invoice.disputeReason ? `<div class="box"><b>Dispute Note:</b> ${escapeHtml(invoice.disputeReason)}</div>` : ""}
+  <div class="sign">
+    <div class="line">Base Kitchen Signature</div>
+    <div class="line">Train / Rack Manager Signature</div>
+  </div>
+</body>
+</html>`;
+}
+
+function printInvoice(invoice) {
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    toast("Please allow popup to print invoice.");
+    return;
+  }
+  popup.document.open();
+  popup.document.write(invoicePrintableHtml(invoice));
+  popup.document.close();
+  popup.focus();
+}
+
 function cleanPhone(value) {
   return String(value || "").replace(/\D/g, "").slice(-10);
 }

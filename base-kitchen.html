@@ -190,10 +190,21 @@
         $("bkInvoiceList").innerHTML = rows.map((invoice) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
-            <p>Train ${escapeHtml(invoice.train || "")} | Qty ${Number(invoice.totalQty || 0)} | Cost ${money(invoice.totalCost || 0)} | ${nowLabel(invoice.createdAt)}</p>
+            <p>Train ${escapeHtml(invoice.train || "")} | Qty ${Number(invoice.totalQty || 0)} | Cost ${money(invoiceCostTotal(invoice))} | ${nowLabel(invoice.createdAt)}</p>
             <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.requestedQty ?? 0} @ ${money(costPriceOf(line))}`).join(", ")}</p>
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn secondary" data-print-invoice="${invoice.id}"><i data-lucide="printer"></i> Invoice PDF</button>
+            </div>
           </div>`).join("") || `<div class="empty">No invoice created yet.</div>`;
+        lucide.createIcons();
       }
+
+      $("bkInvoiceList").addEventListener("click", (event) => {
+        const print = event.target.closest("[data-print-invoice]");
+        if (!print) return;
+        const invoice = invoices.find((entry) => entry.id === print.dataset.printInvoice);
+        printInvoice(invoice);
+      });
 
       function renderDisputes() {
         const rows = visibleInvoices().filter((invoice) => invoice.status === "disputed");

@@ -360,14 +360,15 @@
         $("invoiceList").innerHTML = invoices.map((invoice) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
-            <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)} | Cost total ${money(invoice.totalCost || 0)}</p>
+            <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)} | Cost total ${money(invoiceCostTotal(invoice))}</p>
             <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.qty ?? 0} @ ${money(costPriceOf(line))}`).join(", ")}</p>
             ${invoice.disputeReason ? `<p><b>${invoice.disputeClosed ? "Closed dispute" : "Dispute"}:</b> ${escapeHtml(invoice.disputeReason)}</p>` : ""}
             ${invoice.disputePhoto ? `<img class="proof-img" src="${invoice.disputePhoto}" alt="Dispute proof">` : ""}
             ${invoice.status !== "accepted" ? `<div class="row wrap" style="margin-top:10px;">
+              <button class="btn secondary" data-print-invoice="${invoice.id}"><i data-lucide="printer"></i> Invoice PDF</button>
               <button class="btn" data-accept-invoice="${invoice.id}"><i data-lucide="check-circle"></i> Accept Delivery</button>
               <button class="btn danger" data-dispute-invoice="${invoice.id}"><i data-lucide="alert-triangle"></i> Dispute</button>
-            </div>` : `<p class="badge ok">Delivery accepted and invoice closed</p>`}
+            </div>` : `<div class="row wrap" style="margin-top:10px;"><button class="btn secondary" data-print-invoice="${invoice.id}"><i data-lucide="printer"></i> Invoice PDF</button><p class="badge ok">Delivery accepted and invoice closed</p></div>`}
           </div>`).join("") || `<div class="empty">No invoice received from base kitchen yet.</div>`;
         lucide.createIcons();
       }
@@ -375,6 +376,11 @@
       $("invoiceList").addEventListener("click", async (event) => {
         const accept = event.target.closest("[data-accept-invoice]");
         const dispute = event.target.closest("[data-dispute-invoice]");
+        const print = event.target.closest("[data-print-invoice]");
+        if (print) {
+          const invoice = invoices.find((entry) => entry.id === print.dataset.printInvoice);
+          printInvoice(invoice);
+        }
         if (accept) {
           const invoice = invoices.find((entry) => entry.id === accept.dataset.acceptInvoice);
           const batch = db.batch();
