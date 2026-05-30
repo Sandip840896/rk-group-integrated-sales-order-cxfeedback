@@ -98,6 +98,8 @@
       <div class="panel pad stack">
         <div class="section-title"><div><h2>Food Item Master</h2><p>Items added here show in customer order and indent screens.</p></div></div>
         <form id="masterForm" class="stack">
+          <input type="hidden" name="editingItemId">
+          <div id="masterEditNotice" class="empty hidden">Editing existing food item.</div>
           <div class="grid two">
             <label class="field"><span>Item Name</span><input class="input" name="name" required placeholder="Veg Biryani"></label>
             <label class="field"><span>Category</span><select class="select" name="category" id="masterCategory"></select></label>
@@ -114,7 +116,10 @@
             <label class="field"><span>Available Stock</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
             <label class="field"><span>Product Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
           </div>
-          <button class="btn" type="submit"><i data-lucide="save"></i> Save Item</button>
+          <div class="row wrap">
+            <button class="btn" type="submit"><i data-lucide="save"></i> Save Item</button>
+            <button class="btn secondary hidden" id="cancelMenuEditBtn" type="button"><i data-lucide="x"></i> Cancel Edit</button>
+          </div>
         </form>
       </div>
       <div class="panel pad stack">
@@ -429,13 +434,43 @@
         toast("Dispute raised with available proof.");
       });
 
+      function clearMenuEditForm() {
+        $("masterForm").reset();
+        $("masterForm").elements.editingItemId.value = "";
+        $("masterEditNotice").classList.add("hidden");
+        $("cancelMenuEditBtn").classList.add("hidden");
+      }
+
+      function loadMenuItemForEdit(itemId) {
+        const item = menuItems.find((entry) => entry.id === itemId);
+        if (!item) return;
+        const form = $("masterForm");
+        form.elements.editingItemId.value = item.id;
+        form.elements.name.value = item.name || "";
+        form.elements.category.value = item.category || mealSlots[0];
+        form.elements.sellingPrice.value = sellingPriceOf(item);
+        form.elements.costPrice.value = costPriceOf(item);
+        form.elements.type.value = item.type || "veg";
+        form.elements.source.value = item.source || "pantry";
+        form.elements.stockQty.value = Number(item.stockQty || 0);
+        form.elements.itemImageFile.value = "";
+        $("masterEditNotice").textContent = `Editing: ${item.name || item.id}. Upload a new image only if you want to replace the current one.`;
+        $("masterEditNotice").classList.remove("hidden");
+        $("cancelMenuEditBtn").classList.remove("hidden");
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      $("cancelMenuEditBtn").addEventListener("click", clearMenuEditForm);
+
       $("masterForm").addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = getForm(event.currentTarget);
-        const itemImage = await compressImage(event.currentTarget.itemImageFile.files[0], 500, 0.7);
+        const existing = data.editingItemId ? menuItems.find((entry) => entry.id === data.editingItemId) : null;
+        const uploadedImage = await compressImage(event.currentTarget.itemImageFile.files[0], 500, 0.7);
+        const itemImage = uploadedImage || existing?.itemImage || "";
         const sellingPrice = Number(data.sellingPrice || 0);
         const costPrice = Number(data.costPrice || 0);
-        await db.collection("menuItems").add({
+        const payload = {
           name: data.name,
           category: data.category,
           type: data.type,
@@ -448,9 +483,15 @@
           available: Number(data.stockQty || 0) > 0,
           masterItem: true,
           updatedAt: FieldValue.serverTimestamp()
-        });
-        event.currentTarget.reset();
-        toast("Food item saved and reflected live.");
+        };
+        if (data.editingItemId) {
+          await db.collection("menuItems").doc(data.editingItemId).update(payload);
+          toast("Food item updated everywhere.");
+        } else {
+          await db.collection("menuItems").add(payload);
+          toast("Food item saved and reflected live.");
+        }
+        clearMenuEditForm();
       });
 
       $("kitchenMasterForm").addEventListener("submit", async (event) => {
@@ -483,6 +524,7 @@
             <div class="row mobile-stack" style="margin-top:10px;">
               <input class="input qty" type="number" min="0" value="${Number(item.stockQty || 0)}" data-stock-input="${item.id}">
               <button class="btn secondary" data-update-stock="${item.id}"><i data-lucide="package-check"></i> Update Stock</button>
+              <button class="btn secondary" data-edit-item="${item.id}"><i data-lucide="pencil"></i> Edit</button>
               <button class="btn ${item.available !== false ? "danger" : "info"}" data-toggle-item="${item.id}">${item.available !== false ? "Hide" : "Show"}</button>
             </div>
           </div>`).join("") || `<div class="empty">No food item master yet.</div>`;
@@ -491,7 +533,11 @@
 
       $("menuAdminList").addEventListener("click", async (event) => {
         const stock = event.target.closest("[data-update-stock]");
+        const edit = event.target.closest("[data-edit-item]");
         const toggle = event.target.closest("[data-toggle-item]");
+        if (edit) {
+          loadMenuItemForEdit(edit.dataset.editItem);
+        }
         if (stock) {
           const qty = Number(document.querySelector(`[data-stock-input="${stock.dataset.updateStock}"]`).value || 0);
           await db.collection("menuItems").doc(stock.dataset.updateStock).update({ stockQty: qty, available: qty > 0, updatedAt: FieldValue.serverTimestamp() });
