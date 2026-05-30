@@ -257,6 +257,46 @@ function statusBadge(status) {
   return `<span class="badge ${tone}">${escapeHtml(s.replace(/-/g, " "))}</span>`;
 }
 
+function canCustomerChangeOrder(order) {
+  return ["new", "accepted"].includes(String(order?.status || "").toLowerCase());
+}
+
+async function cancelCustomerOrder(order, reason, source = "system") {
+  if (!order?.id) return;
+  const batch = db.batch();
+  batch.update(db.collection("customerOrders").doc(order.id), {
+    status: "cancelled",
+    cancelReason: reason,
+    cancelledBy: source,
+    cancelledAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    statusLog: FieldValue.arrayUnion({ status: "cancelled", at: new Date().toISOString(), note: reason })
+  });
+  if (!order.orderStockReleased && String(order.status || "").toLowerCase() !== "delivered") {
+    (order.items || []).forEach((line) => {
+      if (!line.itemId) return;
+      batch.update(db.collection("menuItems").doc(line.itemId), {
+        stockQty: FieldValue.increment(Number(line.qty || 0)),
+        available: true,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+    });
+    batch.update(db.collection("customerOrders").doc(order.id), { orderStockReleased: true });
+  }
+  await batch.commit();
+}
+
+async function cancelIndent(indent, reason, source = "system") {
+  if (!indent?.id) return;
+  await db.collection("indents").doc(indent.id).update({
+    status: "cancelled",
+    cancelReason: reason,
+    cancelledBy: source,
+    cancelledAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  });
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")

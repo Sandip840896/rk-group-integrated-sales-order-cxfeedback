@@ -76,8 +76,8 @@
           <label class="field"><span>Submission Type</span><select class="select" name="submissionType" id="submissionType" required>
             <option value="feedback">Feedback</option><option value="complaint">Complaint</option>
           </select></label>
-          <label class="field"><span>Related Order</span><select class="select" name="orderId" id="feedbackOrderSelect">
-            <option value="">General feedback</option>
+          <label class="field"><span>Related Order optional</span><select class="select" name="orderId" id="feedbackOrderSelect">
+            <option value="">General feedback / no order</option>
           </select></label>
         </div>
         <div class="grid two" id="complaintFields">
@@ -302,7 +302,7 @@
         });
         event.currentTarget.reset();
         $("submissionType").dispatchEvent(new Event("change"));
-        $("feedbackOrderSelect").innerHTML = `<option value="">General feedback</option>`;
+        $("feedbackOrderSelect").innerHTML = `<option value="">General feedback / no order</option>`;
         $("feedbackAck").classList.remove("hidden");
         $("feedbackAck").classList.remove("success", "danger-soft");
         $("feedbackAck").classList.add(data.submissionType === "complaint" ? "danger-soft" : "success");
@@ -314,7 +314,7 @@
 
       function renderFeedbackOrderOptions() {
         const options = trackedOrders.map((order) => `<option value="${order.id}">${escapeHtml(order.orderNo || order.id)} - ${escapeHtml((order.items || []).map((line) => line.name).join(", "))}</option>`).join("");
-        $("feedbackOrderSelect").innerHTML = `<option value="">General feedback</option>${options}`;
+        $("feedbackOrderSelect").innerHTML = `<option value="">General feedback / no order</option>${options}`;
       }
 
       function renderTracking() {
@@ -326,8 +326,13 @@
             </div>
             <p>${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
             <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")}</p>
+            ${order.status === "cancelled" ? `<div class="ack danger-soft" style="margin-top:10px;">We are sorry for the inconvenience caused. Due to high demand we are not able to complete this order. You may choose another available product and place a new order.</div>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               <button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>
+              ${canCustomerChangeOrder(order) ? `
+                <button class="btn secondary" data-edit-order="${order.id}"><i data-lucide="pencil"></i> Edit Order</button>
+                <button class="btn danger" data-cancel-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>
+              ` : ""}
             </div>
           </div>`).join("") : `<div class="empty">No order found for this phone number.</div>`;
         const feedbackHtml = trackedFeedbacks.length ? `
@@ -388,9 +393,36 @@
 
       $("trackList").addEventListener("click", (event) => {
         const print = event.target.closest("[data-print-order]");
-        if (!print) return;
-        const order = trackedOrders.find((entry) => entry.id === print.dataset.printOrder);
-        printCustomerOrder(order);
+        const cancel = event.target.closest("[data-cancel-order]");
+        const edit = event.target.closest("[data-edit-order]");
+        if (print) {
+          const order = trackedOrders.find((entry) => entry.id === print.dataset.printOrder);
+          printCustomerOrder(order);
+        }
+        if (cancel) {
+          const order = trackedOrders.find((entry) => entry.id === cancel.dataset.cancelOrder);
+          if (!order || !canCustomerChangeOrder(order)) {
+            toast("Order cannot be cancelled after processing starts.");
+            return;
+          }
+          cancelCustomerOrder(order, "Cancelled by passenger before processing.", "customer").then(() => {
+            toast("Order cancelled. Stock has been released.");
+          });
+        }
+        if (edit) {
+          const order = trackedOrders.find((entry) => entry.id === edit.dataset.editOrder);
+          if (!order || !canCustomerChangeOrder(order)) {
+            toast("Order cannot be edited after processing starts.");
+            return;
+          }
+          cancelCustomerOrder(order, "Cancelled by passenger for editing before processing.", "customer").then(() => {
+            cart.clear();
+            (order.items || []).forEach((line) => cart.set(line.itemId, { ...line, id: line.itemId, qty: Number(line.qty || 0) }));
+            showTab("order");
+            renderMenu();
+            toast("Order loaded for editing. Please review and place again.");
+          });
+        }
       });
 
       $("submissionType").addEventListener("change", () => {

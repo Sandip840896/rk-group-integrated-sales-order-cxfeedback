@@ -107,6 +107,7 @@
             <div class="row between"><h3>${escapeHtml(indent.indentNo || indent.id)}</h3>${statusBadge(indent.status)}</div>
             <p>Train ${escapeHtml(indent.train || "")} | Manager ${escapeHtml(indent.rackManager || "")} | Required ${escapeHtml(indent.requiredBy || "")}</p>
             <p>${escapeHtml(indent.remarks || "")}</p>
+            ${indent.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(indent.cancelReason)}</p>` : ""}
             <div class="table-wrap" style="margin-top:10px;">
               <table>
                 <thead><tr><th>Item</th><th>Requested</th><th>Approved</th><th>Cost</th><th>Reason / Note</th></tr></thead>
@@ -120,12 +121,13 @@
                   </tr>`).join("")}</tbody>
               </table>
             </div>
-            <div class="row wrap" style="margin-top:10px;">
+            ${String(indent.status || "").toLowerCase() !== "cancelled" ? `<div class="row wrap" style="margin-top:10px;">
               <button class="btn secondary" data-save-indent="${indent.id}"><i data-lucide="save"></i> Save Qty</button>
               <button class="btn info" data-mark-indent="accepted" data-id="${indent.id}">Accept</button>
               <button class="btn warn" data-mark-indent="processing" data-id="${indent.id}">Processing</button>
               <button class="btn" data-create-invoice="${indent.id}"><i data-lucide="file-plus-2"></i> Create Invoice</button>
-            </div>
+              ${!["cancelled", "invoiced", "closed"].includes(String(indent.status || "").toLowerCase()) ? `<button class="btn danger" data-cancel-indent="${indent.id}"><i data-lucide="x"></i> Cancel Indent</button>` : ""}
+            </div>` : ""}
           </div>
         `).join("") || `<div class="empty">Select kitchen to see incoming indents.</div>`;
         lucide.createIcons();
@@ -135,6 +137,7 @@
         const save = event.target.closest("[data-save-indent]");
         const mark = event.target.closest("[data-mark-indent]");
         const invoice = event.target.closest("[data-create-invoice]");
+        const cancel = event.target.closest("[data-cancel-indent]");
 
         if (save) {
           const indent = indents.find((entry) => entry.id === save.dataset.saveIndent);
@@ -155,6 +158,14 @@
         if (mark) {
           await db.collection("indents").doc(mark.dataset.id).update({ status: mark.dataset.markIndent, updatedAt: FieldValue.serverTimestamp() });
           toast("Indent status updated.");
+        }
+
+        if (cancel) {
+          const indent = indents.find((entry) => entry.id === cancel.dataset.cancelIndent);
+          const reason = prompt("Reason for cancelling this indent", "No product is available with this base kitchen.");
+          if (!reason) return;
+          await cancelIndent(indent, reason, "base-kitchen");
+          toast("Indent cancelled and command center updated.");
         }
 
         if (invoice) {

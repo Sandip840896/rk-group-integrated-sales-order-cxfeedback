@@ -188,13 +188,16 @@
       }
 
       function orderCard(order) {
+        const canMove = order.status !== "cancelled";
         return `<div class="item">
           <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
           <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | Train ${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
           <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")} | ${money(order.total)}</p>
-          <div class="row wrap" style="margin-top:10px;">
+          ${order.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(order.cancelReason)}</p>` : ""}
+          ${canMove ? `<div class="row wrap" style="margin-top:10px;">
             ${["accepted", "preparing", "delivered"].map((status) => `<button class="btn secondary" data-order-status="${status}" data-id="${order.id}">${status}</button>`).join("")}
-          </div>
+            <button class="btn danger" data-cancel-customer-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>
+          </div>` : ""}
         </div>`;
       }
 
@@ -204,16 +207,28 @@
         lucide.createIcons();
       }
 
-      $("ordersList").addEventListener("click", async (event) => {
+      async function handleCustomerOrderAction(event) {
         const btn = event.target.closest("[data-order-status]");
-        if (!btn) return;
-        await db.collection("customerOrders").doc(btn.dataset.id).update({
-          status: btn.dataset.orderStatus,
-          updatedAt: FieldValue.serverTimestamp(),
-          statusLog: FieldValue.arrayUnion({ status: btn.dataset.orderStatus, at: new Date().toISOString(), note: "Updated from command center" })
-        });
-        toast("Order status updated.");
-      });
+        const cancel = event.target.closest("[data-cancel-customer-order]");
+        if (btn) {
+          await db.collection("customerOrders").doc(btn.dataset.id).update({
+            status: btn.dataset.orderStatus,
+            updatedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: btn.dataset.orderStatus, at: new Date().toISOString(), note: "Updated from command center" })
+          });
+          toast("Order status updated.");
+        }
+        if (cancel) {
+          const order = orders.find((entry) => entry.id === cancel.dataset.cancelCustomerOrder);
+          const reason = prompt("Reason for customer order cancellation", "Due to high demand we are not able to complete this order. Please choose another available product and place a new order. Sorry for the inconvenience caused.");
+          if (!reason) return;
+          await cancelCustomerOrder(order, reason, "command-center");
+          toast("Customer order cancelled and stock released.");
+        }
+      }
+
+      $("ordersList").addEventListener("click", handleCustomerOrderAction);
+      $("recentOrders").addEventListener("click", handleCustomerOrderAction);
 
       function renderFeedbacks() {
         $("feedbackList").innerHTML = feedbacks.map((fb) => `
@@ -352,10 +367,22 @@
             <p>Train ${escapeHtml(indent.train || "")} | ${escapeHtml(indent.baseKitchenName || "")} | Fill ${req ? Math.round(app / req * 100) : 0}% | Approved cost ${money(approvedCost)}</p>
             <p>${(indent.items || []).map((line) => `${escapeHtml(line.name)} ${line.approvedQty ?? line.requestedQty}/${line.requestedQty} @ ${money(costPriceOf(line))}`).join(", ")}</p>
             ${shortageLines.length ? `<p class="shortage">Short: ${shortageLines.map((line) => `${escapeHtml(line.name)} ${Number(line.requestedQty || 0) - Number(line.approvedQty ?? line.requestedQty ?? 0)}`).join(", ")}</p>` : ""}
+            ${indent.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(indent.cancelReason)}</p>` : ""}
+            ${!["cancelled", "closed", "invoiced"].includes(String(indent.status || "").toLowerCase()) ? `<div class="row wrap" style="margin-top:10px;"><button class="btn danger" data-cancel-indent="${indent.id}"><i data-lucide="x"></i> Cancel Indent</button></div>` : ""}
           </div>`;
         }).join("") || `<div class="empty">No indent has been sent yet.</div>`;
         renderMetrics();
       }
+
+      $("indentList").addEventListener("click", async (event) => {
+        const cancel = event.target.closest("[data-cancel-indent]");
+        if (!cancel) return;
+        const indent = indents.find((entry) => entry.id === cancel.dataset.cancelIndent);
+        const reason = prompt("Reason for indent cancellation", "Indent cancelled by command center.");
+        if (!reason) return;
+        await cancelIndent(indent, reason, "command-center");
+        toast("Indent cancelled.");
+      });
 
       function renderFillRates() {
         const byKitchen = {};
