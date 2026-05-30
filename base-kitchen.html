@@ -213,8 +213,66 @@
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
             <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.disputeReason || "")}</p>
             ${invoice.disputePhoto ? `<img class="proof-img" src="${invoice.disputePhoto}" alt="Dispute proof">` : ""}
+            <div class="table-wrap" style="margin-top:10px;">
+              <table>
+                <thead><tr><th>Item</th><th>Final Qty</th><th>Cost Rate</th><th>Note</th></tr></thead>
+                <tbody>${(invoice.items || []).map((line, idx) => `
+                  <tr>
+                    <td>${escapeHtml(line.name || "")}</td>
+                    <td><input class="input qty" type="number" min="0" value="${invoiceItemQty(line)}" data-revise-invoice="${invoice.id}" data-revise-line="${idx}" data-field="approvedQty"></td>
+                    <td><input class="input qty" type="number" min="0" value="${costPriceOf(line)}" data-revise-invoice="${invoice.id}" data-revise-line="${idx}" data-field="costPrice"></td>
+                    <td><input class="input" value="${escapeHtml(line.note || "")}" placeholder="Final correction note" data-revise-invoice="${invoice.id}" data-revise-line="${idx}" data-field="note"></td>
+                  </tr>`).join("")}</tbody>
+              </table>
+            </div>
+            <div class="row mobile-stack" style="margin-top:10px;">
+              <input class="input grow" placeholder="Settlement note to train manager" data-settlement-note="${invoice.id}">
+              <button class="btn" data-resend-invoice="${invoice.id}"><i data-lucide="send"></i> Resend Final Invoice</button>
+            </div>
           </div>`).join("") || `<div class="empty">No disputed invoice for this kitchen.</div>`;
+        lucide.createIcons();
       }
+
+      $("bkDisputeList").addEventListener("click", async (event) => {
+        const resend = event.target.closest("[data-resend-invoice]");
+        if (!resend) return;
+        const invoice = invoices.find((entry) => entry.id === resend.dataset.resendInvoice);
+        if (!invoice) return;
+        const items = (invoice.items || []).map((line, idx) => {
+          const qty = document.querySelector(`[data-revise-invoice="${invoice.id}"][data-revise-line="${idx}"][data-field="approvedQty"]`);
+          const cost = document.querySelector(`[data-revise-invoice="${invoice.id}"][data-revise-line="${idx}"][data-field="costPrice"]`);
+          const note = document.querySelector(`[data-revise-invoice="${invoice.id}"][data-revise-line="${idx}"][data-field="note"]`);
+          const finalQty = Math.max(0, Number(qty.value || 0));
+          return {
+            ...line,
+            approvedQty: finalQty,
+            qty: finalQty,
+            costPrice: Number(cost.value || 0),
+            note: note.value || line.note || ""
+          };
+        }).filter((line) => invoiceItemQty(line) > 0);
+        if (!items.length) {
+          toast("Final invoice needs at least one item.");
+          return;
+        }
+        const totalQty = items.reduce((sum, line) => sum + invoiceItemQty(line), 0);
+        const totalCost = items.reduce((sum, line) => sum + invoiceItemQty(line) * costPriceOf(line), 0);
+        await db.collection("invoices").doc(invoice.id).update({
+          items,
+          totalQty,
+          totalCost,
+          status: "sent",
+          revisionNo: Number(invoice.revisionNo || 0) + 1,
+          revisedFromDispute: true,
+          disputeClosed: false,
+          settlementNote: document.querySelector(`[data-settlement-note="${invoice.id}"]`).value || "Final invoice resent after dispute discussion.",
+          resentAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        if (invoice.indentId) await db.collection("indents").doc(invoice.indentId).update({ status: "invoiced", updatedAt: FieldValue.serverTimestamp() });
+        toast("Final invoice resent to command center.");
+        showTab("invoice");
+      });
 
       function renderAll() {
         renderMetrics();
