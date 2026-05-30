@@ -109,12 +109,13 @@
             <p>${escapeHtml(indent.remarks || "")}</p>
             <div class="table-wrap" style="margin-top:10px;">
               <table>
-                <thead><tr><th>Item</th><th>Requested</th><th>Approved</th><th>Reason / Note</th></tr></thead>
+                <thead><tr><th>Item</th><th>Requested</th><th>Approved</th><th>Cost</th><th>Reason / Note</th></tr></thead>
                 <tbody>${(indent.items || []).map((line, idx) => `
                   <tr>
                     <td>${escapeHtml(line.name)}</td>
                     <td>${Number(line.requestedQty || 0)}</td>
                     <td><input class="input qty" type="number" min="0" value="${Number(line.approvedQty ?? line.requestedQty ?? 0)}" data-indent="${indent.id}" data-line="${idx}" data-field="approvedQty"></td>
+                    <td>${money(costPriceOf(line))}</td>
                     <td><input class="input" value="${escapeHtml(line.note || "")}" placeholder="If edited, mention why" data-indent="${indent.id}" data-line="${idx}" data-field="note"></td>
                   </tr>`).join("")}</tbody>
               </table>
@@ -163,6 +164,7 @@
             toast("No approved quantity available to invoice.");
             return;
           }
+          const totalCost = approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0) * costPriceOf(line), 0);
           await db.collection("invoices").add({
             invoiceNo: shortId("INV"),
             indentId: indent.id,
@@ -173,6 +175,7 @@
             baseKitchenName: indent.baseKitchenName || "",
             items: approvedItems,
             totalQty: approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0), 0),
+            totalCost,
             status: "sent",
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
@@ -187,8 +190,8 @@
         $("bkInvoiceList").innerHTML = rows.map((invoice) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
-            <p>Train ${escapeHtml(invoice.train || "")} | Qty ${Number(invoice.totalQty || 0)} | ${nowLabel(invoice.createdAt)}</p>
-            <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.requestedQty ?? 0}`).join(", ")}</p>
+            <p>Train ${escapeHtml(invoice.train || "")} | Qty ${Number(invoice.totalQty || 0)} | Cost ${money(invoice.totalCost || 0)} | ${nowLabel(invoice.createdAt)}</p>
+            <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.requestedQty ?? 0} @ ${money(costPriceOf(line))}`).join(", ")}</p>
           </div>`).join("") || `<div class="empty">No invoice created yet.</div>`;
       }
 

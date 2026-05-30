@@ -131,14 +131,18 @@
         const items = menuItems.filter((item) => item.available !== false && (selectedMeal === "All" || item.category === selectedMeal));
         $("menuList").innerHTML = items.length ? items.map((item) => {
           const inCart = cart.get(item.id)?.qty || 0;
+          const sell = sellingPriceOf(item);
           return `
             <div class="item">
               <div class="row between">
-                <div>
-                  <h3>${escapeHtml(item.name)}</h3>
-                  <p>${escapeHtml(item.category || "Food")} | ${escapeHtml(item.type || "veg")} | ${escapeHtml(item.source || "pantry")} stock: ${Number(item.stockQty ?? 0)}</p>
+                <div class="row grow">
+                  ${item.itemImage ? `<img class="food-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : ""}
+                  <div>
+                    <h3>${escapeHtml(item.name)}</h3>
+                    <p>${escapeHtml(item.category || "Food")} | ${escapeHtml(item.type || "veg")} | ${escapeHtml(item.source || "pantry")} stock: ${Number(item.stockQty ?? 0)}</p>
+                  </div>
                 </div>
-                <b>${money(item.price)}</b>
+                <b>${money(sell)}</b>
               </div>
               <div class="row between" style="margin-top:10px;">
                 <span class="badge ${Number(item.stockQty || 0) > 0 ? "ok" : "warn"}">${Number(item.stockQty || 0) > 0 ? "Available" : "Limited"}</span>
@@ -188,7 +192,9 @@
           name: line.name,
           category: line.category || "",
           qty: line.qty,
-          price: Number(line.price || 0),
+          price: sellingPriceOf(line),
+          sellingPrice: sellingPriceOf(line),
+          itemImage: line.itemImage || "",
           source: line.source || "pantry"
         }));
         const total = items.reduce((sum, line) => sum + line.qty * line.price, 0);

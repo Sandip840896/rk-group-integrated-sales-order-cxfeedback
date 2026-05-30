@@ -23,11 +23,11 @@ const seedBaseKitchens = [
 ];
 
 const seedMenuItems = [
-  { name: "Veg Thali", category: "Lunch", price: 120, type: "veg", source: "pantry", available: true, stockQty: 24 },
-  { name: "Chicken Curry Meal", category: "Dinner", price: 180, type: "non-veg", source: "pantry", available: true, stockQty: 12 },
-  { name: "Poha", category: "Breakfast", price: 55, type: "veg", source: "pantry", available: true, stockQty: 30 },
-  { name: "Tea", category: "Beverage", price: 15, type: "veg", source: "pantry", available: true, stockQty: 80 },
-  { name: "Water Bottle", category: "Beverage", price: 20, type: "veg", source: "pantry", available: true, stockQty: 100 }
+  { name: "Veg Thali", category: "Lunch", price: 120, sellingPrice: 120, costPrice: 82, type: "veg", source: "pantry", available: true, stockQty: 24, itemImage: "" },
+  { name: "Chicken Curry Meal", category: "Dinner", price: 180, sellingPrice: 180, costPrice: 128, type: "non-veg", source: "pantry", available: true, stockQty: 12, itemImage: "" },
+  { name: "Poha", category: "Breakfast", price: 55, sellingPrice: 55, costPrice: 32, type: "veg", source: "pantry", available: true, stockQty: 30, itemImage: "" },
+  { name: "Tea", category: "Beverage", price: 15, sellingPrice: 15, costPrice: 8, type: "veg", source: "pantry", available: true, stockQty: 80, itemImage: "" },
+  { name: "Water Bottle", category: "Beverage", price: 20, sellingPrice: 20, costPrice: 14, type: "veg", source: "pantry", available: true, stockQty: 100, itemImage: "" }
 ];
 
 function $(id) {
@@ -36,6 +36,14 @@ function $(id) {
 
 function money(value) {
   return "Rs " + Number(value || 0).toLocaleString("en-IN");
+}
+
+function sellingPriceOf(item) {
+  return Number(item?.sellingPrice ?? item?.price ?? 0);
+}
+
+function costPriceOf(item) {
+  return Number(item?.costPrice ?? item?.baseKitchenCost ?? item?.price ?? 0);
 }
 
 function cleanPhone(value) {
