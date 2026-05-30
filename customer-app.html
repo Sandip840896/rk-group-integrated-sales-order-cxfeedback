@@ -341,9 +341,9 @@
             </div>
             <p>${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
             <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")}</p>
-            ${order.status === "cancelled" ? `<div class="ack danger-soft" style="margin-top:10px;">We are sorry for the inconvenience caused. Due to high demand we are not able to complete this order. You may choose another available product and place a new order.</div>` : ""}
+            ${order.status === "cancelled" ? `<div class="ack danger-soft" style="margin-top:10px;">${order.cancelledBy === "customer" ? "Your order has been cancelled as requested. Stock has been released back to the menu." : "We are sorry for the inconvenience caused. Due to high demand we are not able to complete this order. You may choose another available product and place a new order."}</div>` : ""}
             <div class="row wrap" style="margin-top:10px;">
-              <button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>
+              ${order.status !== "cancelled" ? `<button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>` : ""}
               ${canCustomerChangeOrder(order) ? `
                 <button class="btn secondary" data-edit-order="${order.id}"><i data-lucide="pencil"></i> Edit Order</button>
                 <button class="btn danger" data-cancel-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>
@@ -412,6 +412,10 @@
         const edit = event.target.closest("[data-edit-order]");
         if (print) {
           const order = trackedOrders.find((entry) => entry.id === print.dataset.printOrder);
+          if (String(order?.status || "").toLowerCase() === "cancelled") {
+            toast("Invoice is not available for cancelled orders.");
+            return;
+          }
           printCustomerOrder(order);
         }
         if (cancel) {

@@ -261,6 +261,10 @@ function canCustomerChangeOrder(order) {
   return ["new", "accepted"].includes(String(order?.status || "").toLowerCase());
 }
 
+function canCommandCancelCustomerOrder(order) {
+  return ["new", "accepted", "preparing"].includes(String(order?.status || "").toLowerCase());
+}
+
 async function cancelCustomerOrder(order, reason, source = "system") {
   if (!order?.id) return;
   const batch = db.batch();

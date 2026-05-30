@@ -188,7 +188,9 @@
       }
 
       function orderCard(order) {
-        const canMove = order.status !== "cancelled";
+        const orderStatus = String(order.status || "new").toLowerCase();
+        const canMove = !["cancelled", "delivered"].includes(orderStatus);
+        const canCancel = canCommandCancelCustomerOrder(order);
         return `<div class="item">
           <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
           <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | Train ${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
@@ -196,7 +198,7 @@
           ${order.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(order.cancelReason)}</p>` : ""}
           ${canMove ? `<div class="row wrap" style="margin-top:10px;">
             ${["accepted", "preparing", "delivered"].map((status) => `<button class="btn secondary" data-order-status="${status}" data-id="${order.id}">${status}</button>`).join("")}
-            <button class="btn danger" data-cancel-customer-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>
+            ${canCancel ? `<button class="btn danger" data-cancel-customer-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>` : ""}
           </div>` : ""}
         </div>`;
       }
@@ -220,6 +222,10 @@
         }
         if (cancel) {
           const order = orders.find((entry) => entry.id === cancel.dataset.cancelCustomerOrder);
+          if (!canCommandCancelCustomerOrder(order)) {
+            toast("Delivered or cancelled orders cannot be cancelled.");
+            return;
+          }
           const reason = prompt("Reason for customer order cancellation", "Due to high demand we are not able to complete this order. Please choose another available product and place a new order. Sorry for the inconvenience caused.");
           if (!reason) return;
           await cancelCustomerOrder(order, reason, "command-center");
@@ -280,7 +286,10 @@
       }
 
       function renderIndentItemSelect() {
-        $("indentItemSelect").innerHTML = menuItems.map((item) => `<option value="${item.id}">${escapeHtml(item.name)} | ${escapeHtml(item.category || "")}</option>`).join("");
+        const availableItems = menuItems.filter((item) => item.available !== false);
+        $("indentItemSelect").innerHTML = availableItems.length
+          ? availableItems.map((item) => `<option value="${item.id}">${escapeHtml(item.name)} | ${escapeHtml(item.category || "")}</option>`).join("")
+          : `<option value="">No visible item available</option>`;
       }
 
       function renderPendingIndentItems() {
@@ -303,6 +312,11 @@
         const item = menuItems.find((entry) => entry.id === $("indentItemSelect").value);
         const qty = Math.max(1, Number($("indentQty").value || 1));
         if (!item) return;
+        if (item.available === false) {
+          toast("This item is hidden and cannot be added to an indent.");
+          renderIndentItemSelect();
+          return;
+        }
         pendingIndentItems.push({
           itemId: item.id,
           name: item.name,
@@ -329,6 +343,11 @@
         event.preventDefault();
         if (!pendingIndentItems.length) {
           toast("Add at least one food item to send indent.");
+          return;
+        }
+        const hiddenLine = pendingIndentItems.find((line) => menuItems.find((item) => item.id === line.itemId)?.available === false);
+        if (hiddenLine) {
+          toast(`${hiddenLine.name} is hidden now. Remove it before sending indent.`);
           return;
         }
         const data = getForm(event.currentTarget);
