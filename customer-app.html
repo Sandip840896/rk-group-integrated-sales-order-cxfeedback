@@ -21,6 +21,15 @@
       <button class="tab-btn" data-tab="track"><i data-lucide="map-pin"></i> Track</button>
     </div>
 
+    <div class="customer-hero">
+      <div>
+        <p class="eyebrow">RK Group onboard catering</p>
+        <h2>Fresh food, quick support, live order updates.</h2>
+        <p>Order from available pantry stock, share feedback, or raise a service concern directly with the RK command center.</p>
+      </div>
+      <div class="hero-mark">RK</div>
+    </div>
+
     <section class="panel pad stack" data-tab-panel="order">
       <div class="section-title">
         <div>
@@ -64,13 +73,21 @@
           <label class="field"><span>Rating</span><select class="select" name="rating" required>
             <option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Average</option><option value="2">2 - Poor</option><option value="1">1 - Bad</option>
           </select></label>
-          <label class="field"><span>Type</span><select class="select" name="category" required>
-            <option>Food Quality</option><option>Staff Behaviour</option><option>Cleanliness</option><option>Late Delivery</option><option>Billing</option><option>Other</option>
+          <label class="field"><span>Submission Type</span><select class="select" name="submissionType" id="submissionType" required>
+            <option value="feedback">Feedback</option><option value="complaint">Complaint</option>
+          </select></label>
+          <label class="field"><span>Related Order</span><select class="select" name="orderId" id="feedbackOrderSelect">
+            <option value="">General feedback</option>
           </select></label>
         </div>
-        <label class="field"><span>Message</span><textarea class="textarea" name="message" required placeholder="Write your feedback or complaint"></textarea></label>
-        <button class="btn" type="submit"><i data-lucide="message-circle"></i> Submit Feedback</button>
+        <div class="grid two" id="complaintFields">
+          <label class="field"><span>Complaint Nature</span><select class="select" name="category" id="complaintNature"></select></label>
+          <label class="field"><span>Proof Image / Audio / Video</span><input class="input" name="proofFile" type="file" accept="image/*,audio/*,video/*" capture="environment"></label>
+        </div>
+        <label class="field"><span>Message</span><textarea class="textarea" name="message" required placeholder="Write your feedback or complaint details"></textarea></label>
+        <button class="btn" type="submit"><i data-lucide="message-circle"></i> Submit</button>
       </form>
+      <div id="feedbackAck" class="empty hidden"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="track">
@@ -105,8 +122,12 @@
 
       const cart = new Map();
       let menuItems = [];
+      let trackedOrders = [];
+      let trackedFeedbacks = [];
       let unsubscribeTrack = null;
+      let unsubscribeFeedbackTrack = null;
       $("mealFilter").innerHTML = ["All", ...mealSlots].map((m) => `<option>${m}</option>`).join("");
+      $("complaintNature").innerHTML = complaintNatures.map((nature) => `<option>${escapeHtml(nature)}</option>`).join("");
 
       function passenger() {
         const data = getForm($("customerForm"));
@@ -132,6 +153,7 @@
         $("menuList").innerHTML = items.length ? items.map((item) => {
           const inCart = cart.get(item.id)?.qty || 0;
           const sell = sellingPriceOf(item);
+          const stock = Number(item.stockQty || 0);
           return `
             <div class="item">
               <div class="row between">
@@ -139,17 +161,17 @@
                   ${item.itemImage ? `<img class="food-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : ""}
                   <div>
                     <h3>${escapeHtml(item.name)}</h3>
-                    <p>${escapeHtml(item.category || "Food")} | ${escapeHtml(item.type || "veg")} | ${escapeHtml(item.source || "pantry")} stock: ${Number(item.stockQty ?? 0)}</p>
+                    <p>${escapeHtml(item.category || "Food")} | ${escapeHtml(item.type || "veg")} | ${escapeHtml(item.source || "pantry")} stock: ${stock}</p>
                   </div>
                 </div>
                 <b>${money(sell)}</b>
               </div>
               <div class="row between" style="margin-top:10px;">
-                <span class="badge ${Number(item.stockQty || 0) > 0 ? "ok" : "warn"}">${Number(item.stockQty || 0) > 0 ? "Available" : "Limited"}</span>
+                <span class="badge ${stock > 0 ? "ok" : "warn"}">${stock > 0 ? "Available" : "Sold out"}</span>
                 <div class="row">
                   <button class="icon-btn" data-minus="${item.id}" title="Reduce"><i data-lucide="minus"></i></button>
                   <b style="min-width:24px;text-align:center;">${inCart}</b>
-                  <button class="icon-btn" data-plus="${item.id}" title="Add"><i data-lucide="plus"></i></button>
+                  <button class="icon-btn" data-plus="${item.id}" title="Add" ${inCart >= stock ? "disabled" : ""}><i data-lucide="plus"></i></button>
                 </div>
               </div>
             </div>`;
@@ -173,7 +195,13 @@
         const id = plus?.dataset.plus || minus?.dataset.minus;
         if (!id) return;
         const item = menuItems.find((entry) => entry.id === id);
+        if (!item) return;
         const current = cart.get(id) || { ...item, qty: 0 };
+        const stock = Number(item.stockQty || 0);
+        if (plus && current.qty >= stock) {
+          toast("Only available stock can be ordered right now.");
+          return;
+        }
         current.qty += plus ? 1 : -1;
         if (current.qty <= 0) cart.delete(id); else cart.set(id, current);
         renderMenu();
@@ -198,26 +226,49 @@
           source: line.source || "pantry"
         }));
         const total = items.reduce((sum, line) => sum + line.qty * line.price, 0);
-        await db.collection("customerOrders").add({
-          orderNo: shortId("ORD"),
-          customer,
-          customerPhone: customer.phone,
-          train: customer.train,
-          coach: customer.coach,
-          seat: customer.seat,
-          mealSlot: $("mealFilter").value === "All" ? "Other" : $("mealFilter").value,
-          items,
-          total,
-          status: "new",
-          statusLog: [{ status: "new", at: new Date().toISOString(), note: "Order placed by passenger" }],
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp()
-        });
+        let orderNo = "";
+        try {
+          await db.runTransaction(async (transaction) => {
+            const refs = items.map((line) => db.collection("menuItems").doc(line.itemId));
+            const snaps = [];
+            for (const ref of refs) snaps.push(await transaction.get(ref));
+            snaps.forEach((snap, idx) => {
+              if (!snap.exists) throw new Error(`${items[idx].name} is no longer available.`);
+              const stock = Number(snap.data().stockQty || 0);
+              if (stock < items[idx].qty) throw new Error(`${items[idx].name} has only ${stock} left.`);
+            });
+            refs.forEach((ref, idx) => {
+              const remaining = Number(snaps[idx].data().stockQty || 0) - items[idx].qty;
+              transaction.update(ref, { stockQty: remaining, updatedAt: FieldValue.serverTimestamp() });
+            });
+            orderNo = shortId("ORD");
+            const orderRef = db.collection("customerOrders").doc();
+            transaction.set(orderRef, {
+              orderNo,
+              customer,
+              customerPhone: customer.phone,
+              train: customer.train,
+              coach: customer.coach,
+              seat: customer.seat,
+              mealSlot: $("mealFilter").value === "All" ? "Other" : $("mealFilter").value,
+              items,
+              total,
+              status: "new",
+              statusLog: [{ status: "new", at: new Date().toISOString(), note: "Order placed by passenger" }],
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp()
+            });
+          });
+        } catch (error) {
+          toast(error.message || "Unable to place order because stock changed.");
+          return;
+        }
         cart.clear();
         renderMenu();
-        toast("Order placed. RK team can see it live now.");
+        toast(`Thank you. Order ${orderNo} is received by RK Group.`);
         showTab("track");
         loadTracking(customer.phone);
+        $("trackList").insertAdjacentHTML("afterbegin", `<div class="ack success">Thank you for giving RK Group the opportunity to serve you. Your order ${escapeHtml(orderNo)} has reached our team.</div>`);
       });
 
       $("feedbackForm").addEventListener("submit", async (event) => {
@@ -225,23 +276,72 @@
         const customer = validatePassenger();
         if (!customer) return;
         const data = getForm(event.currentTarget);
+        const relatedOrder = trackedOrders.find((order) => order.id === data.orderId);
+        const proof = await proofFileData(event.currentTarget.proofFile.files[0]);
+        const ticketNo = shortId(data.submissionType === "complaint" ? "CMP" : "FDB");
         await db.collection("feedbacks").add({
           ...data,
+          ticketNo,
           rating: Number(data.rating),
+          category: data.submissionType === "complaint" ? data.category : "General Feedback",
+          type: data.submissionType,
+          nature: data.submissionType === "complaint" ? data.category : "General Feedback",
+          orderId: relatedOrder?.id || "",
+          orderNo: relatedOrder?.orderNo || "",
+          proof,
           customer,
           customerPhone: customer.phone,
           train: customer.train,
           coach: customer.coach,
           seat: customer.seat,
-          status: Number(data.rating) <= 3 ? "open" : "new",
+          status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
           source: "customer-app",
           timestamp: FieldValue.serverTimestamp(),
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
         });
         event.currentTarget.reset();
-        toast("Feedback submitted. Thank you.");
+        $("submissionType").dispatchEvent(new Event("change"));
+        $("feedbackOrderSelect").innerHTML = `<option value="">General feedback</option>`;
+        $("feedbackAck").classList.remove("hidden");
+        $("feedbackAck").classList.remove("success", "danger-soft");
+        $("feedbackAck").classList.add(data.submissionType === "complaint" ? "danger-soft" : "success");
+        $("feedbackAck").innerHTML = data.submissionType === "complaint"
+          ? `We are sorry that your experience was not satisfactory. Your complaint ticket <b>${ticketNo}</b> has been received and RK Group will check it with seriousness.`
+          : `Thank you for your feedback. Your acknowledgement number is <b>${ticketNo}</b>.`;
+        toast(`${data.submissionType === "complaint" ? "Complaint" : "Feedback"} submitted: ${ticketNo}`);
       });
+
+      function renderFeedbackOrderOptions() {
+        const options = trackedOrders.map((order) => `<option value="${order.id}">${escapeHtml(order.orderNo || order.id)} - ${escapeHtml((order.items || []).map((line) => line.name).join(", "))}</option>`).join("");
+        $("feedbackOrderSelect").innerHTML = `<option value="">General feedback</option>${options}`;
+      }
+
+      function renderTracking() {
+        const orderHtml = trackedOrders.length ? trackedOrders.map((order) => `
+          <div class="item">
+            <div class="row between">
+              <h3>${escapeHtml(order.orderNo || order.id)}</h3>
+              ${statusBadge(order.status)}
+            </div>
+            <p>${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
+            <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")}</p>
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>
+            </div>
+          </div>`).join("") : `<div class="empty">No order found for this phone number.</div>`;
+        const feedbackHtml = trackedFeedbacks.length ? `
+          <div class="section-title" style="margin-top:12px;"><div><h2>Feedback / Complaint Tickets</h2><p>Status of concerns submitted from this phone number.</p></div></div>
+          ${trackedFeedbacks.map((fb) => `
+            <div class="item">
+              <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)}</h3>${statusBadge(fb.status)}</div>
+              <p>${escapeHtml(fb.type || "feedback")} | ${escapeHtml(fb.orderNo || "General")} | ${nowLabel(fb.createdAt || fb.timestamp)}</p>
+              <p>${escapeHtml(fb.message || "")}</p>
+              ${fb.managerResponse ? `<p><b>RK Response:</b> ${escapeHtml(fb.managerResponse)}</p>` : ""}
+            </div>`).join("")}` : "";
+        $("trackList").innerHTML = orderHtml + feedbackHtml;
+        lucide.createIcons();
+      }
 
       async function loadTracking(phoneValue) {
         const formPhone = passenger().phone;
@@ -253,10 +353,11 @@
         $("trackPhone").value = phone;
         localStorage.setItem("rkTrackPhone", phone);
         if (unsubscribeTrack) unsubscribeTrack();
+        if (unsubscribeFeedbackTrack) unsubscribeFeedbackTrack();
         unsubscribeTrack = db.collection("customerOrders")
           .where("customer.phone", "==", phone)
           .onSnapshot((snapshot) => {
-            const orders = snapshot.docs
+            trackedOrders = snapshot.docs
               .map((doc) => ({ id: doc.id, ...doc.data() }))
               .sort((a, b) => {
                 const left = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
@@ -264,21 +365,38 @@
                 return right - left;
               })
               .slice(0, 20);
-            $("trackList").innerHTML = orders.length ? orders.map((order) => `
-              <div class="item">
-                <div class="row between">
-                  <h3>${escapeHtml(order.orderNo || order.id)}</h3>
-                  ${statusBadge(order.status)}
-                </div>
-                <p>${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
-                <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")}</p>
-              </div>`).join("") : `<div class="empty">No order found for this phone number.</div>`;
+            renderFeedbackOrderOptions();
+            renderTracking();
           }, (error) => {
             console.error(error);
             $("trackList").innerHTML = `<div class="empty">Unable to load tracking right now: ${escapeHtml(error.message)}</div>`;
           });
+        unsubscribeFeedbackTrack = db.collection("feedbacks")
+          .where("customerPhone", "==", phone)
+          .onSnapshot((snapshot) => {
+            trackedFeedbacks = snapshot.docs
+              .map((doc) => ({ id: doc.id, ...doc.data() }))
+              .sort((a, b) => {
+                const left = (a.createdAt || a.timestamp)?.toMillis ? (a.createdAt || a.timestamp).toMillis() : 0;
+                const right = (b.createdAt || b.timestamp)?.toMillis ? (b.createdAt || b.timestamp).toMillis() : 0;
+                return right - left;
+              })
+              .slice(0, 20);
+            renderTracking();
+          });
       }
 
+      $("trackList").addEventListener("click", (event) => {
+        const print = event.target.closest("[data-print-order]");
+        if (!print) return;
+        const order = trackedOrders.find((entry) => entry.id === print.dataset.printOrder);
+        printCustomerOrder(order);
+      });
+
+      $("submissionType").addEventListener("change", () => {
+        $("complaintFields").classList.toggle("hidden", $("submissionType").value !== "complaint");
+      });
+      $("submissionType").dispatchEvent(new Event("change"));
       $("refreshTrackBtn").addEventListener("click", () => loadTracking());
       $("trackSearchBtn").addEventListener("click", () => loadTracking());
       $("trackPhone").addEventListener("keydown", (event) => {

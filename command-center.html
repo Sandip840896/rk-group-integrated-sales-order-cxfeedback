@@ -218,29 +218,42 @@
       function renderFeedbacks() {
         $("feedbackList").innerHTML = feedbacks.map((fb) => `
           <div class="item">
-            <div class="row between"><h3>${escapeHtml(fb.category || "Feedback")} | Rating ${escapeHtml(fb.rating || "-")}</h3>${statusBadge(fb.status)}</div>
+            <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")} | Rating ${escapeHtml(fb.rating || "-")}</h3>${statusBadge(fb.status)}</div>
             <p>${escapeHtml(fb.customer?.name || fb.name || "")} | ${escapeHtml(fb.customer?.phone || fb.phone || "")} | Train ${escapeHtml(fb.train || fb.customer?.train || "")}</p>
+            <p><b>Order:</b> ${escapeHtml(fb.orderNo || "General")} | <b>Nature:</b> ${escapeHtml(fb.nature || fb.category || "Feedback")}</p>
             <p>${escapeHtml(fb.message || fb.feedback || "")}</p>
+            ${fb.proof?.dataUrl ? `
+              <div class="media-proof">
+                ${String(fb.proof.type || "").startsWith("image/") ? `<img class="proof-img" src="${fb.proof.dataUrl}" alt="Customer proof">` : ""}
+                ${String(fb.proof.type || "").startsWith("audio/") ? `<audio controls src="${fb.proof.dataUrl}"></audio>` : ""}
+                ${String(fb.proof.type || "").startsWith("video/") ? `<video controls src="${fb.proof.dataUrl}"></video>` : ""}
+              </div>` : ""}
             ${fb.managerResponse ? `<p><b>Resolution:</b> ${escapeHtml(fb.managerResponse)}</p>` : ""}
             <div class="row mobile-stack" style="margin-top:10px;">
-              <input class="input grow" placeholder="Resolution note" data-resolution="${fb.id}">
-              <button class="btn" data-resolve-feedback="${fb.id}"><i data-lucide="check"></i> Resolve</button>
+              <select class="select" data-feedback-status="${fb.id}">
+                ${complaintStatuses.map((status) => `<option value="${status}" ${String(fb.status || "").toLowerCase() === status ? "selected" : ""}>${status}</option>`).join("")}
+              </select>
+              <input class="input grow" placeholder="Manager response / resolution note" value="${escapeHtml(fb.managerResponse || "")}" data-resolution="${fb.id}">
+              <button class="btn" data-save-feedback="${fb.id}"><i data-lucide="check"></i> Save Status</button>
             </div>
           </div>`).join("") || `<div class="empty">No feedback yet.</div>`;
         lucide.createIcons();
       }
 
       $("feedbackList").addEventListener("click", async (event) => {
-        const btn = event.target.closest("[data-resolve-feedback]");
+        const btn = event.target.closest("[data-save-feedback]");
         if (!btn) return;
-        const note = document.querySelector(`[data-resolution="${btn.dataset.resolveFeedback}"]`).value;
-        await db.collection("feedbacks").doc(btn.dataset.resolveFeedback).update({
-          status: "resolved",
-          managerResponse: note || "Resolved by RK command center",
-          resolvedAt: FieldValue.serverTimestamp(),
+        const id = btn.dataset.saveFeedback;
+        const note = document.querySelector(`[data-resolution="${id}"]`).value;
+        const status = document.querySelector(`[data-feedback-status="${id}"]`).value;
+        const payload = {
+          status,
+          managerResponse: note || "RK command center is checking this matter.",
           updatedAt: FieldValue.serverTimestamp()
-        });
-        toast("Feedback marked resolved.");
+        };
+        if (["resolved", "closed"].includes(status)) payload.resolvedAt = FieldValue.serverTimestamp();
+        await db.collection("feedbacks").doc(id).update(payload);
+        toast("Feedback / complaint status updated.");
       });
 
       function renderKitchenSelects() {
@@ -365,9 +378,10 @@
         $("invoiceList").innerHTML = invoices.map((invoice) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
-            <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)} | Cost total ${money(invoiceCostTotal(invoice))}</p>
+            <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)} | Cost total ${money(invoiceCostTotal(invoice))}${invoice.revisionNo ? ` | Revision ${Number(invoice.revisionNo)}` : ""}</p>
             <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.qty ?? 0} @ ${money(costPriceOf(line))}`).join(", ")}</p>
             ${invoice.disputeReason ? `<p><b>${invoice.disputeClosed ? "Closed dispute" : "Dispute"}:</b> ${escapeHtml(invoice.disputeReason)}</p>` : ""}
+            ${invoice.settlementNote ? `<p><b>Base kitchen note:</b> ${escapeHtml(invoice.settlementNote)}</p>` : ""}
             ${invoice.disputePhoto ? `<img class="proof-img" src="${invoice.disputePhoto}" alt="Dispute proof">` : ""}
             ${invoice.status !== "accepted" ? `<div class="row wrap" style="margin-top:10px;">
               <button class="btn secondary" data-print-invoice="${invoice.id}"><i data-lucide="printer"></i> Invoice PDF</button>
