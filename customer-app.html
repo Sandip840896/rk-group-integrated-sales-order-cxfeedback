@@ -15,22 +15,37 @@
 </head>
 <body>
   <main class="main mobile-main">
-    <div class="tabs">
+    <div class="customer-hero">
+      <div>
+        <p class="eyebrow">RK Group onboard catering</p>
+        <h2>Order fresh meals from your seat.</h2>
+        <p>Choose available items, track your order live, and reach RK support from the same screen.</p>
+        <div class="hero-points">
+          <span><i data-lucide="clock-3"></i> Live status</span>
+          <span><i data-lucide="shield-check"></i> Verified stock</span>
+          <span><i data-lucide="receipt-text"></i> Invoice ready</span>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="meal-card main-meal">
+          <span class="meal-photo"></span>
+          <b>Hot Meals</b>
+          <small>Breakfast, lunch, dinner</small>
+        </div>
+        <div class="meal-card mini-meal">
+          <i data-lucide="cup-soda"></i>
+          <span>Beverages</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs customer-tabs">
       <button class="tab-btn" data-tab="order"><i data-lucide="utensils"></i> Order Food</button>
       <button class="tab-btn" data-tab="feedback"><i data-lucide="message-square"></i> Feedback</button>
       <button class="tab-btn" data-tab="track"><i data-lucide="map-pin"></i> Track</button>
     </div>
 
-    <div class="customer-hero">
-      <div>
-        <p class="eyebrow">RK Group onboard catering</p>
-        <h2>Fresh food, quick support, live order updates.</h2>
-        <p>Order from available pantry stock, share feedback, or raise a service concern directly with the RK command center.</p>
-      </div>
-      <div class="hero-mark">RK</div>
-    </div>
-
-    <section class="panel pad stack" data-tab-panel="order">
+    <section class="panel pad stack customer-panel" data-tab-panel="order">
       <div class="section-title">
         <div>
           <h2>Passenger Details</h2>
@@ -45,7 +60,7 @@
         <label class="field"><span>Coach</span><input class="input" name="coach" required placeholder="B2"></label>
         <label class="field"><span>Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
       </form>
-      <div class="row wrap">
+      <div class="meal-filter-bar">
         <label class="field grow"><span>Meal</span><select id="mealFilter" class="select"></select></label>
         <button class="btn secondary" id="savePassengerBtn"><i data-lucide="save"></i> Save</button>
       </div>
