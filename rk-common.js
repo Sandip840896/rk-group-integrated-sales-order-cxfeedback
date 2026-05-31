@@ -231,7 +231,7 @@ function invoicePrintableHtml(invoice) {
     <p><b>Supplier Base Kitchen:</b> ${escapeHtml(invoice.baseKitchenName || "")}</p>
     <p><b>Indent No:</b> ${escapeHtml(invoice.indentNo || "")}</p>
     <p><b>Invoice Date:</b> ${nowLabel(invoice.createdAt)}</p>
-    ${invoice.deliveryPersonName ? `<p><b>Delivery Person:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")} | Van ${escapeHtml(invoice.deliveryVanNo || "")}</p>` : ""}
+    ${invoice.deliveryPersonName ? `<p><b>Delivery Person:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")}</p>` : ""}
   </div>
   <table>
     <thead><tr><th>Sl</th><th>Item</th><th>Qty</th><th>Cost Rate</th><th>Amount</th></tr></thead>

@@ -520,10 +520,17 @@ a {
 
 .mobile-main .item h3 {
   font-size: 17px;
+  line-height: 1.25;
 }
 
 .mobile-main .item .row.between:first-child {
   align-items: flex-start;
+}
+
+.sold-out-note {
+  margin-top: 8px !important;
+  color: #9a3412 !important;
+  font-size: 12px !important;
 }
 
 .item h3, .item h4 {
@@ -807,12 +814,12 @@ th {
 
   .customer-hero {
     grid-template-columns: 1fr;
-    margin: -4px 0 10px;
+    margin: -4px -4px 12px;
     padding: 14px;
   }
 
   .customer-hero h2 {
-    font-size: 22px;
+    font-size: 21px;
   }
 
   .customer-hero p {
@@ -822,6 +829,16 @@ th {
   .hero-visual {
     grid-template-columns: 1fr 1fr;
     justify-items: stretch;
+  }
+
+  .hero-points {
+    gap: 6px;
+  }
+
+  .hero-points span {
+    flex: 1 1 calc(50% - 6px);
+    justify-content: center;
+    min-width: 0;
   }
 
   .meal-photo {
@@ -860,6 +877,24 @@ th {
     top: 126px;
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .mobile-main .item {
+    padding: 11px;
+  }
+
+  .mobile-main .item .row.grow {
+    align-items: flex-start;
+  }
+
+  .mobile-main .food-img {
+    width: 72px;
+    height: 72px;
+  }
+
+  .mobile-main .food-img.small {
+    width: 48px;
+    height: 48px;
   }
 
   .cart-bar {

@@ -247,6 +247,24 @@
         $("feedbackAck").scrollIntoView({ behavior: "smooth", block: "center" });
       }
 
+      function clampCartToLiveStock() {
+        let changed = false;
+        [...cart.entries()].forEach(([id, line]) => {
+          const live = menuItems.find((item) => item.id === id);
+          const stock = Number(live?.stockQty || 0);
+          if (!live || live.available === false || stock <= 0) {
+            cart.delete(id);
+            changed = true;
+            return;
+          }
+          if (Number(line.qty || 0) > stock) {
+            cart.set(id, { ...line, ...live, qty: stock });
+            changed = true;
+          }
+        });
+        if (changed) toast("Cart updated as live stock changed.");
+      }
+
       function renderMenu() {
         const selectedMeal = $("mealFilter").value;
         const items = menuItems.filter((item) => item.available !== false && (selectedMeal === "All" || itemMealSlots(item).includes(selectedMeal)));
@@ -276,6 +294,7 @@
                     <button class="icon-btn" data-plus="${item.id}" title="Add" ${inCart >= stock ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
                 </div>
               </div>
+              ${soldOut ? `<p class="sold-out-note">This item is finished right now. Tap Notify me so RK can plan fresh stock.</p>` : ""}
             </div>`;
         }).join("") : `<div class="empty">No food item is available for this meal right now.</div>`;
         lucide.createIcons();
@@ -517,6 +536,15 @@
                 <div><b>${escapeHtml(line.name)}</b><p>${escapeHtml(line.category || "Food")} | Qty ${Number(line.qty || 0)} x ${money(line.price ?? line.sellingPrice ?? 0)} = ${money(Number(line.qty || 0) * Number(line.price ?? line.sellingPrice ?? 0))}</p></div>
               </div>`).join("")}</div>
             ${order.status === "cancelled" ? `<div class="ack danger-soft" style="margin-top:10px;">${order.cancelledBy === "customer" ? "Your order has been cancelled as requested. Stock has been released back to the menu." : "We are sorry for the inconvenience caused. Due to high demand we are not able to complete this order. You may choose another available product and place a new order."}</div>` : ""}
+            ${Array.isArray(order.statusLog) && order.statusLog.length ? `
+              <div class="status-timeline">
+                ${order.statusLog.slice(-5).reverse().map((log) => `
+                  <div class="status-step">
+                    <b>${escapeHtml(String(log.status || "update").replace(/-/g, " "))}</b>
+                    <span>${escapeHtml(log.note || "")}</span>
+                    <small>${nowLabel(log.at)}</small>
+                  </div>`).join("")}
+              </div>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               ${order.status !== "cancelled" ? `<button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>` : ""}
               ${canCustomerChangeOrder(order) ? `
@@ -665,6 +693,7 @@
       });
       onLive("menuItems", (items) => {
         menuItems = items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        clampCartToLiveStock();
         renderMenu();
       }, "name", "asc", 200);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {

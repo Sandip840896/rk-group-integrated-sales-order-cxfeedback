@@ -210,7 +210,7 @@
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
             <p>Train ${escapeHtml(invoice.train || "")} | Qty ${Number(invoice.totalQty || 0)} | Cost ${money(invoiceCostTotal(invoice))} | ${nowLabel(invoice.createdAt)}</p>
-            ${invoice.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")} | Van ${escapeHtml(invoice.deliveryVanNo || "")}</p>` : ""}
+            ${invoice.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")}</p>` : ""}
             <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.requestedQty ?? 0} @ ${money(costPriceOf(line))}`).join(", ")}</p>
             <div class="row wrap" style="margin-top:10px;">
               <button class="btn secondary" data-print-invoice="${invoice.id}"><i data-lucide="printer"></i> Invoice PDF</button>

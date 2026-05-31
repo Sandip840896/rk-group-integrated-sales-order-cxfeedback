@@ -416,7 +416,7 @@
         const customerCost = customerSales.flatMap((order) => order.items || []).reduce((sum, line) => sum + Number(line.qty || 0) * orderLineCostPrice(line), 0);
         const staffSaleAmount = staffSales.reduce((sum, row) => sum + Number(row.total || row.amountReceived || 0), 0);
         const staffCost = staffSales.reduce((sum, row) => sum + Number(row.qty || 0) * Number(row.costPrice || 0), 0);
-        const purchaseTotal = invoices.reduce((sum, invoice) => sum + invoiceCostTotal(invoice), 0)
+        const purchaseTotal = invoices.reduce((sum, invoice) => sum + commandInvoiceCostTotal(invoice), 0)
           + cashPurchases.reduce((sum, row) => sum + Number(row.totalCost || 0), 0)
           + storeInwards.reduce((sum, row) => sum + Number(row.totalCost || 0), 0);
         $("mOrders").textContent = orders.length;
@@ -455,6 +455,19 @@
         if (stored > 0) return stored;
         const item = menuItems.find((entry) => entry.id === line.itemId || entry.name === line.name);
         return item ? costPriceOf(item) : 0;
+      }
+
+      function invoiceLineCostPrice(line) {
+        const stored = Number(line?.costPrice ?? line?.baseKitchenCost);
+        if (stored > 0) return stored;
+        const item = menuItems.find((entry) => entry.id === line.itemId || entry.name === line.name);
+        return item ? costPriceOf(item) : 0;
+      }
+
+      function commandInvoiceCostTotal(invoice) {
+        const stored = Number(invoice?.totalCost || 0);
+        if (stored > 0) return stored;
+        return (invoice?.items || []).reduce((sum, line) => sum + invoiceItemQty(line) * invoiceLineCostPrice(line), 0);
       }
 
       function orderCard(order) {
@@ -775,9 +788,9 @@
         $("invoiceList").innerHTML = invoices.map((invoice) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
-            <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)} | Cost total ${money(invoiceCostTotal(invoice))}${invoice.revisionNo ? ` | Revision ${Number(invoice.revisionNo)}` : ""}</p>
-            ${invoice.deliveryPersonName ? `<p><b>Base kitchen delivery:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")} | Van ${escapeHtml(invoice.deliveryVanNo || "")}</p>` : ""}
-            <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.qty ?? 0} @ ${money(costPriceOf(line))}`).join(", ")}</p>
+            <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)} | Cost total ${money(commandInvoiceCostTotal(invoice))}${invoice.revisionNo ? ` | Revision ${Number(invoice.revisionNo)}` : ""}</p>
+            ${invoice.deliveryPersonName ? `<p><b>Base kitchen delivery:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")}</p>` : ""}
+            <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.qty ?? 0} @ ${money(invoiceLineCostPrice(line))}`).join(", ")}</p>
             ${invoice.disputeReason ? `<p><b>${invoice.disputeClosed ? "Closed dispute" : "Dispute"}:</b> ${escapeHtml(invoice.disputeReason)}</p>` : ""}
             ${invoice.settlementNote ? `<p><b>Base kitchen note:</b> ${escapeHtml(invoice.settlementNote)}</p>` : ""}
             ${invoice.disputePhoto ? `<img class="proof-img" src="${invoice.disputePhoto}" alt="Dispute proof">` : ""}
