@@ -57,6 +57,7 @@
         <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
         <label class="field"><span>Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
         <label class="field"><span>PNR Number</span><input class="input" name="pnr" required inputmode="numeric" maxlength="10" placeholder="10 digit PNR, e.g. 1234567890"></label>
+        <label class="field"><span>Search Train</span><input class="input" id="customerTrainSearch" placeholder="Type train number, name or yard"></label>
         <label class="field"><span>Train Number</span><select class="select" name="train" id="customerTrainSelect" required></select></label>
         <label class="field"><span>Coach</span><input class="input" name="coach" required placeholder="B2"></label>
         <label class="field"><span>Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
@@ -156,6 +157,20 @@
         data.trainName = train?.trainName || "";
         data.yardName = train?.yardName || "";
         return data;
+      }
+
+      function trainSearchMatch(train, query) {
+        const haystack = `${train.trainNumber || train.id || ""} ${train.trainName || ""} ${train.yardName || ""}`.toLowerCase();
+        return haystack.includes(String(query || "").toLowerCase().trim());
+      }
+
+      function renderCustomerTrainSelect() {
+        const query = $("customerTrainSearch").value;
+        const matching = trainMasters.filter((train) => trainSearchMatch(train, query)).slice(0, 80);
+        $("customerTrainSelect").innerHTML = matching.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No matching train</option>`;
+        if (saved.train && trainMasters.some((train) => train.trainNumber === saved.train || train.id === saved.train)) {
+          $("customerTrainSelect").value = saved.train;
+        }
       }
 
       function validatePassenger() {
@@ -494,6 +509,7 @@
         $("complaintFields").classList.toggle("hidden", $("submissionType").value !== "complaint");
       });
       $("submissionType").dispatchEvent(new Event("change"));
+      $("customerTrainSearch").addEventListener("input", renderCustomerTrainSelect);
       $("refreshTrackBtn").addEventListener("click", () => loadTracking());
       $("trackSearchBtn").addEventListener("click", () => loadTracking());
       $("trackPhone").addEventListener("keydown", (event) => {
@@ -505,8 +521,7 @@
       }, "name", "asc", 200);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((train) => train.active !== false);
-        $("customerTrainSelect").innerHTML = trainMasters.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No train master</option>`;
-        if (saved.train) $("customerTrainSelect").value = saved.train;
+        renderCustomerTrainSelect();
       });
       loadTracking(saved.phone || localStorage.getItem("rkTrackPhone") || "");
     });

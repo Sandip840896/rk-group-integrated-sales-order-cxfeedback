@@ -203,7 +203,10 @@
 
     <section data-tab-panel="masters" class="grid two hidden">
       <div class="panel pad stack">
-        <div class="section-title"><div><h2>Food Item Master</h2><p>Items added here show in customer order and indent screens.</p></div></div>
+        <div class="section-title">
+          <div><h2>Food Item Master</h2><p>Items added here show in customer order and indent screens.</p></div>
+          <button class="btn secondary" id="downloadFoodMasterBtn" type="button"><i data-lucide="download"></i> Food CSV</button>
+        </div>
         <form id="masterForm" class="stack">
           <input type="hidden" name="editingItemId">
           <div id="masterEditNotice" class="empty hidden">Editing existing food item.</div>
@@ -230,7 +233,10 @@
         </form>
       </div>
       <div class="panel pad stack">
-        <div class="section-title"><div><h2>Train Master</h2><p>Customer, command center and base kitchen apps use this train list.</p></div></div>
+        <div class="section-title">
+          <div><h2>Train Master</h2><p>Customer, command center and base kitchen apps use this train list.</p></div>
+          <button class="btn secondary" id="downloadTrainMasterBtn" type="button"><i data-lucide="download"></i> Master CSV</button>
+        </div>
         <form id="trainMasterForm" class="stack">
           <div class="grid two">
             <label class="field"><span>Train Number</span><input class="input" name="trainNumber" required placeholder="12345"></label>
@@ -247,8 +253,9 @@
           <label class="field grow"><span>Bulk Upload Train Master</span><input class="input" id="trainBulkFile" type="file" accept=".csv,text/csv"></label>
           <button class="btn" id="uploadTrainBulkBtn" type="button"><i data-lucide="upload"></i> Upload Trains</button>
         </div>
+        <label class="field"><span>Search Uploaded Trains</span><input class="input" id="trainMasterSearch" placeholder="Search by train number, name or yard"></label>
         <div id="trainUploadStatus" class="empty">Uploaded train masters will appear below after Firebase accepts the file.</div>
-        <div id="trainAdminList" class="list"></div>
+        <div id="trainAdminList" class="list master-scroll"></div>
       </div>
       <div class="panel pad stack">
         <div class="section-title"><div><h2>Base Kitchen Master</h2><p>Create kitchen name and ID for train manager indent selection.</p></div></div>
@@ -345,6 +352,7 @@
       let cashPurchases = [];
       let storeInwards = [];
       let staffSales = [];
+      let trainMasterSearchTerm = "";
       let adminUsers = [];
       let currentUser = JSON.parse(sessionStorage.getItem("rkCurrentUser") || "null");
       let seenOrders = new Set();
@@ -563,10 +571,13 @@
       }
 
       function renderTrainAdmin() {
+        const query = trainMasterSearchTerm.toLowerCase().trim();
+        const filtered = trainMasters.filter((train) => `${train.trainNumber || train.id || ""} ${train.trainName || ""} ${train.yardName || ""}`.toLowerCase().includes(query));
+        const visible = filtered.slice(0, 120);
         $("trainUploadStatus").textContent = trainMasters.length
-          ? `${trainMasters.length} train master records available in Firebase.`
+          ? `${trainMasters.length} train master records available in Firebase. Showing ${visible.length} of ${filtered.length} matching records.`
           : "No train master record found yet. Upload CSV or save one train manually.";
-        $("trainAdminList").innerHTML = trainMasters.map((train) => `
+        $("trainAdminList").innerHTML = visible.map((train) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(train.trainNumber || train.id)} - ${escapeHtml(train.trainName || "")}</h3><span class="badge ${train.active === false ? "danger" : "ok"}">${train.active === false ? "Inactive" : "Active"}</span></div>
             <p>Yard: ${escapeHtml(train.yardName || "")}</p>
@@ -574,7 +585,7 @@
               <button class="btn secondary" data-edit-train="${train.id}"><i data-lucide="pencil"></i> Edit</button>
               <button class="btn ${train.active === false ? "info" : "danger"}" data-toggle-train="${train.id}">${train.active === false ? "Activate" : "Deactivate"}</button>
             </div>
-          </div>`).join("") || `<div class="empty">No train master yet.</div>`;
+          </div>`).join("") || `<div class="empty">No matching train master.</div>`;
         lucide.createIcons();
       }
 
@@ -946,6 +957,11 @@
         }
       });
 
+      $("trainMasterSearch").addEventListener("input", (event) => {
+        trainMasterSearchTerm = event.target.value || "";
+        renderTrainAdmin();
+      });
+
       $("trainAdminList").addEventListener("click", async (event) => {
         const edit = event.target.closest("[data-edit-train]");
         const toggle = event.target.closest("[data-toggle-train]");
@@ -1279,6 +1295,45 @@
         link.click();
         URL.revokeObjectURL(link.href);
       }
+
+      function csvValue(value) {
+        return `"${String(value ?? "").replace(/"/g, '""')}"`;
+      }
+
+      function downloadCsv(filename, headers, rows) {
+        const csv = [
+          headers.map(csvValue).join(","),
+          ...rows.map((row) => headers.map((header) => csvValue(row[header])).join(","))
+        ].join("\n");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+
+      $("downloadTrainMasterBtn").addEventListener("click", () => {
+        downloadCsv(`rk-train-master-${new Date().toISOString().slice(0, 10)}.csv`, ["trainNumber", "trainName", "yardName", "active"], trainMasters.map((train) => ({
+          trainNumber: train.trainNumber || train.id,
+          trainName: train.trainName || "",
+          yardName: train.yardName || "",
+          active: train.active === false ? "FALSE" : "TRUE"
+        })));
+      });
+
+      $("downloadFoodMasterBtn").addEventListener("click", () => {
+        downloadCsv(`rk-food-master-${new Date().toISOString().slice(0, 10)}.csv`, ["itemName", "mealCategories", "type", "source", "sellingPrice", "costPrice", "stockQty", "available", "imageLink"], menuItems.map((item) => ({
+          itemName: item.name || "",
+          mealCategories: itemMealSlots(item).join(" | "),
+          type: item.type || "",
+          source: item.source || "",
+          sellingPrice: sellingPriceOf(item),
+          costPrice: costPriceOf(item),
+          stockQty: Number(item.stockQty || 0),
+          available: item.available === false ? "FALSE" : "TRUE",
+          imageLink: item.itemImage || ""
+        })));
+      });
 
       $("downloadBackupBtn").addEventListener("click", async () => {
         if (currentUser?.role !== "super-admin") return toast("Super admin login required.");
