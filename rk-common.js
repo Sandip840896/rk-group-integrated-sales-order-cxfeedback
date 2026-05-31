@@ -17,12 +17,23 @@ const mealSlots = ["Breakfast", "Lunch", "Snacks", "Dinner", "Beverage", "Other"
 const complaintNatures = ["Over Charging", "Staff Behavior", "Food Quality", "Food Qty", "Expiry Product", "Hygiene", "Others"];
 const complaintStatuses = ["open", "acknowledged", "investigating", "waiting for vendor", "resolved", "closed"];
 const orderStatuses = ["new", "accepted", "preparing", "out-for-delivery", "delivered"];
+const deliveryWindows = [
+  "06:00-07:00", "07:00-08:00", "08:00-09:00", "09:00-10:00",
+  "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00",
+  "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00",
+  "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00"
+];
 
 const seedBaseKitchens = [
   { id: "BK-NDLS", name: "New Delhi Base Kitchen", city: "New Delhi", active: true },
   { id: "BK-HWH", name: "Howrah Base Kitchen", city: "Kolkata", active: true },
   { id: "BK-BCT", name: "Mumbai Central Base Kitchen", city: "Mumbai", active: true },
   { id: "BK-CNB", name: "Kanpur Base Kitchen", city: "Kanpur", active: true }
+];
+
+const seedTrainMasters = [
+  { trainNumber: "12345", trainName: "RK Demo Express", yardName: "Howrah Yard", active: true },
+  { trainNumber: "12001", trainName: "Sample Rajdhani", yardName: "New Delhi Yard", active: true }
 ];
 
 const seedMenuItems = [
@@ -47,6 +58,25 @@ function sellingPriceOf(item) {
 
 function costPriceOf(item) {
   return Number(item?.costPrice ?? item?.baseKitchenCost ?? item?.price ?? 0);
+}
+
+function itemMealSlots(item) {
+  if (Array.isArray(item?.mealSlots) && item.mealSlots.length) return item.mealSlots;
+  if (item?.category) return [item.category];
+  return ["Other"];
+}
+
+function trainLabel(train) {
+  if (!train) return "";
+  return `${train.trainNumber || train.id || ""} - ${train.trainName || ""}${train.yardName ? ` (${train.yardName})` : ""}`;
+}
+
+function parseCsvRows(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.split(",").map((part) => part.trim()));
 }
 
 function invoiceItemQty(line) {
@@ -108,7 +138,9 @@ function orderPrintableHtml(order) {
     <p><b>Passenger:</b> ${escapeHtml(order.customer?.name || "")}</p>
     <p><b>Phone:</b> ${escapeHtml(order.customerPhone || order.customer?.phone || "")}</p>
     <p><b>PNR:</b> ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
-    <p><b>Train / Coach / Seat:</b> ${escapeHtml(order.train || "")} / ${escapeHtml(order.coach || "")} / ${escapeHtml(order.seat || "")}</p>
+    <p><b>Train:</b> ${escapeHtml(order.train || "")} ${order.trainName ? `- ${escapeHtml(order.trainName)}` : ""}</p>
+    <p><b>Yard / Coach / Seat:</b> ${escapeHtml(order.yardName || "")} / ${escapeHtml(order.coach || "")} / ${escapeHtml(order.seat || "")}</p>
+    <p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow || order.requestedDeliveryTime || "")}</p>
     <p><b>Order Date:</b> ${nowLabel(order.createdAt)}</p>
     ${order.deliveryPersonName ? `<p><b>Delivery By:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}${order.deliveryVanNo ? ` | Van ${escapeHtml(order.deliveryVanNo)}` : ""}</p>` : ""}
   </div>
@@ -374,6 +406,13 @@ async function ensureSeedData() {
   seedBaseKitchens.forEach((kitchen) => {
     batch.set(db.collection("baseKitchens").doc(kitchen.id), {
       ...kitchen,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  });
+  seedTrainMasters.forEach((train) => {
+    batch.set(db.collection("trainMasters").doc(train.trainNumber), {
+      ...train,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
