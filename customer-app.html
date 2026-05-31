@@ -164,7 +164,9 @@
       let trackedOrders = [];
       let trackedFeedbacks = [];
       let unsubscribeTrack = null;
-      let unsubscribeFeedbackTrack = null;
+      let unsubscribeFeedbackPhoneTrack = null;
+      let unsubscribeFeedbackNestedTrack = null;
+      let unsubscribeFeedbackDocTracks = [];
       $("mealFilter").innerHTML = ["All", ...mealSlots].map((m) => `<option>${m}</option>`).join("");
       $("deliveryWindow").innerHTML = deliveryWindows.map((slot) => `<option value="${slot}">${slot.replace("-", " to ")}</option>`).join("");
       $("complaintNature").innerHTML = complaintNatures.map((nature) => `<option>${escapeHtml(nature)}</option>`).join("");
@@ -411,7 +413,7 @@
         try {
           const proof = await proofFileData(form.proofFile.files[0]);
           const ticketNo = shortId(data.submissionType === "complaint" ? "CMP" : "FDB");
-          await db.collection("feedbacks").add({
+          const feedbackRef = await db.collection("feedbacks").add({
             rating: Number(data.rating),
             submissionType: data.submissionType,
             message: data.message,
@@ -447,6 +449,10 @@
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
+          const savedTickets = JSON.parse(localStorage.getItem("rkFeedbackTicketRefs") || "[]")
+            .filter((id) => id !== feedbackRef.id);
+          savedTickets.unshift(feedbackRef.id);
+          localStorage.setItem("rkFeedbackTicketRefs", JSON.stringify(savedTickets.slice(0, 20)));
           localStorage.setItem("rkPassenger", JSON.stringify({ ...customer, train: customer.train }));
           $("trackPhone").value = customer.phone;
           form.reset();
@@ -480,6 +486,19 @@
       function renderFeedbackOrderOptions() {
         const options = trackedOrders.map((order) => `<option value="${order.id}">${escapeHtml(order.orderNo || order.id)} - ${escapeHtml((order.items || []).map((line) => line.name).join(", "))}</option>`).join("");
         $("feedbackOrderSelect").innerHTML = `<option value="">General feedback / no order</option>${options}`;
+      }
+
+      function mergeTrackedFeedbacks(...groups) {
+        const merged = new Map();
+        groups.flat().filter(Boolean).forEach((row) => merged.set(row.id, row));
+        trackedFeedbacks = [...merged.values()]
+          .sort((a, b) => {
+            const left = (a.updatedAt || a.createdAt || a.timestamp)?.toMillis ? (a.updatedAt || a.createdAt || a.timestamp).toMillis() : 0;
+            const right = (b.updatedAt || b.createdAt || b.timestamp)?.toMillis ? (b.updatedAt || b.createdAt || b.timestamp).toMillis() : 0;
+            return right - left;
+          })
+          .slice(0, 25);
+        renderTracking();
       }
 
       function renderTracking() {
@@ -541,7 +560,14 @@
         $("trackPhone").value = phone;
         localStorage.setItem("rkTrackPhone", phone);
         if (unsubscribeTrack) unsubscribeTrack();
-        if (unsubscribeFeedbackTrack) unsubscribeFeedbackTrack();
+        if (unsubscribeFeedbackPhoneTrack) unsubscribeFeedbackPhoneTrack();
+        if (unsubscribeFeedbackNestedTrack) unsubscribeFeedbackNestedTrack();
+        unsubscribeFeedbackDocTracks.forEach((unsubscribe) => unsubscribe());
+        unsubscribeFeedbackDocTracks = [];
+        let phoneFeedbackRows = [];
+        let nestedPhoneFeedbackRows = [];
+        let savedTicketRows = [];
+        const refreshFeedbacks = () => mergeTrackedFeedbacks(phoneFeedbackRows, nestedPhoneFeedbackRows, savedTicketRows);
         unsubscribeTrack = db.collection("customerOrders")
           .where("customer.phone", "==", phone)
           .onSnapshot((snapshot) => {
@@ -559,19 +585,34 @@
             console.error(error);
             $("trackList").innerHTML = `<div class="empty">Unable to load tracking right now: ${escapeHtml(error.message)}</div>`;
           });
-        unsubscribeFeedbackTrack = db.collection("feedbacks")
+        unsubscribeFeedbackPhoneTrack = db.collection("feedbacks")
           .where("customerPhone", "==", phone)
           .onSnapshot((snapshot) => {
-            trackedFeedbacks = snapshot.docs
-              .map((doc) => ({ id: doc.id, ...doc.data() }))
-              .sort((a, b) => {
-                const left = (a.createdAt || a.timestamp)?.toMillis ? (a.createdAt || a.timestamp).toMillis() : 0;
-                const right = (b.createdAt || b.timestamp)?.toMillis ? (b.createdAt || b.timestamp).toMillis() : 0;
-                return right - left;
-              })
-              .slice(0, 20);
-            renderTracking();
+            phoneFeedbackRows = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+            refreshFeedbacks();
+          }, (error) => {
+            console.error(error);
+            $("trackList").insertAdjacentHTML("beforeend", `<div class="empty danger-soft">Unable to load feedback tickets by phone: ${escapeHtml(error.message)}</div>`);
           });
+        unsubscribeFeedbackNestedTrack = db.collection("feedbacks")
+          .where("customer.phone", "==", phone)
+          .onSnapshot((snapshot) => {
+            nestedPhoneFeedbackRows = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+            refreshFeedbacks();
+          }, (error) => {
+            console.error(error);
+          });
+        const savedTicketIds = JSON.parse(localStorage.getItem("rkFeedbackTicketRefs") || "[]").slice(0, 20);
+        savedTicketIds.forEach((ticketId) => {
+          const unsubscribe = db.collection("feedbacks").doc(ticketId).onSnapshot((doc) => {
+            savedTicketRows = savedTicketRows.filter((row) => row.id !== ticketId);
+            if (doc.exists) savedTicketRows.push({ id: doc.id, ...doc.data() });
+            refreshFeedbacks();
+          }, (error) => {
+            console.error(error);
+          });
+          unsubscribeFeedbackDocTracks.push(unsubscribe);
+        });
       }
 
       $("trackList").addEventListener("click", (event) => {

@@ -352,6 +352,25 @@ a {
   background: var(--brand);
 }
 
+.tab-badge {
+  min-width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.tab-btn.active .tab-badge {
+  color: var(--danger);
+  background: #fff;
+}
+
 .icon-btn {
   width: 42px;
   color: #324155;

@@ -30,8 +30,8 @@
 
     <div class="tabs">
       <button class="tab-btn" data-tab="overview"><i data-lucide="activity"></i> Overview</button>
-      <button class="tab-btn" data-tab="orders"><i data-lucide="receipt-text"></i> Customer Orders</button>
-      <button class="tab-btn" data-tab="feedback"><i data-lucide="messages-square"></i> Feedback</button>
+      <button class="tab-btn" data-tab="orders"><i data-lucide="receipt-text"></i> Customer Orders <span class="tab-badge hidden" id="ordersTabBadge">0</span></button>
+      <button class="tab-btn" data-tab="feedback"><i data-lucide="messages-square"></i> Feedback <span class="tab-badge hidden" id="feedbackTabBadge">0</span></button>
       <button class="tab-btn" data-tab="indent"><i data-lucide="send"></i> Base Kitchen Indent</button>
       <button class="tab-btn" data-tab="invoice"><i data-lucide="file-check-2"></i> Delivery Invoice</button>
       <button class="tab-btn" data-tab="purchase"><i data-lucide="shopping-bag"></i> Purchases / Store</button>
@@ -432,6 +432,22 @@
         $("recentOrders").innerHTML = orders.slice(0, 5).map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
         renderFillRates();
         renderSalesDashboards();
+        renderTabBadges();
+      }
+
+      function setTabBadge(id, count) {
+        const badge = $(id);
+        if (!badge) return;
+        badge.textContent = count > 99 ? "99+" : count;
+        badge.classList.toggle("hidden", count <= 0);
+      }
+
+      function renderTabBadges() {
+        const liveOrderCount = orders.filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())).length;
+        const activeFeedbackCount = feedbacks.filter((fb) => !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length;
+        const openInterestCount = stockInterests.filter((row) => !["resolved", "closed", "cancelled"].includes(String(row.status || "").toLowerCase())).length;
+        setTabBadge("ordersTabBadge", liveOrderCount);
+        setTabBadge("feedbackTabBadge", activeFeedbackCount + openInterestCount);
       }
 
       function orderLineCostPrice(line) {
@@ -540,6 +556,7 @@
             </div>
           </div>`).join("") || `<div class="empty">No feedback yet.</div>`;
         lucide.createIcons();
+        renderTabBadges();
       }
 
       function customerFeedbackNotice(status, note) {
