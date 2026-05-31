@@ -88,6 +88,14 @@
       </div>
       <form id="feedbackForm" class="stack">
         <div class="grid two">
+          <label class="field"><span>Name</span><input class="input" name="customerName" required placeholder="Passenger name"></label>
+          <label class="field"><span>Phone</span><input class="input" name="customerPhone" required inputmode="tel" placeholder="10 digit phone number"></label>
+          <label class="field"><span>PNR optional</span><input class="input" name="customerPnr" inputmode="numeric" maxlength="10" placeholder="If available"></label>
+          <label class="field"><span>Train optional</span><input class="input" name="customerTrain" placeholder="Train number if known"></label>
+          <label class="field"><span>Coach optional</span><input class="input" name="customerCoach" placeholder="B2"></label>
+          <label class="field"><span>Seat optional</span><input class="input" name="customerSeat" placeholder="41"></label>
+        </div>
+        <div class="grid two">
           <label class="field"><span>Rating</span><select class="select" name="rating" required>
             <option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Average</option><option value="2">2 - Poor</option><option value="1">1 - Bad</option>
           </select></label>
@@ -137,6 +145,18 @@
         if (input) input.value = value;
       });
       $("trackPhone").value = saved.phone || "";
+      const feedbackPrefill = {
+        customerName: saved.name || "",
+        customerPhone: saved.phone || "",
+        customerPnr: saved.pnr || "",
+        customerTrain: saved.train || "",
+        customerCoach: saved.coach || "",
+        customerSeat: saved.seat || ""
+      };
+      Object.entries(feedbackPrefill).forEach(([key, value]) => {
+        const input = document.querySelector(`#feedbackForm [name="${key}"]`);
+        if (input) input.value = value;
+      });
 
       const cart = new Map();
       let menuItems = [];
@@ -187,6 +207,42 @@
         localStorage.setItem("rkPassenger", JSON.stringify(data));
         $("trackPhone").value = data.phone;
         return data;
+      }
+
+      function feedbackCustomer(form, relatedOrder) {
+        const data = getForm(form);
+        const field = (name) => form.elements[name];
+        const orderCustomer = relatedOrder?.customer || {};
+        const train = trainMasters.find((entry) => entry.trainNumber === data.customerTrain || entry.id === data.customerTrain);
+        const customer = {
+          name: data.customerName || orderCustomer.name || "",
+          phone: cleanPhone(data.customerPhone || orderCustomer.phone || ""),
+          email: orderCustomer.email || "",
+          pnr: cleanPnr(data.customerPnr || relatedOrder?.pnr || orderCustomer.pnr || ""),
+          train: data.customerTrain || relatedOrder?.train || orderCustomer.train || "",
+          trainName: train?.trainName || relatedOrder?.trainName || orderCustomer.trainName || "",
+          yardName: train?.yardName || relatedOrder?.yardName || orderCustomer.yardName || "",
+          coach: data.customerCoach || relatedOrder?.coach || orderCustomer.coach || "",
+          seat: data.customerSeat || relatedOrder?.seat || orderCustomer.seat || ""
+        };
+        if (!customer.name.trim()) {
+          toast("Please enter passenger name for feedback.");
+          field("customerName")?.focus();
+          return null;
+        }
+        if (customer.phone.length !== 10) {
+          toast("Please enter a valid 10 digit phone number for feedback.");
+          field("customerPhone")?.focus();
+          return null;
+        }
+        return customer;
+      }
+
+      function showFeedbackAck(type, html) {
+        $("feedbackAck").classList.remove("hidden", "success", "danger-soft");
+        $("feedbackAck").classList.add(type);
+        $("feedbackAck").innerHTML = html;
+        $("feedbackAck").scrollIntoView({ behavior: "smooth", block: "center" });
       }
 
       function renderMenu() {
@@ -343,43 +399,71 @@
 
       $("feedbackForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const customer = validatePassenger();
-        if (!customer) return;
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         const relatedOrder = trackedOrders.find((order) => order.id === data.orderId);
-        const proof = await proofFileData(event.currentTarget.proofFile.files[0]);
-        const ticketNo = shortId(data.submissionType === "complaint" ? "CMP" : "FDB");
-        await db.collection("feedbacks").add({
-          ...data,
-          ticketNo,
-          rating: Number(data.rating),
-          category: data.submissionType === "complaint" ? data.category : "General Feedback",
-          type: data.submissionType,
-          nature: data.submissionType === "complaint" ? data.category : "General Feedback",
-          orderId: relatedOrder?.id || "",
-          orderNo: relatedOrder?.orderNo || "",
-          proof,
-          customer,
-          customerPhone: customer.phone,
-          train: customer.train,
-          coach: customer.coach,
-          seat: customer.seat,
-          status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
-          source: "customer-app",
-          timestamp: FieldValue.serverTimestamp(),
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-        event.currentTarget.reset();
-        $("submissionType").dispatchEvent(new Event("change"));
-        $("feedbackOrderSelect").innerHTML = `<option value="">General feedback / no order</option>`;
-        $("feedbackAck").classList.remove("hidden");
-        $("feedbackAck").classList.remove("success", "danger-soft");
-        $("feedbackAck").classList.add(data.submissionType === "complaint" ? "danger-soft" : "success");
-        $("feedbackAck").innerHTML = data.submissionType === "complaint"
-          ? `We are sorry that your experience was not satisfactory. Your complaint ticket <b>${ticketNo}</b> has been received and RK Group will check it with seriousness.`
-          : `Thank you for your feedback. Your acknowledgement number is <b>${ticketNo}</b>.`;
-        toast(`${data.submissionType === "complaint" ? "Complaint" : "Feedback"} submitted: ${ticketNo}`);
+        const customer = feedbackCustomer(form, relatedOrder);
+        if (!customer) return;
+        const submitBtn = form.querySelector("button[type='submit']");
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i data-lucide="loader-2"></i> Sending`;
+        lucide.createIcons();
+        try {
+          const proof = await proofFileData(form.proofFile.files[0]);
+          const ticketNo = shortId(data.submissionType === "complaint" ? "CMP" : "FDB");
+          await db.collection("feedbacks").add({
+            rating: Number(data.rating),
+            submissionType: data.submissionType,
+            message: data.message,
+            ticketNo,
+            category: data.submissionType === "complaint" ? data.category : "General Feedback",
+            type: data.submissionType,
+            nature: data.submissionType === "complaint" ? data.category : "General Feedback",
+            orderId: relatedOrder?.id || "",
+            orderNo: relatedOrder?.orderNo || "",
+            proof,
+            customer,
+            customerPhone: customer.phone,
+            pnr: customer.pnr,
+            train: customer.train,
+            trainName: customer.trainName,
+            yardName: customer.yardName,
+            coach: customer.coach,
+            seat: customer.seat,
+            status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
+            source: "customer-app",
+            timestamp: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          localStorage.setItem("rkPassenger", JSON.stringify({ ...customer, train: customer.train }));
+          $("trackPhone").value = customer.phone;
+          form.reset();
+          form.elements.customerName.value = customer.name;
+          form.elements.customerPhone.value = customer.phone;
+          form.elements.customerPnr.value = customer.pnr;
+          form.elements.customerTrain.value = customer.train;
+          form.elements.customerCoach.value = customer.coach;
+          form.elements.customerSeat.value = customer.seat;
+          $("submissionType").dispatchEvent(new Event("change"));
+          renderFeedbackOrderOptions();
+          showFeedbackAck(
+            data.submissionType === "complaint" ? "danger-soft" : "success",
+            data.submissionType === "complaint"
+              ? `We are sorry that your experience was not satisfactory. Your complaint ticket <b>${ticketNo}</b> has been received and RK Group will check it with seriousness.`
+              : `Thank you for your feedback. Your acknowledgement number is <b>${ticketNo}</b>.`
+          );
+          loadTracking(customer.phone);
+          toast(`${data.submissionType === "complaint" ? "Complaint" : "Feedback"} submitted: ${ticketNo}`);
+        } catch (error) {
+          console.error(error);
+          showFeedbackAck("danger-soft", `Feedback could not be submitted: ${escapeHtml(error.message || "Please try again.")}`);
+          toast("Feedback could not be submitted. Please try again.");
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<i data-lucide="message-circle"></i> Submit`;
+          lucide.createIcons();
+        }
       });
 
       function renderFeedbackOrderOptions() {
