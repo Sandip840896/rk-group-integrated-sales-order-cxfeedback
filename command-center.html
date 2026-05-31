@@ -450,7 +450,7 @@
           <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
           ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
           <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")} | ${money(order.total)}</p>
-          ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}${order.deliveryVanNo ? ` | Van ${escapeHtml(order.deliveryVanNo)}` : ""}</p>` : ""}
+          ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}</p>` : ""}
           ${order.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(order.cancelReason)}</p>` : ""}
           ${canMove ? `<div class="row wrap" style="margin-top:10px;">
             ${["accepted", "preparing", "delivered"].map((status) => `<button class="btn secondary" data-order-status="${status}" data-id="${order.id}">${status}</button>`).join("")}
@@ -484,12 +484,10 @@
           const name = prompt("Delivery person name");
           if (!name) return;
           const phone = cleanPhone(prompt("Delivery person mobile number") || "");
-          const van = prompt("Van / delivery vehicle number", "") || "";
           await db.collection("customerOrders").doc(initDelivery.dataset.initDelivery).update({
             status: "out-for-delivery",
             deliveryPersonName: name,
             deliveryPersonPhone: phone,
-            deliveryVanNo: van,
             deliveryStartedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
             statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: `Delivery by ${name}` })

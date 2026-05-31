@@ -396,7 +396,7 @@
             </div>
             <p>PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
             ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
-            ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}${order.deliveryVanNo ? ` | Van ${escapeHtml(order.deliveryVanNo)}` : ""}</p>` : ""}
+            ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}</p>` : ""}
             <div class="order-lines">${(order.items || []).map((line) => `
               <div class="order-line">
                 ${line.itemImage ? `<img class="food-img small" src="${line.itemImage}" alt="${escapeHtml(line.name)}">` : ""}
