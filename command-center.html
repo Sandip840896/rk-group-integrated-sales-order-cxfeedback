@@ -247,6 +247,7 @@
           <label class="field grow"><span>Bulk Upload Train Master</span><input class="input" id="trainBulkFile" type="file" accept=".csv,text/csv"></label>
           <button class="btn" id="uploadTrainBulkBtn" type="button"><i data-lucide="upload"></i> Upload Trains</button>
         </div>
+        <div id="trainUploadStatus" class="empty">Uploaded train masters will appear below after Firebase accepts the file.</div>
         <div id="trainAdminList" class="list"></div>
       </div>
       <div class="panel pad stack">
@@ -397,7 +398,7 @@
       function renderMetrics() {
         const customerSales = orders.filter((order) => String(order.status || "").toLowerCase() !== "cancelled");
         const customerSaleAmount = customerSales.reduce((sum, order) => sum + Number(order.total || 0), 0);
-        const customerCost = customerSales.flatMap((order) => order.items || []).reduce((sum, line) => sum + Number(line.qty || 0) * costPriceOf(line), 0);
+        const customerCost = customerSales.flatMap((order) => order.items || []).reduce((sum, line) => sum + Number(line.qty || 0) * orderLineCostPrice(line), 0);
         const staffSaleAmount = staffSales.reduce((sum, row) => sum + Number(row.total || row.amountReceived || 0), 0);
         const staffCost = staffSales.reduce((sum, row) => sum + Number(row.qty || 0) * Number(row.costPrice || 0), 0);
         const purchaseTotal = invoices.reduce((sum, invoice) => sum + invoiceCostTotal(invoice), 0)
@@ -416,6 +417,13 @@
         $("recentOrders").innerHTML = orders.slice(0, 5).map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
         renderFillRates();
         renderSalesDashboards();
+      }
+
+      function orderLineCostPrice(line) {
+        const stored = Number(line?.costPrice);
+        if (stored > 0) return stored;
+        const item = menuItems.find((entry) => entry.id === line.itemId || entry.name === line.name);
+        return item ? costPriceOf(item) : 0;
       }
 
       function orderCard(order) {
@@ -555,6 +563,9 @@
       }
 
       function renderTrainAdmin() {
+        $("trainUploadStatus").textContent = trainMasters.length
+          ? `${trainMasters.length} train master records available in Firebase.`
+          : "No train master record found yet. Upload CSV or save one train manually.";
         $("trainAdminList").innerHTML = trainMasters.map((train) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(train.trainNumber || train.id)} - ${escapeHtml(train.trainName || "")}</h3><span class="badge ${train.active === false ? "danger" : "ok"}">${train.active === false ? "Inactive" : "Active"}</span></div>
@@ -890,21 +901,49 @@
       $("uploadTrainBulkBtn").addEventListener("click", async () => {
         const file = $("trainBulkFile").files[0];
         if (!file) return toast("Choose a train CSV file first.");
-        const rows = parseCsvRows(await file.text()).slice(1);
-        const batch = db.batch();
-        rows.forEach(([trainNumber, trainName, yardName, active = "true"]) => {
-          if (!trainNumber || !trainName) return;
-          batch.set(db.collection("trainMasters").doc(trainNumber), {
-            trainNumber,
-            trainName,
-            yardName: yardName || "",
-            active: String(active).toLowerCase() !== "false",
-            updatedAt: FieldValue.serverTimestamp()
-          }, { merge: true });
-        });
-        await batch.commit();
-        $("trainBulkFile").value = "";
-        toast("Train master bulk upload completed.");
+        $("trainUploadStatus").textContent = "Uploading train master CSV...";
+        try {
+          const rows = parseCsvRows(await file.text()).slice(1);
+          const seen = new Set();
+          let saved = 0;
+          let skipped = 0;
+          let duplicate = 0;
+          let batch = db.batch();
+          let batchCount = 0;
+          for (const [trainNumberRaw, trainName, yardName, active = "true"] of rows) {
+            const trainNumber = String(trainNumberRaw || "").trim();
+            if (!trainNumber || !trainName) {
+              skipped += 1;
+              continue;
+            }
+            if (seen.has(trainNumber)) duplicate += 1;
+            seen.add(trainNumber);
+            batch.set(db.collection("trainMasters").doc(trainNumber), {
+              trainNumber,
+              trainName,
+              yardName: yardName || "",
+              active: String(active).toLowerCase() !== "false",
+              updatedAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+            saved += 1;
+            batchCount += 1;
+            if (batchCount === 450) {
+              await batch.commit();
+              batch = db.batch();
+              batchCount = 0;
+            }
+          }
+          if (batchCount) await batch.commit();
+          $("trainBulkFile").value = "";
+          const message = `Train upload completed: ${saved} rows saved, ${skipped} skipped, ${duplicate} duplicate train numbers overwritten.`;
+          $("trainUploadStatus").textContent = message;
+          toast(message);
+        } catch (error) {
+          console.error(error);
+          const message = `Train upload failed: ${error.message}`;
+          $("trainUploadStatus").textContent = message;
+          toast(message);
+        }
       });
 
       $("trainAdminList").addEventListener("click", async (event) => {
@@ -1299,6 +1338,10 @@
         renderTrainSelects();
         renderTrainAdmin();
         renderOrders();
+      }, (error) => {
+        console.error(error);
+        $("trainUploadStatus").textContent = `Train master cannot load: ${error.message}. Please add trainMasters permission in Firebase Rules.`;
+        toast("Train master permission error.");
       });
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
