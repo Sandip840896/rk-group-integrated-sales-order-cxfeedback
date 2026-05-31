@@ -231,6 +231,14 @@
             <button class="btn secondary hidden" id="cancelMenuEditBtn" type="button"><i data-lucide="x"></i> Cancel Edit</button>
           </div>
         </form>
+        <div class="master-list-head">
+          <div>
+            <h3>Food Item List</h3>
+            <p id="menuMasterStatus">Food items added in master appear here.</p>
+          </div>
+        </div>
+        <label class="field"><span>Search Food Item</span><input class="input" id="menuMasterSearch" placeholder="Search by item, category, type or source"></label>
+        <div id="menuAdminList" class="list master-scroll master-scroll-5"></div>
       </div>
       <div class="panel pad stack">
         <div class="section-title">
@@ -255,7 +263,7 @@
         </div>
         <label class="field"><span>Search Uploaded Trains</span><input class="input" id="trainMasterSearch" placeholder="Search by train number, name or yard"></label>
         <div id="trainUploadStatus" class="empty">Uploaded train masters will appear below after Firebase accepts the file.</div>
-        <div id="trainAdminList" class="list master-scroll"></div>
+        <div id="trainAdminList" class="list master-scroll master-scroll-5"></div>
       </div>
       <div class="panel pad stack">
         <div class="section-title"><div><h2>Base Kitchen Master</h2><p>Create kitchen name and ID for train manager indent selection.</p></div></div>
@@ -275,11 +283,8 @@
           <label class="field grow"><span>Bulk Upload Base Kitchens</span><input class="input" id="kitchenBulkFile" type="file" accept=".csv,text/csv"></label>
           <button class="btn" id="uploadKitchenBulkBtn" type="button"><i data-lucide="upload"></i> Upload</button>
         </div>
-        <div id="kitchenAdminList" class="list"></div>
-      </div>
-      <div class="panel pad stack">
-        <div class="section-title"><div><h2>Current Menu / Pantry Upload</h2><p>Toggle availability or update train pantry stock.</p></div></div>
-        <div id="menuAdminList" class="list"></div>
+        <label class="field"><span>Search Base Kitchen</span><input class="input" id="kitchenMasterSearch" placeholder="Search by kitchen ID, name or city"></label>
+        <div id="kitchenAdminList" class="list master-scroll master-scroll-5"></div>
       </div>
     </section>
 
@@ -353,6 +358,8 @@
       let storeInwards = [];
       let staffSales = [];
       let trainMasterSearchTerm = "";
+      let menuMasterSearchTerm = "";
+      let kitchenMasterSearchTerm = "";
       let adminUsers = [];
       let currentUser = JSON.parse(sessionStorage.getItem("rkCurrentUser") || "null");
       let seenOrders = new Set();
@@ -962,6 +969,16 @@
         renderTrainAdmin();
       });
 
+      $("menuMasterSearch").addEventListener("input", (event) => {
+        menuMasterSearchTerm = event.target.value || "";
+        renderMenuAdmin();
+      });
+
+      $("kitchenMasterSearch").addEventListener("input", (event) => {
+        kitchenMasterSearchTerm = event.target.value || "";
+        renderKitchenAdmin();
+      });
+
       $("trainAdminList").addEventListener("click", async (event) => {
         const edit = event.target.closest("[data-edit-train]");
         const toggle = event.target.closest("[data-toggle-train]");
@@ -1010,7 +1027,12 @@
       });
 
       function renderMenuAdmin() {
-        $("menuAdminList").innerHTML = menuItems.map((item) => `
+        const query = menuMasterSearchTerm.toLowerCase().trim();
+        const filtered = menuItems.filter((item) => `${item.name || ""} ${item.category || ""} ${itemMealSlots(item).join(" ")} ${item.type || ""} ${item.source || ""}`.toLowerCase().includes(query));
+        $("menuMasterStatus").textContent = menuItems.length
+          ? `${menuItems.length} food item records available. Showing ${filtered.length} matching records.`
+          : "No food item master yet.";
+        $("menuAdminList").innerHTML = filtered.map((item) => `
           <div class="item">
             <div class="row between">
               <div class="row grow">
@@ -1029,7 +1051,7 @@
               <button class="btn secondary" data-edit-item="${item.id}"><i data-lucide="pencil"></i> Edit</button>
               <button class="btn ${item.available !== false ? "danger" : "info"}" data-toggle-item="${item.id}">${item.available !== false ? "Hide" : "Show"}</button>
             </div>
-          </div>`).join("") || `<div class="empty">No food item master yet.</div>`;
+          </div>`).join("") || `<div class="empty">No matching food item master.</div>`;
         lucide.createIcons();
       }
 
@@ -1222,7 +1244,9 @@
       }
 
       function renderKitchenAdmin() {
-        $("kitchenAdminList").innerHTML = kitchens.map((kitchen) => `
+        const query = kitchenMasterSearchTerm.toLowerCase().trim();
+        const filtered = kitchens.filter((kitchen) => `${kitchen.id || ""} ${kitchen.name || ""} ${kitchen.city || ""}`.toLowerCase().includes(query));
+        $("kitchenAdminList").innerHTML = filtered.map((kitchen) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(kitchen.name)}</h3><span class="badge ${kitchen.active === false ? "danger" : "ok"}">${escapeHtml(kitchen.id)}</span></div>
             <p>${escapeHtml(kitchen.city || "")} | ${kitchen.active === false ? "Inactive" : "Active"}</p>
@@ -1230,7 +1254,7 @@
               <button class="btn secondary" data-edit-kitchen="${kitchen.id}"><i data-lucide="pencil"></i> Edit</button>
               <button class="btn ${kitchen.active === false ? "info" : "danger"}" data-toggle-kitchen="${kitchen.id}">${kitchen.active === false ? "Activate" : "Deactivate"}</button>
             </div>
-          </div>`).join("") || `<div class="empty">No base kitchen master yet.</div>`;
+          </div>`).join("") || `<div class="empty">No matching base kitchen master.</div>`;
         lucide.createIcons();
       }
 
