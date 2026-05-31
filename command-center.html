@@ -34,6 +34,8 @@
       <button class="tab-btn" data-tab="feedback"><i data-lucide="messages-square"></i> Feedback</button>
       <button class="tab-btn" data-tab="indent"><i data-lucide="send"></i> Base Kitchen Indent</button>
       <button class="tab-btn" data-tab="invoice"><i data-lucide="file-check-2"></i> Delivery Invoice</button>
+      <button class="tab-btn" data-tab="purchase"><i data-lucide="shopping-bag"></i> Purchases / Store</button>
+      <button class="tab-btn" data-tab="staffsale"><i data-lucide="users"></i> Staff Sales</button>
       <button class="tab-btn" data-tab="masters"><i data-lucide="database"></i> Masters</button>
       <button class="tab-btn" data-tab="admin"><i data-lucide="user-cog"></i> Admin</button>
       <button class="tab-btn hidden" id="superAdminTabBtn" data-tab="super"><i data-lucide="shield"></i> Super Admin</button>
@@ -46,6 +48,12 @@
         <div class="metric"><b id="mIndents">0</b><span>Base kitchen indents</span></div>
         <div class="metric"><b id="mFill">0%</b><span>Average kitchen fill rate</span></div>
       </div>
+      <div class="grid four">
+        <div class="metric"><b id="mSales">Rs 0</b><span>Total sales</span></div>
+        <div class="metric"><b id="mProfit">Rs 0</b><span>Estimated gross profit</span></div>
+        <div class="metric"><b id="mPurchases">Rs 0</b><span>Base/store/cash purchase</span></div>
+        <div class="metric"><b id="mOpenComplaints">0</b><span>Open complaints</span></div>
+      </div>
       <div class="grid two">
         <div class="panel pad">
           <div class="section-title"><div><h2>Recent Customer Orders</h2><p>New orders from passenger app appear immediately.</p></div></div>
@@ -56,6 +64,16 @@
           <div id="fillRateList" class="list"></div>
         </div>
       </div>
+      <div class="grid two">
+        <div class="panel pad">
+          <div class="section-title"><div><h2>Product Sales</h2><p>Quantity, sale amount and estimated profit by item.</p></div></div>
+          <div id="productSalesList" class="list"></div>
+        </div>
+        <div class="panel pad">
+          <div class="section-title"><div><h2>Sales Person Performance</h2><p>Manual sales entered after pantry return.</p></div></div>
+          <div id="staffSalesList" class="list"></div>
+        </div>
+      </div>
     </section>
 
     <section data-tab-panel="orders" class="panel pad stack hidden">
@@ -63,11 +81,14 @@
         <div><h2>Customer Orders</h2><p>Accept, prepare and deliver passenger food orders.</p></div>
         <button class="btn secondary" id="refreshOrdersBtn"><i data-lucide="refresh-cw"></i> Refresh</button>
       </div>
+      <label class="field"><span>Show Orders For Train</span><select class="select" id="commandTrainFilter"></select></label>
       <div id="ordersList" class="list"></div>
     </section>
 
     <section data-tab-panel="feedback" class="panel pad stack hidden">
       <div class="section-title"><div><h2>Feedback and Complaint Desk</h2><p>Close complaints with a resolution note.</p></div></div>
+      <div class="section-title"><div><h2>Sold Out Interest</h2><p>Passengers clicked Notify me for unavailable items.</p></div></div>
+      <div id="stockInterestList" class="list"></div>
       <div id="feedbackList" class="list"></div>
     </section>
 
@@ -76,7 +97,7 @@
         <div class="section-title"><div><h2>Create Base Kitchen Indent</h2><p>Train manager sends ready-food requirement to selected base kitchen.</p></div></div>
         <form id="indentForm" class="stack">
           <div class="grid two">
-            <label class="field"><span>Train Number</span><input class="input" name="train" required placeholder="12345"></label>
+            <label class="field"><span>Train Number</span><select class="select" name="train" id="indentTrainSelect" required></select></label>
             <label class="field"><span>Rack / Train Manager</span><input class="input" name="rackManager" required placeholder="Manager name"></label>
           </div>
           <div class="grid two">
@@ -109,6 +130,77 @@
       <div id="invoiceList" class="list"></div>
     </section>
 
+    <section data-tab-panel="purchase" class="grid two hidden">
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Cash Purchase</h2><p>Record outside vendor purchase when base kitchen cannot supply.</p></div></div>
+        <form id="cashPurchaseForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Train</span><select class="select" name="train" id="cashTrainSelect" required></select></label>
+            <label class="field"><span>Vendor Name</span><input class="input" name="vendorName" required placeholder="Local vendor"></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Item Name</span><input class="input" name="itemName" required placeholder="Veg Pulao / Cups / Chips"></label>
+            <label class="field"><span>Category</span><select class="select" name="category" id="cashCategory"></select></label>
+          </div>
+          <div class="grid three">
+            <label class="field"><span>Qty</span><input class="input" name="qty" type="number" min="1" required value="1"></label>
+            <label class="field"><span>Cost Price</span><input class="input" name="costPrice" type="number" min="0" required></label>
+            <label class="field"><span>Sale Price</span><input class="input" name="sellingPrice" type="number" min="0"></label>
+          </div>
+          <label class="field"><span>Bill Image</span><input class="input" name="billImage" type="file" accept="image/*" capture="environment"></label>
+          <label class="row"><input type="checkbox" name="addToCatalog" value="yes"> Add food/beverage item to customer catalog</label>
+          <button class="btn" type="submit"><i data-lucide="save"></i> Save Cash Purchase</button>
+        </form>
+      </div>
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Store / Warehouse Inward</h2><p>Rice, dal, oil, beverages, namkeen and other store supply to train.</p></div></div>
+        <form id="storeInwardForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Train</span><select class="select" name="train" id="storeTrainSelect" required></select></label>
+            <label class="field"><span>Store Bill No</span><input class="input" name="billNo" placeholder="Store bill / challan no"></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Item Name</span><input class="input" name="itemName" required placeholder="Rice / Dahi / Cold Drink"></label>
+            <label class="field"><span>Category</span><select class="select" name="category" id="storeCategory"></select></label>
+          </div>
+          <div class="grid three">
+            <label class="field"><span>Qty</span><input class="input" name="qty" type="number" min="1" required value="1"></label>
+            <label class="field"><span>Cost Price</span><input class="input" name="costPrice" type="number" min="0" required></label>
+            <label class="field"><span>Sale Price if customer item</span><input class="input" name="sellingPrice" type="number" min="0"></label>
+          </div>
+          <label class="field"><span>Bill / Challan Image</span><input class="input" name="billImage" type="file" accept="image/*" capture="environment"></label>
+          <label class="row"><input type="checkbox" name="addToCatalog" value="yes"> Add to customer catalog</label>
+          <button class="btn" type="submit"><i data-lucide="archive"></i> Save Store Inward</button>
+        </form>
+      </div>
+      <div class="panel pad stack" style="grid-column:1/-1;">
+        <div class="section-title"><div><h2>Recent Purchase / Store Entries</h2><p>These amounts feed dashboard purchase and profit calculation.</p></div></div>
+        <div id="purchaseList" class="list"></div>
+      </div>
+    </section>
+
+    <section data-tab-panel="staffsale" class="grid two hidden">
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Sales Person Sale Entry</h2><p>Use this when salesperson returns to pantry and gives sold quantity.</p></div></div>
+        <form id="staffSaleForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Train</span><select class="select" name="train" id="staffTrainSelect" required></select></label>
+            <label class="field"><span>Sales Person</span><input class="input" name="staffName" required placeholder="Sales person name"></label>
+          </div>
+          <div class="grid three">
+            <label class="field"><span>Item</span><select class="select" name="itemId" id="staffSaleItem" required></select></label>
+            <label class="field"><span>Sold Qty</span><input class="input" name="qty" type="number" min="1" value="1" required></label>
+            <label class="field"><span>Cash / UPI Amount</span><input class="input" name="amountReceived" type="number" min="0"></label>
+          </div>
+          <button class="btn" type="submit"><i data-lucide="receipt"></i> Save Sale And Deduct Stock</button>
+        </form>
+      </div>
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Staff Sales Register</h2><p>Manual onboard sales deducted from customer catalog stock.</p></div></div>
+        <div id="staffSaleRegister" class="list"></div>
+      </div>
+    </section>
+
     <section data-tab-panel="masters" class="grid two hidden">
       <div class="panel pad stack">
         <div class="section-title"><div><h2>Food Item Master</h2><p>Items added here show in customer order and indent screens.</p></div></div>
@@ -117,7 +209,7 @@
           <div id="masterEditNotice" class="empty hidden">Editing existing food item.</div>
           <div class="grid two">
             <label class="field"><span>Item Name</span><input class="input" name="name" required placeholder="Veg Biryani"></label>
-            <label class="field"><span>Category</span><select class="select" name="category" id="masterCategory"></select></label>
+            <label class="field"><span>Meal Categories</span><div id="masterCategory" class="check-grid"></div></label>
           </div>
           <div class="grid two">
             <label class="field"><span>Selling Price</span><input class="input" name="sellingPrice" type="number" min="0" required placeholder="120"></label>
@@ -136,6 +228,26 @@
             <button class="btn secondary hidden" id="cancelMenuEditBtn" type="button"><i data-lucide="x"></i> Cancel Edit</button>
           </div>
         </form>
+      </div>
+      <div class="panel pad stack">
+        <div class="section-title"><div><h2>Train Master</h2><p>Customer, command center and base kitchen apps use this train list.</p></div></div>
+        <form id="trainMasterForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Train Number</span><input class="input" name="trainNumber" required placeholder="12345"></label>
+            <label class="field"><span>Train Name</span><input class="input" name="trainName" required placeholder="Howrah Express"></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Yard Name</span><input class="input" name="yardName" required placeholder="Howrah Yard"></label>
+            <label class="field"><span>Status</span><select class="select" name="active"><option value="true">Active</option><option value="false">Inactive</option></select></label>
+          </div>
+          <button class="btn" type="submit"><i data-lucide="train-front"></i> Save Train</button>
+        </form>
+        <div class="row mobile-stack">
+          <button class="btn secondary" id="downloadTrainSampleBtn" type="button"><i data-lucide="download"></i> Train CSV</button>
+          <label class="field grow"><span>Bulk Upload Train Master</span><input class="input" id="trainBulkFile" type="file" accept=".csv,text/csv"></label>
+          <button class="btn" id="uploadTrainBulkBtn" type="button"><i data-lucide="upload"></i> Upload Trains</button>
+        </div>
+        <div id="trainAdminList" class="list"></div>
       </div>
       <div class="panel pad stack">
         <div class="section-title"><div><h2>Base Kitchen Master</h2><p>Create kitchen name and ID for train manager indent selection.</p></div></div>
@@ -223,10 +335,15 @@
 
       let menuItems = [];
       let kitchens = [];
+      let trainMasters = [];
       let orders = [];
       let feedbacks = [];
       let indents = [];
       let invoices = [];
+      let stockInterests = [];
+      let cashPurchases = [];
+      let storeInwards = [];
+      let staffSales = [];
       let adminUsers = [];
       let currentUser = JSON.parse(sessionStorage.getItem("rkCurrentUser") || "null");
       let seenOrders = new Set();
@@ -235,7 +352,10 @@
       const SUPER_ADMIN_EMAIL = "sandipnandi2000@gmail.com";
       const SUPER_ADMIN_PASSWORD = "Sanju@1234";
 
-      $("masterCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
+      $("masterCategory").innerHTML = mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${slot}"> ${slot}</label>`).join("");
+      document.querySelector("#masterCategory input")?.setAttribute("checked", "checked");
+      $("cashCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
+      $("storeCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
 
       function updateLoginUi() {
         const isSuper = currentUser?.role === "super-admin";
@@ -275,14 +395,27 @@
       updateLoginUi();
 
       function renderMetrics() {
+        const customerSales = orders.filter((order) => String(order.status || "").toLowerCase() !== "cancelled");
+        const customerSaleAmount = customerSales.reduce((sum, order) => sum + Number(order.total || 0), 0);
+        const customerCost = customerSales.flatMap((order) => order.items || []).reduce((sum, line) => sum + Number(line.qty || 0) * costPriceOf(line), 0);
+        const staffSaleAmount = staffSales.reduce((sum, row) => sum + Number(row.total || row.amountReceived || 0), 0);
+        const staffCost = staffSales.reduce((sum, row) => sum + Number(row.qty || 0) * Number(row.costPrice || 0), 0);
+        const purchaseTotal = invoices.reduce((sum, invoice) => sum + invoiceCostTotal(invoice), 0)
+          + cashPurchases.reduce((sum, row) => sum + Number(row.totalCost || 0), 0)
+          + storeInwards.reduce((sum, row) => sum + Number(row.totalCost || 0), 0);
         $("mOrders").textContent = orders.length;
         $("mFeedback").textContent = feedbacks.length;
         $("mIndents").textContent = indents.length;
         const requested = indents.flatMap((indent) => indent.items || []).reduce((sum, line) => sum + Number(line.requestedQty || line.qty || 0), 0);
         const approved = indents.flatMap((indent) => indent.items || []).reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? line.qty ?? 0), 0);
         $("mFill").textContent = requested ? `${Math.round((approved / requested) * 100)}%` : "0%";
+        $("mSales").textContent = money(customerSaleAmount + staffSaleAmount);
+        $("mProfit").textContent = money(customerSaleAmount + staffSaleAmount - customerCost - staffCost);
+        $("mPurchases").textContent = money(purchaseTotal);
+        $("mOpenComplaints").textContent = feedbacks.filter((fb) => String(fb.type || "").toLowerCase() === "complaint" && !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length;
         $("recentOrders").innerHTML = orders.slice(0, 5).map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
         renderFillRates();
+        renderSalesDashboards();
       }
 
       function orderCard(order) {
@@ -291,7 +424,8 @@
         const canCancel = canCommandCancelCustomerOrder(order);
         return `<div class="item">
           <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
-          <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+          <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+          ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
           <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")} | ${money(order.total)}</p>
           ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}${order.deliveryVanNo ? ` | Van ${escapeHtml(order.deliveryVanNo)}` : ""}</p>` : ""}
           ${order.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(order.cancelReason)}</p>` : ""}
@@ -304,7 +438,9 @@
       }
 
       function renderOrders() {
-        $("ordersList").innerHTML = orders.map(orderCard).join("") || `<div class="empty">No live customer order yet.</div>`;
+        const trainFilter = $("commandTrainFilter")?.value || "all";
+        const visibleOrders = trainFilter === "all" ? orders : orders.filter((order) => String(order.train || "") === trainFilter);
+        $("ordersList").innerHTML = visibleOrders.map(orderCard).join("") || `<div class="empty">No live customer order for this train.</div>`;
         renderMetrics();
         lucide.createIcons();
       }
@@ -352,8 +488,15 @@
 
       $("ordersList").addEventListener("click", handleCustomerOrderAction);
       $("recentOrders").addEventListener("click", handleCustomerOrderAction);
+      $("commandTrainFilter").addEventListener("change", renderOrders);
 
       function renderFeedbacks() {
+        $("stockInterestList").innerHTML = stockInterests.map((row) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(row.itemName || "")}</h3>${statusBadge(row.status || "new")}</div>
+            <p>${escapeHtml(row.customer?.name || "")} | ${escapeHtml(row.customerPhone || "")} | Train ${escapeHtml(row.train || "")}${row.trainName ? ` - ${escapeHtml(row.trainName)}` : ""}</p>
+            <p>${(row.mealSlots || []).map(escapeHtml).join(", ")} | ${nowLabel(row.createdAt)}</p>
+          </div>`).join("") || `<div class="empty">No sold-out interest yet.</div>`;
         $("feedbackList").innerHTML = feedbacks.map((fb) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")} | Rating ${escapeHtml(fb.rating || "-")}</h3>${statusBadge(fb.status)}</div>
@@ -400,6 +543,28 @@
           .map((k) => `<option value="${k.id}">${escapeHtml(k.name)} (${escapeHtml(k.id)})</option>`)
           .join("");
         $("indentKitchen").innerHTML = options;
+      }
+
+      function renderTrainSelects() {
+        const activeTrains = trainMasters.filter((train) => train.active !== false);
+        const options = activeTrains.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("");
+        ["commandTrainFilter", "indentTrainSelect", "cashTrainSelect", "storeTrainSelect", "staffTrainSelect"].forEach((id) => {
+          if (!$(id)) return;
+          $(id).innerHTML = id === "commandTrainFilter" ? `<option value="all">All trains / OPS view</option>${options}` : options;
+        });
+      }
+
+      function renderTrainAdmin() {
+        $("trainAdminList").innerHTML = trainMasters.map((train) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(train.trainNumber || train.id)} - ${escapeHtml(train.trainName || "")}</h3><span class="badge ${train.active === false ? "danger" : "ok"}">${train.active === false ? "Inactive" : "Active"}</span></div>
+            <p>Yard: ${escapeHtml(train.yardName || "")}</p>
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn secondary" data-edit-train="${train.id}"><i data-lucide="pencil"></i> Edit</button>
+              <button class="btn ${train.active === false ? "info" : "danger"}" data-toggle-train="${train.id}">${train.active === false ? "Activate" : "Deactivate"}</button>
+            </div>
+          </div>`).join("") || `<div class="empty">No train master yet.</div>`;
+        lucide.createIcons();
       }
 
       function renderIndentItemSelect() {
@@ -469,9 +634,12 @@
         }
         const data = getForm(event.currentTarget);
         const kitchen = kitchens.find((entry) => entry.id === data.baseKitchenId);
+        const train = trainMasters.find((entry) => (entry.trainNumber || entry.id) === data.train);
         await db.collection("indents").add({
           indentNo: shortId("IND"),
           train: data.train,
+          trainName: train?.trainName || "",
+          yardName: train?.yardName || "",
           rackManager: data.rackManager,
           baseKitchenId: data.baseKitchenId,
           baseKitchenName: kitchen?.name || data.baseKitchenId,
@@ -489,6 +657,7 @@
         renderPendingIndentItems();
         event.currentTarget.reset();
         renderKitchenSelects();
+        renderTrainSelects();
         toast("Indent sent live to base kitchen.");
       });
 
@@ -615,6 +784,7 @@
       function clearMenuEditForm() {
         $("masterForm").reset();
         $("masterForm").elements.editingItemId.value = "";
+        document.querySelectorAll("#masterCategory input").forEach((box, idx) => { box.checked = idx === 0; });
         $("masterEditNotice").classList.add("hidden");
         $("cancelMenuEditBtn").classList.add("hidden");
       }
@@ -625,7 +795,9 @@
         const form = $("masterForm");
         form.elements.editingItemId.value = item.id;
         form.elements.name.value = item.name || "";
-        form.elements.category.value = item.category || mealSlots[0];
+        document.querySelectorAll("#masterCategory input").forEach((box) => {
+          box.checked = itemMealSlots(item).includes(box.value);
+        });
         form.elements.sellingPrice.value = sellingPriceOf(item);
         form.elements.costPrice.value = costPriceOf(item);
         form.elements.type.value = item.type || "veg";
@@ -648,9 +820,15 @@
         const itemImage = uploadedImage || existing?.itemImage || "";
         const sellingPrice = Number(data.sellingPrice || 0);
         const costPrice = Number(data.costPrice || 0);
+        const selectedMealSlots = [...document.querySelectorAll("#masterCategory input:checked")].map((box) => box.value);
+        if (!selectedMealSlots.length) {
+          toast("Choose at least one meal category.");
+          return;
+        }
         const payload = {
           name: data.name,
-          category: data.category,
+          category: selectedMealSlots[0],
+          mealSlots: selectedMealSlots,
           type: data.type,
           source: data.source,
           price: sellingPrice,
@@ -658,7 +836,7 @@
           costPrice,
           itemImage,
           stockQty: Number(data.stockQty || 0),
-          available: Number(data.stockQty || 0) > 0,
+          available: existing?.available === false ? false : true,
           masterItem: true,
           updatedAt: FieldValue.serverTimestamp()
         };
@@ -683,6 +861,67 @@
         }, { merge: true });
         event.currentTarget.reset();
         toast("Base kitchen master saved.");
+      });
+
+      $("trainMasterForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        const trainNumber = String(data.trainNumber || "").trim();
+        await db.collection("trainMasters").doc(trainNumber).set({
+          trainNumber,
+          trainName: data.trainName,
+          yardName: data.yardName,
+          active: data.active === "true",
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        event.currentTarget.reset();
+        toast("Train master saved.");
+      });
+
+      $("downloadTrainSampleBtn").addEventListener("click", () => {
+        const csv = "trainNumber,trainName,yardName,active\n12345,RK Demo Express,Howrah Yard,true\n12001,Sample Rajdhani,New Delhi Yard,true\n";
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        link.download = "train-master-sample.csv";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+
+      $("uploadTrainBulkBtn").addEventListener("click", async () => {
+        const file = $("trainBulkFile").files[0];
+        if (!file) return toast("Choose a train CSV file first.");
+        const rows = parseCsvRows(await file.text()).slice(1);
+        const batch = db.batch();
+        rows.forEach(([trainNumber, trainName, yardName, active = "true"]) => {
+          if (!trainNumber || !trainName) return;
+          batch.set(db.collection("trainMasters").doc(trainNumber), {
+            trainNumber,
+            trainName,
+            yardName: yardName || "",
+            active: String(active).toLowerCase() !== "false",
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
+        await batch.commit();
+        $("trainBulkFile").value = "";
+        toast("Train master bulk upload completed.");
+      });
+
+      $("trainAdminList").addEventListener("click", async (event) => {
+        const edit = event.target.closest("[data-edit-train]");
+        const toggle = event.target.closest("[data-toggle-train]");
+        if (edit) {
+          const train = trainMasters.find((entry) => entry.id === edit.dataset.editTrain);
+          $("trainMasterForm").trainNumber.value = train.trainNumber || train.id;
+          $("trainMasterForm").trainName.value = train.trainName || "";
+          $("trainMasterForm").yardName.value = train.yardName || "";
+          $("trainMasterForm").active.value = train.active === false ? "false" : "true";
+        }
+        if (toggle) {
+          const train = trainMasters.find((entry) => entry.id === toggle.dataset.toggleTrain);
+          await db.collection("trainMasters").doc(train.id).update({ active: train.active === false, updatedAt: FieldValue.serverTimestamp() });
+          toast("Train status updated.");
+        }
       });
 
       $("downloadKitchenSampleBtn").addEventListener("click", () => {
@@ -748,7 +987,7 @@
         }
         if (stock) {
           const qty = Number(document.querySelector(`[data-stock-input="${stock.dataset.updateStock}"]`).value || 0);
-          await db.collection("menuItems").doc(stock.dataset.updateStock).update({ stockQty: qty, available: qty > 0, updatedAt: FieldValue.serverTimestamp() });
+          await db.collection("menuItems").doc(stock.dataset.updateStock).update({ stockQty: qty, updatedAt: FieldValue.serverTimestamp() });
           toast("Pantry stock updated.");
         }
         if (toggle) {
@@ -757,6 +996,175 @@
           toast("Item availability updated.");
         }
       });
+
+      async function addCatalogItemFromPurchase(data, billImage, source) {
+        if (data.addToCatalog !== "yes") return;
+        const qty = Number(data.qty || 0);
+        const sellingPrice = Number(data.sellingPrice || 0);
+        if (!sellingPrice) {
+          toast("Saved purchase, but catalog item needs sale price.");
+          return;
+        }
+        await db.collection("menuItems").add({
+          name: data.itemName,
+          category: data.category,
+          mealSlots: [data.category],
+          type: ["Beverage"].includes(data.category) ? "beverage" : "veg",
+          source,
+          price: sellingPrice,
+          sellingPrice,
+          costPrice: Number(data.costPrice || 0),
+          itemImage: billImage || "",
+          stockQty: qty,
+          available: qty > 0,
+          masterItem: false,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      }
+
+      async function savePurchaseLike(collectionName, form, source) {
+        const data = getForm(form);
+        const train = trainMasters.find((entry) => (entry.trainNumber || entry.id) === data.train);
+        const qty = Number(data.qty || 0);
+        const costPrice = Number(data.costPrice || 0);
+        const billImage = await compressImage(form.billImage.files[0], 900, 0.72);
+        const payload = {
+          ...data,
+          trainName: train?.trainName || "",
+          yardName: train?.yardName || "",
+          qty,
+          costPrice,
+          sellingPrice: Number(data.sellingPrice || 0),
+          totalCost: qty * costPrice,
+          billImage,
+          source,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        };
+        await db.collection(collectionName).add(payload);
+        await addCatalogItemFromPurchase(data, billImage, source);
+        form.reset();
+        toast(`${source} entry saved.`);
+      }
+
+      $("cashPurchaseForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await savePurchaseLike("cashPurchases", event.currentTarget, "cash purchase");
+      });
+
+      $("storeInwardForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await savePurchaseLike("storeInwards", event.currentTarget, "store inward");
+      });
+
+      function renderPurchases() {
+        const rows = [
+          ...cashPurchases.map((row) => ({ ...row, kind: "Cash Purchase" })),
+          ...storeInwards.map((row) => ({ ...row, kind: "Store Inward" }))
+        ].sort((a, b) => {
+          const left = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const right = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return right - left;
+        });
+        $("purchaseList").innerHTML = rows.map((row) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(row.kind)} - ${escapeHtml(row.itemName || "")}</h3><span class="badge info">${money(row.totalCost)}</span></div>
+            <p>Train ${escapeHtml(row.train || "")}${row.trainName ? ` - ${escapeHtml(row.trainName)}` : ""} | Qty ${Number(row.qty || 0)} @ ${money(row.costPrice)}</p>
+            <p>${escapeHtml(row.vendorName || row.billNo || "")} | ${escapeHtml(row.category || "")}</p>
+            ${row.billImage ? `<img class="proof-img" src="${row.billImage}" alt="Bill image">` : ""}
+          </div>`).join("") || `<div class="empty">No cash purchase or store inward yet.</div>`;
+        renderMetrics();
+      }
+
+      function renderStaffSaleItemSelect() {
+        $("staffSaleItem").innerHTML = menuItems
+          .filter((item) => item.available !== false && Number(item.stockQty || 0) > 0)
+          .map((item) => `<option value="${item.id}">${escapeHtml(item.name)} | Stock ${Number(item.stockQty || 0)} | Sell ${money(sellingPriceOf(item))}</option>`)
+          .join("") || `<option value="">No item with stock</option>`;
+      }
+
+      $("staffSaleForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        const item = menuItems.find((entry) => entry.id === data.itemId);
+        if (!item) return toast("Choose an item with stock.");
+        const qty = Number(data.qty || 0);
+        if (qty <= 0 || qty > Number(item.stockQty || 0)) {
+          toast("Sold quantity cannot be more than current stock.");
+          return;
+        }
+        const sellingPrice = sellingPriceOf(item);
+        const costPrice = costPriceOf(item);
+        const total = Number(data.amountReceived || 0) || qty * sellingPrice;
+        const train = trainMasters.find((entry) => (entry.trainNumber || entry.id) === data.train);
+        const batch = db.batch();
+        const ref = db.collection("staffSales").doc();
+        batch.set(ref, {
+          saleNo: shortId("SS"),
+          train: data.train,
+          trainName: train?.trainName || "",
+          yardName: train?.yardName || "",
+          staffName: data.staffName,
+          itemId: item.id,
+          itemName: item.name,
+          qty,
+          sellingPrice,
+          costPrice,
+          total,
+          source: "sales person",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        batch.update(db.collection("menuItems").doc(item.id), {
+          stockQty: FieldValue.increment(-qty),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        event.currentTarget.reset();
+        toast("Sales person sale saved and stock deducted.");
+      });
+
+      function renderStaffSales() {
+        $("staffSaleRegister").innerHTML = staffSales.map((sale) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(sale.saleNo || sale.id)} | ${escapeHtml(sale.staffName || "")}</h3><span class="badge ok">${money(sale.total)}</span></div>
+            <p>Train ${escapeHtml(sale.train || "")} | ${escapeHtml(sale.itemName || "")} x ${Number(sale.qty || 0)} | ${nowLabel(sale.createdAt)}</p>
+          </div>`).join("") || `<div class="empty">No staff sale entered yet.</div>`;
+        renderMetrics();
+      }
+
+      function renderSalesDashboards() {
+        const byProduct = {};
+        orders.filter((order) => String(order.status || "").toLowerCase() !== "cancelled").forEach((order) => {
+          (order.items || []).forEach((line) => {
+            const key = line.itemId || line.name;
+            byProduct[key] ||= { name: line.name, qty: 0, sale: 0, cost: 0 };
+            byProduct[key].qty += Number(line.qty || 0);
+            byProduct[key].sale += Number(line.qty || 0) * Number(line.price ?? line.sellingPrice ?? 0);
+            byProduct[key].cost += Number(line.qty || 0) * costPriceOf(line);
+          });
+        });
+        staffSales.forEach((sale) => {
+          const key = sale.itemId || sale.itemName;
+          byProduct[key] ||= { name: sale.itemName, qty: 0, sale: 0, cost: 0 };
+          byProduct[key].qty += Number(sale.qty || 0);
+          byProduct[key].sale += Number(sale.total || 0);
+          byProduct[key].cost += Number(sale.qty || 0) * Number(sale.costPrice || 0);
+        });
+        $("productSalesList").innerHTML = Object.values(byProduct).sort((a, b) => b.sale - a.sale).slice(0, 8).map((row) => `
+          <div class="item"><div class="row between"><h3>${escapeHtml(row.name || "")}</h3><span class="badge ok">${money(row.sale)}</span></div><p>Qty ${row.qty} | Gross profit ${money(row.sale - row.cost)}</p></div>
+        `).join("") || `<div class="empty">No sale data yet.</div>`;
+        const byStaff = {};
+        staffSales.forEach((sale) => {
+          const key = sale.staffName || "Unknown";
+          byStaff[key] ||= { name: key, qty: 0, sale: 0 };
+          byStaff[key].qty += Number(sale.qty || 0);
+          byStaff[key].sale += Number(sale.total || 0);
+        });
+        $("staffSalesList").innerHTML = Object.values(byStaff).sort((a, b) => b.sale - a.sale).slice(0, 8).map((row) => `
+          <div class="item"><div class="row between"><h3>${escapeHtml(row.name)}</h3><span class="badge info">${money(row.sale)}</span></div><p>Sold qty ${row.qty}</p></div>
+        `).join("") || `<div class="empty">No sales person data yet.</div>`;
+      }
 
       function renderKitchenAdmin() {
         $("kitchenAdminList").innerHTML = kitchens.map((kitchen) => `
@@ -835,7 +1243,7 @@
 
       $("downloadBackupBtn").addEventListener("click", async () => {
         if (currentUser?.role !== "super-admin") return toast("Super admin login required.");
-        const names = ["menuItems", "customerOrders", "feedbacks", "baseKitchens", "indents", "invoices", "systemSettings"];
+        const names = ["menuItems", "customerOrders", "feedbacks", "baseKitchens", "trainMasters", "indents", "invoices", "stockInterests", "cashPurchases", "storeInwards", "staffSales", "systemSettings"];
         const backup = {};
         for (const name of names) backup[name] = await collectCollection(name);
         downloadJson(`rk-firestore-backup-${new Date().toISOString().slice(0, 10)}.json`, backup);
@@ -879,9 +1287,19 @@
         renderFeedbacks();
         renderMetrics();
       }, "timestamp", "desc", 200);
+      onLive("stockInterests", (rows) => { stockInterests = rows; renderFeedbacks(); }, "createdAt", "desc", 200);
       onLive("indents", (rows) => { indents = rows; renderIndents(); }, "createdAt", "desc", 200);
       onLive("invoices", (rows) => { invoices = rows; renderInvoices(); }, "createdAt", "desc", 200);
-      onLive("menuItems", (rows) => { menuItems = rows.sort((a, b) => String(a.name).localeCompare(String(b.name))); renderIndentItemSelect(); renderMenuAdmin(); }, "name", "asc", 300);
+      onLive("cashPurchases", (rows) => { cashPurchases = rows; renderPurchases(); }, "createdAt", "desc", 200);
+      onLive("storeInwards", (rows) => { storeInwards = rows; renderPurchases(); }, "createdAt", "desc", 200);
+      onLive("staffSales", (rows) => { staffSales = rows; renderStaffSales(); }, "createdAt", "desc", 250);
+      onLive("menuItems", (rows) => { menuItems = rows.sort((a, b) => String(a.name).localeCompare(String(b.name))); renderIndentItemSelect(); renderMenuAdmin(); renderStaffSaleItemSelect(); }, "name", "asc", 300);
+      db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
+        trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        renderTrainSelects();
+        renderTrainAdmin();
+        renderOrders();
+      });
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         renderKitchenSelects();
