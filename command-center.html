@@ -542,20 +542,41 @@
         lucide.createIcons();
       }
 
+      function customerFeedbackNotice(status, note) {
+        const cleanStatus = String(status || "").toLowerCase();
+        const response = String(note || "").trim();
+        if (response) return response;
+        if (cleanStatus === "acknowledged") return "RK Group has acknowledged your feedback / complaint and our team is reviewing it.";
+        if (cleanStatus === "investigating") return "RK Group is investigating your complaint and checking the matter with the concerned team.";
+        if (cleanStatus === "waiting for vendor") return "RK Group is checking this matter with the concerned vendor / base kitchen and will update you shortly.";
+        if (cleanStatus === "resolved") return "RK Group has resolved your complaint. Thank you for giving us the chance to correct the issue.";
+        if (cleanStatus === "closed") return "This ticket has been closed by RK Group. Thank you for sharing your concern.";
+        return "Your ticket is open with RK command center. Our team will review it shortly.";
+      }
+
       $("feedbackList").addEventListener("click", async (event) => {
         const btn = event.target.closest("[data-save-feedback]");
         if (!btn) return;
         const id = btn.dataset.saveFeedback;
-        const note = document.querySelector(`[data-resolution="${id}"]`).value;
+        const note = document.querySelector(`[data-resolution="${id}"]`).value.trim();
         const status = document.querySelector(`[data-feedback-status="${id}"]`).value;
+        const customerNotice = customerFeedbackNotice(status, note);
         const payload = {
           status,
-          managerResponse: note || "RK command center is checking this matter.",
+          managerResponse: note || customerNotice,
+          customerNotice,
+          statusLog: FieldValue.arrayUnion({
+            status,
+            note: customerNotice,
+            managerNote: note,
+            by: currentUser?.email || "command-center",
+            at: new Date().toISOString()
+          }),
           updatedAt: FieldValue.serverTimestamp()
         };
         if (["resolved", "closed"].includes(status)) payload.resolvedAt = FieldValue.serverTimestamp();
         await db.collection("feedbacks").doc(id).update(payload);
-        toast("Feedback / complaint status updated.");
+        toast("Feedback / complaint status updated for customer tracking.");
       });
 
       function renderKitchenSelects() {

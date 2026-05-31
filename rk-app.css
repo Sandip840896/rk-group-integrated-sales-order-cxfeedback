@@ -666,6 +666,32 @@ th {
   border-color: #fecaca;
 }
 
+.status-timeline {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.status-step {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid #dbe3ef;
+  border-left: 4px solid var(--brand);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.status-step b {
+  color: var(--ink);
+  text-transform: capitalize;
+}
+
+.status-step span,
+.status-step small {
+  color: var(--muted);
+}
+
 .qty {
   width: 76px;
 }

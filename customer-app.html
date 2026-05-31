@@ -431,6 +431,17 @@
             coach: customer.coach,
             seat: customer.seat,
             status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
+            customerNotice: data.submissionType === "complaint"
+              ? "Your complaint has been received by RK Group. Our command center will review it shortly."
+              : "Your feedback has been received by RK Group. Thank you for helping us improve.",
+            statusLog: [{
+              status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
+              note: data.submissionType === "complaint"
+                ? "Complaint received by RK Group."
+                : "Feedback received by RK Group.",
+              at: new Date().toISOString(),
+              by: "customer"
+            }],
             source: "customer-app",
             timestamp: FieldValue.serverTimestamp(),
             createdAt: FieldValue.serverTimestamp(),
@@ -500,9 +511,21 @@
           ${trackedFeedbacks.map((fb) => `
             <div class="item">
               <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)}</h3>${statusBadge(fb.status)}</div>
-              <p>${escapeHtml(fb.type || "feedback")} | ${escapeHtml(fb.orderNo || "General")} | ${nowLabel(fb.createdAt || fb.timestamp)}</p>
+              <p>${escapeHtml(fb.type || "feedback")} | ${escapeHtml(fb.orderNo || "General")} | Submitted ${nowLabel(fb.createdAt || fb.timestamp)}</p>
+              ${fb.updatedAt ? `<p><b>Last Update:</b> ${nowLabel(fb.updatedAt)}</p>` : ""}
               <p>${escapeHtml(fb.message || "")}</p>
-              ${fb.managerResponse ? `<p><b>RK Response:</b> ${escapeHtml(fb.managerResponse)}</p>` : ""}
+              <div class="ack ${["resolved", "closed", "acknowledged"].includes(String(fb.status || "").toLowerCase()) ? "success" : "danger-soft"}" style="margin-top:10px;">
+                <b>RK Update:</b> ${escapeHtml(fb.customerNotice || fb.managerResponse || "Your ticket is with RK command center. Please check again shortly.")}
+              </div>
+              ${Array.isArray(fb.statusLog) && fb.statusLog.length ? `
+                <div class="status-timeline">
+                  ${fb.statusLog.slice(-5).reverse().map((log) => `
+                    <div class="status-step">
+                      <b>${escapeHtml(String(log.status || "update").replace(/-/g, " "))}</b>
+                      <span>${escapeHtml(log.note || "")}</span>
+                      <small>${nowLabel(log.at)}</small>
+                    </div>`).join("")}
+                </div>` : ""}
             </div>`).join("")}` : "";
         $("trackList").innerHTML = orderHtml + feedbackHtml;
         lucide.createIcons();
