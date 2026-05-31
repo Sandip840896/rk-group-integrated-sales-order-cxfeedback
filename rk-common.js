@@ -48,6 +48,10 @@ function $(id) {
   return document.getElementById(id);
 }
 
+function firebaseDocId(value) {
+  return encodeURIComponent(String(value || "").trim()).replace(/\./g, "%2E");
+}
+
 function money(value) {
   return "Rs " + Number(value || 0).toLocaleString("en-IN");
 }
@@ -411,7 +415,7 @@ async function ensureSeedData() {
     }, { merge: true });
   });
   seedTrainMasters.forEach((train) => {
-    batch.set(db.collection("trainMasters").doc(train.trainNumber), {
+    batch.set(db.collection("trainMasters").doc(firebaseDocId(train.trainNumber)), {
       ...train,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp()

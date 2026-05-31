@@ -878,7 +878,7 @@
         event.preventDefault();
         const data = getForm(event.currentTarget);
         const trainNumber = String(data.trainNumber || "").trim();
-        await db.collection("trainMasters").doc(trainNumber).set({
+        await db.collection("trainMasters").doc(firebaseDocId(trainNumber)).set({
           trainNumber,
           trainName: data.trainName,
           yardName: data.yardName,
@@ -918,7 +918,7 @@
             }
             if (seen.has(trainNumber)) duplicate += 1;
             seen.add(trainNumber);
-            batch.set(db.collection("trainMasters").doc(trainNumber), {
+            batch.set(db.collection("trainMasters").doc(firebaseDocId(trainNumber)), {
               trainNumber,
               trainName,
               yardName: yardName || "",
