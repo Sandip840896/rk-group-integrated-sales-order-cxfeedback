@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /menuItems/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /customerOrders/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /feedbacks/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /baseKitchens/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /trainMasters/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /indents/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /invoices/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /stockInterests/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /cashPurchases/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /storeInwards/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /staffSales/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /systemSettings/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /adminUsers/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// Version 1 note:
+// These are controlled-pilot rules for a browser-only prototype.
+// They reduce accidental damage by blocking deletes, but they are not full production security.
+// Before wide launch, use Firebase Authentication, role claims and App Check.

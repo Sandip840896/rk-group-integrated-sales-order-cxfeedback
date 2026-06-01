@@ -15,8 +15,14 @@ Developer and support: Sandip Nandi, 8584833366, sandipnandi2000@gmail.com
 - `customerOrders` - passenger food orders
 - `feedbacks` - feedback and complaint records
 - `baseKitchens` - base kitchen master
+- `trainMasters` - train number, train name and yard master
 - `indents` - train manager indent to base kitchen
 - `invoices` - base kitchen invoice and delivery acceptance/dispute
+- `stockInterests` - passenger notify-me requests for sold out items
+- `cashPurchases` - local outside purchase by train manager
+- `storeInwards` - store/warehouse inward records
+- `staffSales` - onboard sales person sale entry
+- `adminUsers` - prototype app login and access roles
 - `systemSettings` - seed marker for default master data
 
 ## Firestore indexes you may need
@@ -49,6 +55,7 @@ service cloud.firestore {
 - Add Firebase Authentication for command center and base kitchen users.
 - Allow public write only to `customerOrders` and `feedbacks`.
 - Restrict `menuItems`, `indents`, `invoices`, and `baseKitchens` to authenticated RK staff.
+- Use `FIREBASE_RULES_V1_CONTROLLED_PILOT.rules` for a controlled pilot where deletes should be blocked.
 - Enable Firebase App Check after GitHub Pages domain is final.
 - Keep Firebase project billing and quota alerts active because photo proof is stored as compressed base64 in Firestore in this V1.
 
@@ -65,9 +72,10 @@ service cloud.firestore {
 
 ## Firebase config
 
-The current app uses your existing Firebase project:
+The current app uses your Firebase project:
 
-- Project ID: `rk-group-feedback`
-- Auth domain: `rk-group-feedback.firebaseapp.com`
+- Project ID: `rk-rail-cx`
+- Auth domain: `rk-rail-cx.firebaseapp.com`
+- Storage bucket: `rk-rail-cx.firebasestorage.app`
 
 If you create a new Firebase project, replace the config object in `rk-common.js`.
