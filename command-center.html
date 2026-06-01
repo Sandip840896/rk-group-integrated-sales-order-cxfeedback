@@ -559,7 +559,8 @@
                 ${String(fb.proof.type || "").startsWith("audio/") ? `<audio controls src="${fb.proof.dataUrl}"></audio>` : ""}
                 ${String(fb.proof.type || "").startsWith("video/") ? `<video controls src="${fb.proof.dataUrl}"></video>` : ""}
               </div>` : ""}
-            ${fb.managerResponse ? `<p><b>Resolution:</b> ${escapeHtml(fb.managerResponse)}</p>` : ""}
+            ${fb.managerResponse ? `<p><b>Resolution:</b> ${escapeHtml(fb.managerResponse)}${fb.lastResponder ? ` <span class="muted-text">- by ${escapeHtml(fb.lastResponder)}</span>` : ""}</p>` : ""}
+            ${fb.customerReply ? `<div class="ack success" style="margin-top:10px;"><b>Customer reply:</b> ${escapeHtml(fb.customerReply)}${fb.customerReplyRating ? `<br><small>Customer rating for response: ${escapeHtml(fb.customerReplyRating)} / 5</small>` : ""}</div>` : ""}
             <div class="row mobile-stack" style="margin-top:10px;">
               <select class="select" data-feedback-status="${fb.id}">
                 ${complaintStatuses.map((status) => `<option value="${status}" ${String(fb.status || "").toLowerCase() === status ? "selected" : ""}>${status}</option>`).join("")}
@@ -591,15 +592,17 @@
         const note = document.querySelector(`[data-resolution="${id}"]`).value.trim();
         const status = document.querySelector(`[data-feedback-status="${id}"]`).value;
         const customerNotice = customerFeedbackNotice(status, note);
+        const responder = currentUser?.name || currentUser?.email || "RK Command Center";
         const payload = {
           status,
           managerResponse: note || customerNotice,
           customerNotice,
+          lastResponder: responder,
           statusLog: FieldValue.arrayUnion({
             status,
             note: customerNotice,
             managerNote: note,
-            by: currentUser?.email || "command-center",
+            by: responder,
             at: new Date().toISOString()
           }),
           updatedAt: FieldValue.serverTimestamp()

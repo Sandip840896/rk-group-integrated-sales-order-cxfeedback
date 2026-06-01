@@ -168,8 +168,21 @@
       let unsubscribeFeedbackNestedTrack = null;
       let unsubscribeFeedbackDocTracks = [];
       $("mealFilter").innerHTML = ["All", ...mealSlots].map((m) => `<option>${m}</option>`).join("");
-      $("deliveryWindow").innerHTML = deliveryWindows.map((slot) => `<option value="${slot}">${slot.replace("-", " to ")}</option>`).join("");
       $("complaintNature").innerHTML = complaintNatures.map((nature) => `<option>${escapeHtml(nature)}</option>`).join("");
+
+      function deliverySlotsForMeal(meal) {
+        if (meal === "Breakfast") return ["07:00-10:00"];
+        if (meal === "Lunch") return ["12:00-15:00"];
+        if (meal === "Dinner") return ["19:30-22:00"];
+        return deliveryWindows;
+      }
+
+      function renderDeliveryWindows() {
+        const meal = $("mealFilter").value;
+        const slots = deliverySlotsForMeal(meal);
+        $("deliveryWindow").innerHTML = slots.map((slot) => `<option value="${slot}">${slot.replace("-", " to ")}</option>`).join("");
+      }
+      renderDeliveryWindows();
 
       function passenger() {
         const data = getForm($("customerForm"));
@@ -348,7 +361,10 @@
         renderMenu();
       });
 
-      $("mealFilter").addEventListener("change", renderMenu);
+      $("mealFilter").addEventListener("change", () => {
+        renderDeliveryWindows();
+        renderMenu();
+      });
       $("savePassengerBtn").addEventListener("click", () => {
         if (validatePassenger()) toast("Passenger details saved.");
       });
@@ -397,7 +413,7 @@
               coach: customer.coach,
               seat: customer.seat,
               mealSlot: $("mealFilter").value === "All" ? "Other" : $("mealFilter").value,
-              deliveryWindow: $("mealFilter").value === "Beverage" ? "Within next 30 minutes" : $("deliveryWindow").value,
+              deliveryWindow: $("deliveryWindow").value,
               items,
               total,
               status: "new",
@@ -563,16 +579,33 @@
               <p>${escapeHtml(fb.message || "")}</p>
               <div class="ack ${["resolved", "closed", "acknowledged"].includes(String(fb.status || "").toLowerCase()) ? "success" : "danger-soft"}" style="margin-top:10px;">
                 <b>RK Update:</b> ${escapeHtml(fb.customerNotice || fb.managerResponse || "Your ticket is with RK command center. Please check again shortly.")}
+                ${fb.lastResponder ? `<br><small>Replied by: ${escapeHtml(fb.lastResponder)}</small>` : ""}
               </div>
+              ${fb.customerReply ? `<div class="ack success" style="margin-top:10px;"><b>Your last reply:</b> ${escapeHtml(fb.customerReply)}${fb.customerReplyRating ? `<br><small>Your rating for response: ${escapeHtml(fb.customerReplyRating)} / 5</small>` : ""}</div>` : ""}
               ${Array.isArray(fb.statusLog) && fb.statusLog.length ? `
                 <div class="status-timeline">
                   ${fb.statusLog.slice(-5).reverse().map((log) => `
                     <div class="status-step">
                       <b>${escapeHtml(String(log.status || "update").replace(/-/g, " "))}</b>
                       <span>${escapeHtml(log.note || "")}</span>
+                      ${log.by ? `<small>By ${escapeHtml(log.by)}</small>` : ""}
                       <small>${nowLabel(log.at)}</small>
                     </div>`).join("")}
                 </div>` : ""}
+              <div class="feedback-reply-box">
+                <label class="field"><span>Your reply to RK</span><textarea class="textarea" rows="2" placeholder="Write your reply or further detail" data-customer-feedback-reply="${fb.id}"></textarea></label>
+                <div class="row mobile-stack">
+                  <label class="field grow"><span>Rate RK response</span><select class="select" data-customer-feedback-rating="${fb.id}">
+                    <option value="">No rating</option>
+                    <option value="5">5 - Excellent</option>
+                    <option value="4">4 - Good</option>
+                    <option value="3">3 - Average</option>
+                    <option value="2">2 - Poor</option>
+                    <option value="1">1 - Bad</option>
+                  </select></label>
+                  <button class="btn secondary" data-reply-feedback="${fb.id}"><i data-lucide="send"></i> Send Reply</button>
+                </div>
+              </div>
             </div>`).join("")}` : "";
         $("trackList").innerHTML = orderHtml + feedbackHtml;
         lucide.createIcons();
@@ -643,10 +676,11 @@
         });
       }
 
-      $("trackList").addEventListener("click", (event) => {
+      $("trackList").addEventListener("click", async (event) => {
         const print = event.target.closest("[data-print-order]");
         const cancel = event.target.closest("[data-cancel-order]");
         const edit = event.target.closest("[data-edit-order]");
+        const reply = event.target.closest("[data-reply-feedback]");
         if (print) {
           const order = trackedOrders.find((entry) => entry.id === print.dataset.printOrder);
           if (String(order?.status || "").toLowerCase() === "cancelled") {
@@ -678,6 +712,31 @@
             renderMenu();
             toast("Order loaded for editing. Please review and place again.");
           });
+        }
+        if (reply) {
+          const id = reply.dataset.replyFeedback;
+          const text = document.querySelector(`[data-customer-feedback-reply="${id}"]`)?.value.trim() || "";
+          const rating = document.querySelector(`[data-customer-feedback-rating="${id}"]`)?.value || "";
+          if (!text && !rating) {
+            toast("Write a reply or choose a rating first.");
+            return;
+          }
+          const ticket = trackedFeedbacks.find((entry) => entry.id === id);
+          await db.collection("feedbacks").doc(id).update({
+            customerReply: text,
+            customerReplyRating: rating ? Number(rating) : "",
+            customerRepliedAt: FieldValue.serverTimestamp(),
+            status: ["resolved", "closed"].includes(String(ticket?.status || "").toLowerCase()) ? "customer-replied" : (ticket?.status || "open"),
+            statusLog: FieldValue.arrayUnion({
+              status: "customer-replied",
+              note: text || `Customer rated RK response ${rating}/5`,
+              rating: rating ? Number(rating) : "",
+              by: "customer",
+              at: new Date().toISOString()
+            }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Your reply has been sent to RK command center.");
         }
       });
 

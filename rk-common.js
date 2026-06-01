@@ -15,13 +15,14 @@ const SUPPORT_HTML = "System developer and support<br>Sandip Nandi | 8584833366<
 
 const mealSlots = ["Breakfast", "Lunch", "Snacks", "Dinner", "Beverage", "Other"];
 const complaintNatures = ["Over Charging", "Staff Behavior", "Food Quality", "Food Qty", "Expiry Product", "Hygiene", "Others"];
-const complaintStatuses = ["open", "acknowledged", "investigating", "waiting for vendor", "resolved", "closed"];
+const complaintStatuses = ["open", "acknowledged", "investigating", "waiting for vendor", "customer-replied", "resolved", "closed"];
 const orderStatuses = ["new", "accepted", "preparing", "out-for-delivery", "delivered"];
 const deliveryWindows = [
   "06:00-07:00", "07:00-08:00", "08:00-09:00", "09:00-10:00",
   "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00-14:00",
   "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00",
-  "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00"
+  "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00",
+  "22:00-23:00"
 ];
 
 const seedBaseKitchens = [
@@ -323,7 +324,7 @@ function statusBadge(status) {
   const s = String(status || "new").toLowerCase();
   let tone = "info";
   if (["delivered", "accepted", "closed", "resolved", "invoiced"].includes(s)) tone = "ok";
-  if (["processing", "preparing", "out-for-delivery", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor"].includes(s)) tone = "warn";
+  if (["processing", "preparing", "out-for-delivery", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor", "customer-replied"].includes(s)) tone = "warn";
   if (["disputed", "cancelled", "rejected", "open"].includes(s)) tone = "danger";
   return `<span class="badge ${tone}">${escapeHtml(s.replace(/-/g, " "))}</span>`;
 }
