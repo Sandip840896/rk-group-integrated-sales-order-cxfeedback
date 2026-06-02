@@ -104,6 +104,10 @@
             <label class="field"><span>Base Kitchen</span><select class="select" id="indentKitchen" name="baseKitchenId" required></select></label>
             <label class="field"><span>Required By</span><input class="input" name="requiredBy" type="datetime-local" required></label>
           </div>
+          <div class="grid two">
+            <label class="field"><span>Delivery Station</span><input class="input" name="deliveryStation" required placeholder="Station / platform / loading point"></label>
+            <label class="field"><span>Delivery Time</span><input class="input" name="deliveryTime" type="datetime-local" required></label>
+          </div>
           <label class="field"><span>Remarks</span><textarea class="textarea" name="remarks" placeholder="Station, platform, coach loading point, special instruction"></textarea></label>
           <div class="table-wrap">
             <table>
@@ -297,9 +301,19 @@
             <label class="field"><span>Password</span><input class="input" name="password" required placeholder="temporary password"></label>
           </div>
           <div class="grid two">
+            <label class="field"><span>User Name</span><input class="input" name="name" required placeholder="Manager / kitchen user name"></label>
             <label class="field"><span>Role</span><select class="select" name="role"><option>manager</option><option>base-kitchen</option><option>viewer</option><option>admin</option></select></label>
-            <label class="field"><span>Access</span><input class="input" name="access" placeholder="customer, command-center, base-kitchen, all"></label>
           </div>
+          <div class="grid two">
+            <label class="field"><span>Access Scope</span><select class="select" name="accessScope">
+              <option value="all">All locations</option>
+              <option value="train">Specific train</option>
+              <option value="yard">Specific yard</option>
+              <option value="baseKitchen">Specific base kitchen</option>
+            </select></label>
+            <label class="field"><span>Scope Value</span><input class="input" name="accessValue" placeholder="Train no / yard name / base kitchen ID"></label>
+          </div>
+          <label class="field"><span>Page Access</span><input class="input" name="access" placeholder="command-center, base-kitchen, all"></label>
           <button class="btn" type="submit"><i data-lucide="save"></i> Save User</button>
         </form>
       </div>
@@ -387,18 +401,26 @@
         const email = $("loginEmail").value.trim().toLowerCase();
         const password = $("loginPassword").value;
         if (email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD) {
-          currentUser = { email, role: "super-admin", access: "all" };
+          currentUser = { email, name: "Sandip Nandi", role: "super-admin", access: "all", accessScope: "all", accessValue: "" };
         } else {
           const found = adminUsers.find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password);
           if (!found) {
             toast("Login failed. Please check ID and password.");
             return;
           }
-          currentUser = { email: found.email, role: found.role || "viewer", access: found.access || "" };
+          currentUser = {
+            email: found.email,
+            name: found.name || found.email,
+            role: found.role || "viewer",
+            access: found.access || "",
+            accessScope: found.accessScope || (String(found.access || "").toLowerCase() === "all" ? "all" : ""),
+            accessValue: found.accessValue || ""
+          };
         }
         sessionStorage.setItem("rkCurrentUser", JSON.stringify(currentUser));
         $("loginPassword").value = "";
         updateLoginUi();
+        refreshAccessViews();
         toast(`Logged in as ${currentUser.role}.`);
       });
 
@@ -406,30 +428,120 @@
         currentUser = null;
         sessionStorage.removeItem("rkCurrentUser");
         updateLoginUi();
+        refreshAccessViews();
         showTab("overview");
       });
       updateLoginUi();
 
+      function normalizeText(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function hasAllAccess() {
+        if (!currentUser) return true;
+        return currentUser.role === "super-admin"
+          || normalizeText(currentUser.access) === "all"
+          || normalizeText(currentUser.accessScope) === "all";
+      }
+
+      function userScope() {
+        return normalizeText(currentUser?.accessScope || (hasAllAccess() ? "all" : ""));
+      }
+
+      function userScopeValue() {
+        return normalizeText(currentUser?.accessValue || "");
+      }
+
+      function canAccessTrain(train, yardName = "") {
+        if (hasAllAccess()) return true;
+        const scope = userScope();
+        const value = userScopeValue();
+        if (!value) return false;
+        if (scope === "train") return normalizeText(train) === value;
+        if (scope === "yard") return normalizeText(yardName).includes(value);
+        return false;
+      }
+
+      function canAccessKitchen(baseKitchenId = "", baseKitchenName = "") {
+        if (hasAllAccess()) return true;
+        const scope = userScope();
+        const value = userScopeValue();
+        if (!value) return false;
+        if (scope === "basekitchen") return normalizeText(baseKitchenId) === value || normalizeText(baseKitchenName).includes(value);
+        return false;
+      }
+
+      function visibleOrdersForAccess() {
+        return orders.filter((order) => canAccessTrain(order.train, order.yardName));
+      }
+
+      function visibleFeedbacksForAccess() {
+        return feedbacks.filter((fb) => canAccessTrain(fb.train || fb.customer?.train, fb.yardName || fb.customer?.yardName));
+      }
+
+      function visibleStockInterestsForAccess() {
+        return stockInterests.filter((row) => canAccessTrain(row.train || row.customer?.train, row.yardName || row.customer?.yardName));
+      }
+
+      function visibleIndentsForAccess() {
+        return indents.filter((indent) => canAccessTrain(indent.train, indent.yardName) || canAccessKitchen(indent.baseKitchenId, indent.baseKitchenName));
+      }
+
+      function visibleInvoicesForAccess() {
+        return invoices.filter((invoice) => canAccessTrain(invoice.train, invoice.yardName) || canAccessKitchen(invoice.baseKitchenId, invoice.baseKitchenName));
+      }
+
+      function visibleCashPurchasesForAccess() {
+        return cashPurchases.filter((row) => canAccessTrain(row.train, row.yardName));
+      }
+
+      function visibleStoreInwardsForAccess() {
+        return storeInwards.filter((row) => canAccessTrain(row.train, row.yardName));
+      }
+
+      function visibleStaffSalesForAccess() {
+        return staffSales.filter((row) => canAccessTrain(row.train, row.yardName));
+      }
+
+      function refreshAccessViews() {
+        renderTrainSelects();
+        renderKitchenSelects();
+        renderOrders();
+        renderFeedbacks();
+        renderIndents();
+        renderInvoices();
+        renderPurchases();
+        renderStaffSales();
+        renderMetrics();
+      }
+
       function renderMetrics() {
-        const customerSales = orders.filter((order) => String(order.status || "").toLowerCase() !== "cancelled");
+        const visibleOrders = visibleOrdersForAccess();
+        const visibleFeedbacks = visibleFeedbacksForAccess();
+        const visibleIndents = visibleIndentsForAccess();
+        const visibleInvoices = visibleInvoicesForAccess();
+        const visibleCashPurchases = visibleCashPurchasesForAccess();
+        const visibleStoreInwards = visibleStoreInwardsForAccess();
+        const visibleStaffSales = visibleStaffSalesForAccess();
+        const customerSales = visibleOrders.filter((order) => String(order.status || "").toLowerCase() !== "cancelled");
         const customerSaleAmount = customerSales.reduce((sum, order) => sum + Number(order.total || 0), 0);
         const customerCost = customerSales.flatMap((order) => order.items || []).reduce((sum, line) => sum + Number(line.qty || 0) * orderLineCostPrice(line), 0);
-        const staffSaleAmount = staffSales.reduce((sum, row) => sum + Number(row.total || row.amountReceived || 0), 0);
-        const staffCost = staffSales.reduce((sum, row) => sum + Number(row.qty || 0) * Number(row.costPrice || 0), 0);
-        const purchaseTotal = invoices.reduce((sum, invoice) => sum + commandInvoiceCostTotal(invoice), 0)
-          + cashPurchases.reduce((sum, row) => sum + Number(row.totalCost || 0), 0)
-          + storeInwards.reduce((sum, row) => sum + Number(row.totalCost || 0), 0);
-        $("mOrders").textContent = orders.length;
-        $("mFeedback").textContent = feedbacks.length;
-        $("mIndents").textContent = indents.length;
-        const requested = indents.flatMap((indent) => indent.items || []).reduce((sum, line) => sum + Number(line.requestedQty || line.qty || 0), 0);
-        const approved = indents.flatMap((indent) => indent.items || []).reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? line.qty ?? 0), 0);
+        const staffSaleAmount = visibleStaffSales.reduce((sum, row) => sum + Number(row.total || row.amountReceived || 0), 0);
+        const staffCost = visibleStaffSales.reduce((sum, row) => sum + Number(row.qty || 0) * Number(row.costPrice || 0), 0);
+        const purchaseTotal = visibleInvoices.reduce((sum, invoice) => sum + commandInvoiceCostTotal(invoice), 0)
+          + visibleCashPurchases.reduce((sum, row) => sum + Number(row.totalCost || 0), 0)
+          + visibleStoreInwards.reduce((sum, row) => sum + Number(row.totalCost || 0), 0);
+        $("mOrders").textContent = visibleOrders.length;
+        $("mFeedback").textContent = visibleFeedbacks.length;
+        $("mIndents").textContent = visibleIndents.length;
+        const requested = visibleIndents.flatMap((indent) => indent.items || []).reduce((sum, line) => sum + Number(line.requestedQty || line.qty || 0), 0);
+        const approved = visibleIndents.flatMap((indent) => indent.items || []).reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? line.qty ?? 0), 0);
         $("mFill").textContent = requested ? `${Math.round((approved / requested) * 100)}%` : "0%";
         $("mSales").textContent = money(customerSaleAmount + staffSaleAmount);
         $("mProfit").textContent = money(customerSaleAmount + staffSaleAmount - customerCost - staffCost);
         $("mPurchases").textContent = money(purchaseTotal);
-        $("mOpenComplaints").textContent = feedbacks.filter((fb) => String(fb.type || "").toLowerCase() === "complaint" && !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length;
-        $("recentOrders").innerHTML = orders.slice(0, 5).map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
+        $("mOpenComplaints").textContent = visibleFeedbacks.filter((fb) => String(fb.type || "").toLowerCase() === "complaint" && !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length;
+        $("recentOrders").innerHTML = visibleOrders.slice(0, 5).map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
         renderFillRates();
         renderSalesDashboards();
         renderTabBadges();
@@ -443,9 +555,9 @@
       }
 
       function renderTabBadges() {
-        const liveOrderCount = orders.filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())).length;
-        const activeFeedbackCount = feedbacks.filter((fb) => !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length;
-        const openInterestCount = stockInterests.filter((row) => !["resolved", "closed", "cancelled"].includes(String(row.status || "").toLowerCase())).length;
+        const liveOrderCount = visibleOrdersForAccess().filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())).length;
+        const activeFeedbackCount = visibleFeedbacksForAccess().filter((fb) => !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length;
+        const openInterestCount = visibleStockInterestsForAccess().filter((row) => !["resolved", "closed", "cancelled"].includes(String(row.status || "").toLowerCase())).length;
         setTabBadge("ordersTabBadge", liveOrderCount);
         setTabBadge("feedbackTabBadge", activeFeedbackCount + openInterestCount);
       }
@@ -491,7 +603,8 @@
 
       function renderOrders() {
         const trainFilter = $("commandTrainFilter")?.value || "all";
-        const visibleOrders = trainFilter === "all" ? orders : orders.filter((order) => String(order.train || "") === trainFilter);
+        const accessOrders = visibleOrdersForAccess();
+        const visibleOrders = trainFilter === "all" ? accessOrders : accessOrders.filter((order) => String(order.train || "") === trainFilter);
         $("ordersList").innerHTML = visibleOrders.map(orderCard).join("") || `<div class="empty">No live customer order for this train.</div>`;
         renderMetrics();
         lucide.createIcons();
@@ -541,13 +654,15 @@
       $("commandTrainFilter").addEventListener("change", renderOrders);
 
       function renderFeedbacks() {
-        $("stockInterestList").innerHTML = stockInterests.map((row) => `
+        const visibleStockInterests = visibleStockInterestsForAccess();
+        const visibleFeedbacks = visibleFeedbacksForAccess();
+        $("stockInterestList").innerHTML = visibleStockInterests.map((row) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(row.itemName || "")}</h3>${statusBadge(row.status || "new")}</div>
             <p>${escapeHtml(row.customer?.name || "")} | ${escapeHtml(row.customerPhone || "")} | Train ${escapeHtml(row.train || "")}${row.trainName ? ` - ${escapeHtml(row.trainName)}` : ""}</p>
             <p>${(row.mealSlots || []).map(escapeHtml).join(", ")} | ${nowLabel(row.createdAt)}</p>
           </div>`).join("") || `<div class="empty">No sold-out interest yet.</div>`;
-        $("feedbackList").innerHTML = feedbacks.map((fb) => `
+        $("feedbackList").innerHTML = visibleFeedbacks.map((fb) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")} | Rating ${escapeHtml(fb.rating || "-")}</h3>${statusBadge(fb.status)}</div>
             <p>${escapeHtml(fb.customer?.name || fb.name || "")} | ${escapeHtml(fb.customer?.phone || fb.phone || "")} | Train ${escapeHtml(fb.train || fb.customer?.train || "")}</p>
@@ -614,18 +729,19 @@
 
       function renderKitchenSelects() {
         const options = kitchens
-          .filter((k) => k.active !== false)
+          .filter((k) => k.active !== false && (userScope() !== "basekitchen" || canAccessKitchen(k.id, k.name)))
           .map((k) => `<option value="${k.id}">${escapeHtml(k.name)} (${escapeHtml(k.id)})</option>`)
           .join("");
         $("indentKitchen").innerHTML = options;
       }
 
       function renderTrainSelects() {
-        const activeTrains = trainMasters.filter((train) => train.active !== false);
+        const activeTrains = trainMasters.filter((train) => train.active !== false && canAccessTrain(train.trainNumber || train.id, train.yardName));
         const options = activeTrains.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("");
         ["commandTrainFilter", "indentTrainSelect", "cashTrainSelect", "storeTrainSelect", "staffTrainSelect"].forEach((id) => {
           if (!$(id)) return;
-          $(id).innerHTML = id === "commandTrainFilter" ? `<option value="all">All trains / OPS view</option>${options}` : options;
+          const allOption = hasAllAccess() ? `<option value="all">All trains / OPS view</option>` : `<option value="all">My allowed trains</option>`;
+          $(id).innerHTML = id === "commandTrainFilter" ? `${allOption}${options}` : options;
         });
       }
 
@@ -725,6 +841,8 @@
           baseKitchenId: data.baseKitchenId,
           baseKitchenName: kitchen?.name || data.baseKitchenId,
           requiredBy: data.requiredBy,
+          deliveryStation: data.deliveryStation,
+          deliveryTime: data.deliveryTime,
           remarks: data.remarks || "",
           items: pendingIndentItems.map((line) => ({ ...line })),
           requestedQty: pendingIndentItems.reduce((sum, line) => sum + Number(line.requestedQty || 0), 0),
@@ -743,7 +861,8 @@
       });
 
       function renderIndents() {
-        $("indentList").innerHTML = indents.map((indent) => {
+        const visibleIndents = visibleIndentsForAccess();
+        $("indentList").innerHTML = visibleIndents.map((indent) => {
           const req = (indent.items || []).reduce((sum, line) => sum + Number(line.requestedQty || 0), 0);
           const app = (indent.items || []).reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0), 0);
           const approvedCost = (indent.items || []).reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0) * costPriceOf(line), 0);
@@ -751,6 +870,7 @@
           return `<div class="item">
             <div class="row between"><h3>${escapeHtml(indent.indentNo || indent.id)}</h3>${statusBadge(indent.status)}</div>
             <p>Train ${escapeHtml(indent.train || "")} | ${escapeHtml(indent.baseKitchenName || "")} | Fill ${req ? Math.round(app / req * 100) : 0}% | Approved cost ${money(approvedCost)}</p>
+            <p><b>Delivery:</b> ${escapeHtml(indent.deliveryStation || "Not specified")} ${indent.deliveryTime ? `| ${escapeHtml(indent.deliveryTime)}` : ""}</p>
             <p>${(indent.items || []).map((line) => `${escapeHtml(line.name)} ${line.approvedQty ?? line.requestedQty}/${line.requestedQty} @ ${money(costPriceOf(line))}`).join(", ")}</p>
             ${shortageLines.length ? `<p class="shortage">Short: ${shortageLines.map((line) => `${escapeHtml(line.name)} ${Number(line.requestedQty || 0) - Number(line.approvedQty ?? line.requestedQty ?? 0)}`).join(", ")}</p>` : ""}
             ${indent.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(indent.cancelReason)}</p>` : ""}
@@ -772,7 +892,7 @@
 
       function renderFillRates() {
         const byKitchen = {};
-        indents.forEach((indent) => {
+        visibleIndentsForAccess().forEach((indent) => {
           const key = indent.baseKitchenId || "unknown";
           byKitchen[key] ||= { name: indent.baseKitchenName || key, requested: 0, approved: 0 };
           (indent.items || []).forEach((line) => {
@@ -788,10 +908,12 @@
       }
 
       function renderInvoices() {
-        $("invoiceList").innerHTML = invoices.map((invoice) => `
+        const visibleInvoices = visibleInvoicesForAccess();
+        $("invoiceList").innerHTML = visibleInvoices.map((invoice) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status)}</div>
             <p>Train ${escapeHtml(invoice.train || "")} | ${escapeHtml(invoice.baseKitchenName || "")} | ${nowLabel(invoice.createdAt)} | Cost total ${money(commandInvoiceCostTotal(invoice))}${invoice.revisionNo ? ` | Revision ${Number(invoice.revisionNo)}` : ""}</p>
+            ${invoice.deliveryStation || invoice.deliveryTime ? `<p><b>Delivery:</b> ${escapeHtml(invoice.deliveryStation || "")} ${invoice.deliveryTime ? `| ${escapeHtml(invoice.deliveryTime)}` : ""}</p>` : ""}
             ${invoice.deliveryPersonName ? `<p><b>Base kitchen delivery:</b> ${escapeHtml(invoice.deliveryPersonName)} | ${escapeHtml(invoice.deliveryPersonPhone || "")}</p>` : ""}
             <p>${(invoice.items || []).map((line) => `${escapeHtml(line.name)} x ${line.approvedQty ?? line.qty ?? 0} @ ${money(invoiceLineCostPrice(line))}`).join(", ")}</p>
             ${invoice.disputeReason ? `<p><b>${invoice.disputeClosed ? "Closed dispute" : "Dispute"}:</b> ${escapeHtml(invoice.disputeReason)}</p>` : ""}
@@ -1188,8 +1310,8 @@
 
       function renderPurchases() {
         const rows = [
-          ...cashPurchases.map((row) => ({ ...row, kind: "Cash Purchase" })),
-          ...storeInwards.map((row) => ({ ...row, kind: "Store Inward" }))
+          ...visibleCashPurchasesForAccess().map((row) => ({ ...row, kind: "Cash Purchase" })),
+          ...visibleStoreInwardsForAccess().map((row) => ({ ...row, kind: "Store Inward" }))
         ].sort((a, b) => {
           const left = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
           const right = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
@@ -1254,7 +1376,8 @@
       });
 
       function renderStaffSales() {
-        $("staffSaleRegister").innerHTML = staffSales.map((sale) => `
+        const visibleStaffSales = visibleStaffSalesForAccess();
+        $("staffSaleRegister").innerHTML = visibleStaffSales.map((sale) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(sale.saleNo || sale.id)} | ${escapeHtml(sale.staffName || "")}</h3><span class="badge ok">${money(sale.total)}</span></div>
             <p>Train ${escapeHtml(sale.train || "")} | ${escapeHtml(sale.itemName || "")} x ${Number(sale.qty || 0)} | ${nowLabel(sale.createdAt)}</p>
@@ -1264,7 +1387,7 @@
 
       function renderSalesDashboards() {
         const byProduct = {};
-        orders.filter((order) => String(order.status || "").toLowerCase() !== "cancelled").forEach((order) => {
+        visibleOrdersForAccess().filter((order) => String(order.status || "").toLowerCase() !== "cancelled").forEach((order) => {
           (order.items || []).forEach((line) => {
             const key = line.itemId || line.name;
             byProduct[key] ||= { name: line.name, qty: 0, sale: 0, cost: 0 };
@@ -1273,7 +1396,7 @@
             byProduct[key].cost += Number(line.qty || 0) * costPriceOf(line);
           });
         });
-        staffSales.forEach((sale) => {
+        visibleStaffSalesForAccess().forEach((sale) => {
           const key = sale.itemId || sale.itemName;
           byProduct[key] ||= { name: sale.itemName, qty: 0, sale: 0, cost: 0 };
           byProduct[key].qty += Number(sale.qty || 0);
@@ -1284,7 +1407,7 @@
           <div class="item"><div class="row between"><h3>${escapeHtml(row.name || "")}</h3><span class="badge ok">${money(row.sale)}</span></div><p>Qty ${row.qty} | Gross profit ${money(row.sale - row.cost)}</p></div>
         `).join("") || `<div class="empty">No sale data yet.</div>`;
         const byStaff = {};
-        staffSales.forEach((sale) => {
+        visibleStaffSalesForAccess().forEach((sale) => {
           const key = sale.staffName || "Unknown";
           byStaff[key] ||= { name: key, qty: 0, sale: 0 };
           byStaff[key].qty += Number(sale.qty || 0);
@@ -1333,9 +1456,12 @@
         await db.collection("systemSettings").doc(`adminUser__${data.email.trim().toLowerCase()}`).set({
           type: "adminUser",
           email: data.email.trim().toLowerCase(),
+          name: data.name,
           password: data.password,
           role: data.role,
           access: data.access || "",
+          accessScope: data.accessScope || "all",
+          accessValue: data.accessScope === "all" ? "" : String(data.accessValue || "").trim(),
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
         event.currentTarget.reset();
@@ -1346,7 +1472,8 @@
         $("adminUserList").innerHTML = adminUsers.map((user) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(user.email)}</h3><span class="badge info">${escapeHtml(user.role || "viewer")}</span></div>
-            <p>Access: ${escapeHtml(user.access || "")}</p>
+            <p>${escapeHtml(user.name || "")}</p>
+            <p>Page access: ${escapeHtml(user.access || "")} | Scope: ${escapeHtml(user.accessScope || "all")} ${user.accessValue ? `- ${escapeHtml(user.accessValue)}` : ""}</p>
             <button class="btn danger" data-delete-admin-user="${escapeHtml(user.id)}"><i data-lucide="trash-2"></i> Delete</button>
           </div>`).join("") || `<div class="empty">No admin user created yet.</div>`;
         lucide.createIcons();

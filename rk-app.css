@@ -158,7 +158,8 @@ a {
   margin-top: 14px;
 }
 
-.hero-points span {
+.hero-points span,
+.hero-points button {
   min-height: 28px;
   display: inline-flex;
   align-items: center;
@@ -170,6 +171,14 @@ a {
   color: #fff;
   font-size: 11px;
   font-weight: 800;
+}
+
+.hero-points button {
+  cursor: pointer;
+}
+
+.hero-points button:hover {
+  background: rgba(255,255,255,0.18);
 }
 
 .hero-points svg {
@@ -698,6 +707,28 @@ th {
   margin-top: 10px;
 }
 
+.status-details {
+  margin-top: 10px;
+}
+
+.status-details summary {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: #1e3a5f;
+  background: #eef5ff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.status-details summary svg {
+  width: 18px;
+  height: 18px;
+}
+
 .status-step {
   display: grid;
   gap: 3px;
@@ -849,7 +880,8 @@ th {
     gap: 6px;
   }
 
-  .hero-points span {
+  .hero-points span,
+  .hero-points button {
     flex: 1 1 calc(50% - 6px);
     justify-content: center;
     min-width: 0;

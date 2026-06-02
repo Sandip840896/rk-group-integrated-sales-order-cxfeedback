@@ -70,11 +70,17 @@
 
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        $("kitchenSelect").innerHTML = kitchens
-          .filter((k) => k.active !== false)
+        const activeKitchens = kitchens.filter((k) => k.active !== false);
+        $("kitchenSelect").innerHTML = activeKitchens
           .map((k) => `<option value="${k.id}">${escapeHtml(k.name)} (${escapeHtml(k.id)})</option>`)
           .join("");
-        if (activeKitchenId) $("kitchenSelect").value = activeKitchenId;
+        if (activeKitchenId && activeKitchens.some((k) => k.id === activeKitchenId)) {
+          $("kitchenSelect").value = activeKitchenId;
+        } else {
+          activeKitchenId = "";
+          localStorage.removeItem("rkBaseKitchen");
+        }
+        renderAll();
       });
 
       $("saveKitchenBtn").addEventListener("click", () => {
@@ -84,12 +90,21 @@
         renderAll();
       });
 
+      $("kitchenSelect").addEventListener("change", () => {
+        activeKitchenId = $("kitchenSelect").value;
+        localStorage.setItem("rkBaseKitchen", activeKitchenId);
+        seenIndents = new Set();
+        renderAll();
+      });
+
       function visibleIndents() {
-        return indents.filter((indent) => !activeKitchenId || indent.baseKitchenId === activeKitchenId);
+        if (!activeKitchenId) return [];
+        return indents.filter((indent) => String(indent.baseKitchenId || "") === activeKitchenId);
       }
 
       function visibleInvoices() {
-        return invoices.filter((invoice) => !activeKitchenId || invoice.baseKitchenId === activeKitchenId);
+        if (!activeKitchenId) return [];
+        return invoices.filter((invoice) => String(invoice.baseKitchenId || "") === activeKitchenId);
       }
 
       function renderMetrics() {
@@ -107,6 +122,7 @@
           <div class="item">
             <div class="row between"><h3>${escapeHtml(indent.indentNo || indent.id)}</h3>${statusBadge(indent.status)}</div>
             <p>Train ${escapeHtml(indent.train || "")} | Manager ${escapeHtml(indent.rackManager || "")} | Required ${escapeHtml(indent.requiredBy || "")}</p>
+            <p><b>Delivery:</b> ${escapeHtml(indent.deliveryStation || "Not specified")} ${indent.deliveryTime ? `| ${escapeHtml(indent.deliveryTime)}` : ""}</p>
             <p>${escapeHtml(indent.remarks || "")}</p>
             ${indent.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(indent.cancelReason)}</p>` : ""}
             <div class="table-wrap" style="margin-top:10px;">
@@ -189,6 +205,8 @@
             rackManager: indent.rackManager || "",
             baseKitchenId: indent.baseKitchenId,
             baseKitchenName: indent.baseKitchenName || "",
+            deliveryStation: indent.deliveryStation || "",
+            deliveryTime: indent.deliveryTime || indent.requiredBy || "",
             deliveryPersonName,
             deliveryPersonPhone,
             deliveryVanNo,
@@ -302,7 +320,7 @@
       }
 
       onLive("indents", (rows) => {
-        const visible = rows.filter((indent) => !activeKitchenId || indent.baseKitchenId === activeKitchenId);
+        const visible = rows.filter((indent) => activeKitchenId && String(indent.baseKitchenId || "") === activeKitchenId);
         const incoming = visible.filter((row) => !seenIndents.has(row.id));
         if (seenIndents.size && incoming.length) playBuzz(`${incoming.length} new base kitchen indent received.`);
         seenIndents = new Set(visible.map((row) => row.id));

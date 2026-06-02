@@ -21,9 +21,9 @@
         <h2>Order fresh meals from your seat.</h2>
         <p>Choose available items, track your order live, and reach RK support from the same screen.</p>
         <div class="hero-points">
-          <span><i data-lucide="clock-3"></i> Live status</span>
-          <span><i data-lucide="sparkles"></i> Fresh onboard menu</span>
-          <span><i data-lucide="receipt-text"></i> Invoice ready</span>
+          <button type="button" data-hero-tab="track"><i data-lucide="clock-3"></i> Live status</button>
+          <button type="button" data-hero-tab="order"><i data-lucide="sparkles"></i> Fresh onboard menu</button>
+          <button type="button" data-hero-tab="track"><i data-lucide="receipt-text"></i> Invoice ready</button>
         </div>
       </div>
       <div class="hero-visual" aria-hidden="true">
@@ -553,14 +553,17 @@
               </div>`).join("")}</div>
             ${order.status === "cancelled" ? `<div class="ack danger-soft" style="margin-top:10px;">${order.cancelledBy === "customer" ? "Your order has been cancelled as requested. Stock has been released back to the menu." : "We are sorry for the inconvenience caused. Due to high demand we are not able to complete this order. You may choose another available product and place a new order."}</div>` : ""}
             ${Array.isArray(order.statusLog) && order.statusLog.length ? `
-              <div class="status-timeline">
-                ${order.statusLog.slice(-5).reverse().map((log) => `
-                  <div class="status-step">
-                    <b>${escapeHtml(String(log.status || "update").replace(/-/g, " "))}</b>
-                    <span>${escapeHtml(log.note || "")}</span>
-                    <small>${nowLabel(log.at)}</small>
-                  </div>`).join("")}
-              </div>` : ""}
+              <details class="status-details">
+                <summary><i data-lucide="list-checks"></i> View status detail</summary>
+                <div class="status-timeline">
+                  ${order.statusLog.slice(-6).reverse().map((log) => `
+                    <div class="status-step">
+                      <b>${escapeHtml(String(log.status || "update").replace(/-/g, " "))}</b>
+                      <span>${escapeHtml(log.note || "")}</span>
+                      <small>${nowLabel(log.at)}</small>
+                    </div>`).join("")}
+                </div>
+              </details>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               ${order.status !== "cancelled" ? `<button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>` : ""}
               ${canCustomerChangeOrder(order) ? `
@@ -583,15 +586,18 @@
               </div>
               ${fb.customerReply ? `<div class="ack success" style="margin-top:10px;"><b>Your last reply:</b> ${escapeHtml(fb.customerReply)}${fb.customerReplyRating ? `<br><small>Your rating for response: ${escapeHtml(fb.customerReplyRating)} / 5</small>` : ""}</div>` : ""}
               ${Array.isArray(fb.statusLog) && fb.statusLog.length ? `
-                <div class="status-timeline">
-                  ${fb.statusLog.slice(-5).reverse().map((log) => `
-                    <div class="status-step">
-                      <b>${escapeHtml(String(log.status || "update").replace(/-/g, " "))}</b>
-                      <span>${escapeHtml(log.note || "")}</span>
-                      ${log.by ? `<small>By ${escapeHtml(log.by)}</small>` : ""}
-                      <small>${nowLabel(log.at)}</small>
-                    </div>`).join("")}
-                </div>` : ""}
+                <details class="status-details">
+                  <summary><i data-lucide="list-checks"></i> View ticket detail</summary>
+                  <div class="status-timeline">
+                    ${fb.statusLog.slice(-6).reverse().map((log) => `
+                      <div class="status-step">
+                        <b>${escapeHtml(String(log.status || "update").replace(/-/g, " "))}</b>
+                        <span>${escapeHtml(log.note || "")}</span>
+                        ${log.by ? `<small>By ${escapeHtml(log.by)}</small>` : ""}
+                        <small>${nowLabel(log.at)}</small>
+                      </div>`).join("")}
+                  </div>
+                </details>` : ""}
               <div class="feedback-reply-box">
                 <label class="field"><span>Your reply to RK</span><textarea class="textarea" rows="2" placeholder="Write your reply or further detail" data-customer-feedback-reply="${fb.id}"></textarea></label>
                 <div class="row mobile-stack">
@@ -744,6 +750,9 @@
         $("complaintFields").classList.toggle("hidden", $("submissionType").value !== "complaint");
       });
       $("submissionType").dispatchEvent(new Event("change"));
+      document.querySelectorAll("[data-hero-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => showTab(btn.dataset.heroTab));
+      });
       $("customerTrainSearch").addEventListener("input", renderCustomerTrainSelect);
       $("refreshTrackBtn").addEventListener("click", () => loadTracking());
       $("trackSearchBtn").addEventListener("click", () => loadTracking());
