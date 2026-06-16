@@ -75,7 +75,8 @@
 
       $("partnerForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         try {
@@ -89,7 +90,7 @@
           });
           localStorage.setItem("rkPartnerPhone", phone);
           $("statusPhone").value = phone;
-          event.currentTarget.reset();
+          form.reset();
           toast("Partner request sent to Control Tower.");
         } catch (error) {
           console.error(error);
@@ -99,11 +100,12 @@
 
       $("catalogForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         const phone = cleanPhone(data.partnerPhone);
         if (phone.length !== 10) return toast("Enter partner phone used for enlistment.");
         try {
-          const image = await compressImage(event.currentTarget.itemImageFile.files[0], 520, 0.7);
+          const image = await compressImage(form.itemImageFile.files[0], 520, 0.7);
           await compatAdd("catalogRequests", "catalogRequest", {
             name: data.name,
             category: data.category,
@@ -124,7 +126,7 @@
             updatedAt: FieldValue.serverTimestamp()
           });
           localStorage.setItem("rkPartnerPhone", phone);
-          event.currentTarget.reset();
+          form.reset();
           toast("Catalog request sent for quality approval.");
         } catch (error) {
           console.error(error);

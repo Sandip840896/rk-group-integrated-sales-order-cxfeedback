@@ -296,9 +296,10 @@
       $("bkCatalogForm").addEventListener("submit", async (event) => {
         event.preventDefault();
         if (!activeKitchenId) return toast("Select base kitchen first.");
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
-        const image = await compressImage(event.currentTarget.itemImageFile.files[0], 520, 0.7);
+        const image = await compressImage(form.itemImageFile.files[0], 520, 0.7);
         await compatAdd("catalogRequests", "catalogRequest", {
           name: data.name,
           category: data.category,
@@ -320,7 +321,7 @@
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
         });
-        event.currentTarget.reset();
+        form.reset();
         toast("Product sent to Control Tower for approval.");
       });
 

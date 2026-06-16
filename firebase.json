@@ -1,0 +1,5 @@
+{
+  "firestore": {
+    "rules": "FIREBASE_RULES_V1_CONTROLLED_PILOT.rules"
+  }
+}

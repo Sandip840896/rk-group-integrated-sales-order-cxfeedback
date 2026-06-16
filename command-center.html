@@ -821,6 +821,7 @@
 
       $("indentForm").addEventListener("submit", async (event) => {
         event.preventDefault();
+        const form = event.currentTarget;
         if (!pendingIndentItems.length) {
           toast("Add at least one food item to send indent.");
           return;
@@ -830,7 +831,7 @@
           toast(`${hiddenLine.name} is hidden now. Remove it before sending indent.`);
           return;
         }
-        const data = getForm(event.currentTarget);
+        const data = getForm(form);
         const kitchen = kitchens.find((entry) => entry.id === data.baseKitchenId);
         const train = trainMasters.find((entry) => (entry.trainNumber || entry.id) === data.train);
         await db.collection("indents").add({
@@ -855,7 +856,7 @@
         });
         pendingIndentItems.length = 0;
         renderPendingIndentItems();
-        event.currentTarget.reset();
+        form.reset();
         renderKitchenSelects();
         renderTrainSelects();
         toast("Indent sent live to base kitchen.");
@@ -969,8 +970,9 @@
       $("closeDisputeBtn").addEventListener("click", () => $("disputeModal").classList.add("hidden"));
       $("disputeForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = getForm(event.currentTarget);
-        const photo = await compressImage(event.currentTarget.photo.files[0]);
+        const form = event.currentTarget;
+        const data = getForm(form);
+        const photo = await compressImage(form.photo.files[0]);
         const invoice = invoices.find((entry) => entry.id === data.invoiceId);
         await db.collection("invoices").doc(data.invoiceId).update({
           status: "disputed",
@@ -981,7 +983,7 @@
         });
         if (invoice?.indentId) await db.collection("indents").doc(invoice.indentId).update({ status: "disputed", updatedAt: FieldValue.serverTimestamp() });
         $("disputeModal").classList.add("hidden");
-        event.currentTarget.reset();
+        form.reset();
         toast("Dispute raised with available proof.");
       });
 
@@ -1018,9 +1020,10 @@
 
       $("masterForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         const existing = data.editingItemId ? menuItems.find((entry) => entry.id === data.editingItemId) : null;
-        const uploadedImage = await compressImage(event.currentTarget.itemImageFile.files[0], 500, 0.7);
+        const uploadedImage = await compressImage(form.itemImageFile.files[0], 500, 0.7);
         const itemImage = uploadedImage || existing?.itemImage || "";
         const sellingPrice = Number(data.sellingPrice || 0);
         const costPrice = Number(data.costPrice || 0);
@@ -1056,20 +1059,22 @@
 
       $("kitchenMasterForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         await db.collection("baseKitchens").doc(data.id.trim().toUpperCase()).set({
           name: data.name,
           city: data.city,
           active: data.active === "true",
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
-        event.currentTarget.reset();
+        form.reset();
         toast("Base kitchen master saved.");
       });
 
       $("trainMasterForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         const trainNumber = String(data.trainNumber || "").trim();
         await db.collection("trainMasters").doc(firebaseDocId(trainNumber)).set({
           trainNumber,
@@ -1078,7 +1083,7 @@
           active: data.active === "true",
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
-        event.currentTarget.reset();
+        form.reset();
         toast("Train master saved.");
       });
 
@@ -1313,12 +1318,14 @@
 
       $("cashPurchaseForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        await savePurchaseLike("cashPurchases", event.currentTarget, "cash purchase");
+        const form = event.currentTarget;
+        await savePurchaseLike("cashPurchases", form, "cash purchase");
       });
 
       $("storeInwardForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        await savePurchaseLike("storeInwards", event.currentTarget, "store inward");
+        const form = event.currentTarget;
+        await savePurchaseLike("storeInwards", form, "store inward");
       });
 
       function renderPurchases() {
@@ -1349,7 +1356,8 @@
 
       $("staffSaleForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         const item = menuItems.find((entry) => entry.id === data.itemId);
         if (!item) return toast("Choose an item with stock.");
         const qty = Number(data.qty || 0);
@@ -1384,7 +1392,7 @@
           updatedAt: FieldValue.serverTimestamp()
         });
         await batch.commit();
-        event.currentTarget.reset();
+        form.reset();
         toast("Sales person sale saved and stock deducted.");
       });
 
@@ -1467,7 +1475,8 @@
 
       $("adminUserForm").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = getForm(event.currentTarget);
+        const form = event.currentTarget;
+        const data = getForm(form);
         await db.collection("systemSettings").doc(`adminUser__${data.email.trim().toLowerCase()}`).set({
           type: "adminUser",
           email: data.email.trim().toLowerCase(),
@@ -1479,7 +1488,7 @@
           accessValue: data.accessScope === "all" ? "" : String(data.accessValue || "").trim(),
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
-        event.currentTarget.reset();
+        form.reset();
         toast("Admin user saved.");
       });
 
