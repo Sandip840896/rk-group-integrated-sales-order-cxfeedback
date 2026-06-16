@@ -78,18 +78,23 @@
         const data = getForm(event.currentTarget);
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
-        await db.collection("partners").add({
-          ...data,
-          phone,
-          status: "pending",
-          source: "partner-app",
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-        localStorage.setItem("rkPartnerPhone", phone);
-        $("statusPhone").value = phone;
-        event.currentTarget.reset();
-        toast("Partner request sent to Control Tower.");
+        try {
+          await db.collection("partners").add({
+            ...data,
+            phone,
+            status: "pending",
+            source: "partner-app",
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          localStorage.setItem("rkPartnerPhone", phone);
+          $("statusPhone").value = phone;
+          event.currentTarget.reset();
+          toast("Partner request sent to Control Tower.");
+        } catch (error) {
+          console.error(error);
+          toast(firebaseAccessMessage("partners", error));
+        }
       });
 
       $("catalogForm").addEventListener("submit", async (event) => {
@@ -97,29 +102,34 @@
         const data = getForm(event.currentTarget);
         const phone = cleanPhone(data.partnerPhone);
         if (phone.length !== 10) return toast("Enter partner phone used for enlistment.");
-        const image = await compressImage(event.currentTarget.itemImageFile.files[0], 520, 0.7);
-        await db.collection("catalogRequests").add({
-          name: data.name,
-          category: data.category,
-          mealSlots: [data.category],
-          type: data.type,
-          sellingPrice: Number(data.sellingPrice || 0),
-          costPrice: Number(data.costPrice || 0),
-          stockQty: Number(data.stockQty || 0),
-          linkedTrain: data.linkedTrain || "All",
-          description: data.description || "",
-          itemImage: image,
-          sourceType: "partner",
-          source: "partner",
-          supplierPhone: phone,
-          supplierName: phone,
-          status: "pending",
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-        localStorage.setItem("rkPartnerPhone", phone);
-        event.currentTarget.reset();
-        toast("Catalog request sent for quality approval.");
+        try {
+          const image = await compressImage(event.currentTarget.itemImageFile.files[0], 520, 0.7);
+          await db.collection("catalogRequests").add({
+            name: data.name,
+            category: data.category,
+            mealSlots: [data.category],
+            type: data.type,
+            sellingPrice: Number(data.sellingPrice || 0),
+            costPrice: Number(data.costPrice || 0),
+            stockQty: Number(data.stockQty || 0),
+            linkedTrain: data.linkedTrain || "All",
+            description: data.description || "",
+            itemImage: image,
+            sourceType: "partner",
+            source: "partner",
+            supplierPhone: phone,
+            supplierName: phone,
+            status: "pending",
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          localStorage.setItem("rkPartnerPhone", phone);
+          event.currentTarget.reset();
+          toast("Catalog request sent for quality approval.");
+        } catch (error) {
+          console.error(error);
+          toast(firebaseAccessMessage("catalogRequests", error));
+        }
       });
 
       function renderStatus(rows) {

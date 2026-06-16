@@ -129,21 +129,26 @@
         const data = getForm(event.currentTarget);
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit mobile.");
-        const photo = await compressImage(event.currentTarget.photoFile.files[0], 520, 0.7);
-        const kyc = await compressImage(event.currentTarget.kycFile.files[0], 760, 0.7);
-        await db.collection("deliveryPartners").doc(phone).set({
-          ...data,
-          phone,
-          photo,
-          kyc,
-          status: "active",
-          deliveredCount: 0,
-          updatedAt: FieldValue.serverTimestamp(),
-          createdAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        localStorage.setItem("rkDeliveryPhone", phone);
-        $("deliveryPhone").value = phone;
-        toast("Delivery profile saved.");
+        try {
+          const photo = await compressImage(event.currentTarget.photoFile.files[0], 520, 0.7);
+          const kyc = await compressImage(event.currentTarget.kycFile.files[0], 760, 0.7);
+          await db.collection("deliveryPartners").doc(phone).set({
+            ...data,
+            phone,
+            photo,
+            kyc,
+            status: "active",
+            deliveredCount: 0,
+            updatedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+          localStorage.setItem("rkDeliveryPhone", phone);
+          $("deliveryPhone").value = phone;
+          toast("Delivery profile saved.");
+        } catch (error) {
+          console.error(error);
+          toast(firebaseAccessMessage("deliveryPartners", error));
+        }
       });
 
       async function assignOrder(order) {

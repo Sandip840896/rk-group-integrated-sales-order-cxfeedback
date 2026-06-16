@@ -1,6 +1,6 @@
 # RK Rail Catering Firebase and GitHub Launch Guide
 
-Developer and support: Sandip Nandi, 8584833366, sandipnandi2000@gmail.com
+Developer and support: Sandip Nandi, 858483366, sandipnandi2000@gmail.com
 
 ## Apps
 
@@ -8,6 +8,10 @@ Developer and support: Sandip Nandi, 8584833366, sandipnandi2000@gmail.com
 - `customer-app.html` - passenger feedback, complaint and food order
 - `command-center.html` - train manager / unified command center
 - `base-kitchen.html` - base kitchen indent and invoice workflow
+- `control-tower.html` - maker-checker approval for catalog and partners
+- `partner-app.html` - restaurant / station partner enlistment and catalog request
+- `delivery-app.html` - delivery partner profile, pickup, OTP and delivery status
+- `central-command.html` - management dashboard and ecosystem overview
 
 ## Firebase collections used
 
@@ -19,6 +23,9 @@ Developer and support: Sandip Nandi, 8584833366, sandipnandi2000@gmail.com
 - `indents` - train manager indent to base kitchen
 - `invoices` - base kitchen invoice and delivery acceptance/dispute
 - `stockInterests` - passenger notify-me requests for sold out items
+- `catalogRequests` - product requests waiting for Control Tower approval
+- `partners` - partner restaurant / vendor enlistment records
+- `deliveryPartners` - delivery person profile, KYC/photo and delivery count
 - `cashPurchases` - local outside purchase by train manager
 - `storeInwards` - store/warehouse inward records
 - `staffSales` - onboard sales person sale entry
@@ -34,6 +41,21 @@ Firebase may ask to create indexes from the browser console. Create them if prom
 - `indents`: `createdAt` descending
 - `invoices`: `createdAt` descending
 - `menuItems`: `updatedAt` descending
+- `catalogRequests`: `createdAt` descending
+- `partners`: `createdAt` descending
+- `deliveryPartners`: `updatedAt` descending
+
+## Required rule update after adding new apps
+
+If Delivery App shows `Live sync error in deliveryPartners: Missing or insufficient permissions`, or Partner App cannot enroll a partner, Firebase Rules are still old.
+
+Open Firebase Console > Firestore Database > Rules, paste the full content from `FIREBASE_RULES_V1_CONTROLLED_PILOT.rules`, then click **Publish**.
+
+The new apps need these collections to be allowed:
+
+- `deliveryPartners`
+- `partners`
+- `catalogRequests`
 
 ## Suggested first testing rules
 

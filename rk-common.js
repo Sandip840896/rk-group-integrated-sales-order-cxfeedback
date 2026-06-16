@@ -391,6 +391,13 @@ function toast(message) {
   setTimeout(() => el.remove(), 3200);
 }
 
+function firebaseAccessMessage(collectionName, error) {
+  if (String(error?.message || "").toLowerCase().includes("permission")) {
+    return `Firebase permission missing for ${collectionName}. Publish the latest FIREBASE_RULES_V1_CONTROLLED_PILOT.rules in Firebase Console.`;
+  }
+  return `Live sync error in ${collectionName}: ${error?.message || "Unknown Firebase error"}`;
+}
+
 function statusBadge(status) {
   const s = String(status || "new").toLowerCase();
   let tone = "info";
@@ -513,7 +520,7 @@ function onLive(collectionName, callback, orderField = "createdAt", direction = 
       callback(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       console.error(error);
-      toast(`Live sync error in ${collectionName}: ${error.message}`);
+      toast(firebaseAccessMessage(collectionName, error));
     });
 }
 
