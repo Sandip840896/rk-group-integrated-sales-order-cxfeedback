@@ -48,6 +48,10 @@
         <div class="section-title"><div><h2>Risk and Action</h2><p>Open complaints, rejected catalog and pending approvals.</p></div></div>
         <div id="riskList" class="list"></div>
       </section>
+      <section class="panel pad stack">
+        <div class="section-title"><div><h2>Payment Mix</h2><p>Current collection mode visible for management follow-up.</p></div></div>
+        <div id="paymentList" class="list"></div>
+      </section>
     </div>
   </main>
 
@@ -116,6 +120,13 @@
           <div class="item"><div class="row between"><h3>Open Complaints</h3><span class="badge danger">${openComplaints.length}</span></div><p>${openComplaints.slice(0, 5).map((fb) => escapeHtml(fb.ticketNo || fb.id)).join(", ") || "No open complaint."}</p></div>
           <div class="item"><div class="row between"><h3>Pending Catalog Approval</h3><span class="badge warn">${pendingCatalog.length}</span></div><p>${pendingCatalog.slice(0, 5).map((req) => escapeHtml(req.name || req.id)).join(", ") || "No pending item."}</p></div>
           <div class="item"><div class="row between"><h3>Rejected Catalog</h3><span class="badge danger">${rejectedCatalog.length}</span></div><p>${rejectedCatalog.slice(0, 5).map((req) => escapeHtml(req.name || req.id)).join(", ") || "No rejection."}</p></div>`;
+        const codOrders = activeOrders.filter((order) => (order.paymentMode || "COD") === "COD");
+        const onlineOrders = activeOrders.filter((order) => order.paymentMode === "Online");
+        const codValue = codOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+        const onlineValue = onlineOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+        $("paymentList").innerHTML = `
+          <div class="item"><div class="row between"><h3>COD Active</h3><span class="badge ok">${codOrders.length} orders</span></div><p>${money(codValue)} to collect on delivery.</p></div>
+          <div class="item"><div class="row between"><h3>Online</h3><span class="badge warn">${onlineOrders.length} orders</span></div><p>${money(onlineValue)}. Online payment is planned for next version.</p></div>`;
       }
 
       onLive("customerOrders", (rows) => { state.orders = rows; render(); }, "createdAt", "desc", 500);
