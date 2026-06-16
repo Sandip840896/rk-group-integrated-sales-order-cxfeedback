@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Partner App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main stack">
+    <div class="tabs">
+      <button class="tab-btn" data-tab="enlist"><i data-lucide="clipboard-list"></i> Vendor Enlistment</button>
+      <button class="tab-btn" data-tab="catalog"><i data-lucide="utensils"></i> Catalog Request</button>
+      <button class="tab-btn" data-tab="status"><i data-lucide="activity"></i> Request Status</button>
+    </div>
+
+    <section class="panel pad stack" data-tab-panel="enlist">
+      <div class="section-title"><div><h2>Partner Vendor Enlistment</h2><p>Restaurant details will go to Control Tower for approval.</p></div></div>
+      <form id="partnerForm" class="stack">
+        <div class="grid two">
+          <label class="field"><span>Restaurant Name</span><input class="input" name="restaurantName" required></label>
+          <label class="field"><span>Nearest Station</span><input class="input" name="station" required placeholder="Station name / code"></label>
+          <label class="field"><span>Owner / Manager</span><input class="input" name="ownerName" required></label>
+          <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel"></label>
+          <label class="field"><span>Email</span><input class="input" name="email" type="email"></label>
+          <label class="field"><span>FSSAI / License No</span><input class="input" name="licenseNo"></label>
+        </div>
+        <label class="field"><span>Full Address</span><textarea class="textarea" name="address" required></textarea></label>
+        <button class="btn" type="submit"><i data-lucide="send"></i> Submit for Approval</button>
+      </form>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="catalog">
+      <div class="section-title"><div><h2>Partner Food Catalog</h2><p>Approved by Control Tower before it appears in passenger menu.</p></div></div>
+      <form id="catalogForm" class="stack">
+        <div class="grid two">
+          <label class="field"><span>Partner Phone</span><input class="input" name="partnerPhone" required inputmode="tel"></label>
+          <label class="field"><span>Item Name</span><input class="input" name="name" required></label>
+          <label class="field"><span>Meal Category</span><select class="select" name="category" id="categorySelect"></select></label>
+          <label class="field"><span>Food Type</span><select class="select" name="type"><option>veg</option><option>non-veg</option><option>beverage</option><option>other</option></select></label>
+          <label class="field"><span>Selling Rate</span><input class="input" name="sellingPrice" type="number" min="0" required></label>
+          <label class="field"><span>Cost incl. packaging</span><input class="input" name="costPrice" type="number" min="0" required></label>
+          <label class="field"><span>Opening Qty</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
+          <label class="field"><span>Linked Train</span><input class="input" name="linkedTrain" placeholder="12859 / 12860 / All"></label>
+          <label class="field"><span>Food Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
+        </div>
+        <label class="field"><span>Product Detail</span><textarea class="textarea" name="description" placeholder="Ingredients, packing, serving size"></textarea></label>
+        <button class="btn" type="submit"><i data-lucide="send"></i> Send to Control Tower</button>
+      </form>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="status">
+      <div class="row mobile-stack">
+        <label class="field grow"><span>Phone</span><input class="input" id="statusPhone" inputmode="tel"></label>
+        <button class="btn secondary" id="loadStatusBtn"><i data-lucide="search"></i> Search</button>
+      </div>
+      <div id="statusList" class="list"></div>
+    </section>
+  </main>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("RK Partner App", "Restaurant enlistment and food catalog submission");
+      lucide.createIcons();
+      wireTabs("enlist");
+      await ensureSeedData();
+      $("categorySelect").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
+
+      $("partnerForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        const phone = cleanPhone(data.phone);
+        if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
+        await db.collection("partners").add({
+          ...data,
+          phone,
+          status: "pending",
+          source: "partner-app",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        localStorage.setItem("rkPartnerPhone", phone);
+        $("statusPhone").value = phone;
+        event.currentTarget.reset();
+        toast("Partner request sent to Control Tower.");
+      });
+
+      $("catalogForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        const phone = cleanPhone(data.partnerPhone);
+        if (phone.length !== 10) return toast("Enter partner phone used for enlistment.");
+        const image = await compressImage(event.currentTarget.itemImageFile.files[0], 520, 0.7);
+        await db.collection("catalogRequests").add({
+          name: data.name,
+          category: data.category,
+          mealSlots: [data.category],
+          type: data.type,
+          sellingPrice: Number(data.sellingPrice || 0),
+          costPrice: Number(data.costPrice || 0),
+          stockQty: Number(data.stockQty || 0),
+          linkedTrain: data.linkedTrain || "All",
+          description: data.description || "",
+          itemImage: image,
+          sourceType: "partner",
+          source: "partner",
+          supplierPhone: phone,
+          supplierName: phone,
+          status: "pending",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        localStorage.setItem("rkPartnerPhone", phone);
+        event.currentTarget.reset();
+        toast("Catalog request sent for quality approval.");
+      });
+
+      function renderStatus(rows) {
+        $("statusList").innerHTML = rows.map((row) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(row.restaurantName || row.name || row.id)}</h3>${statusBadge(row.status || "pending")}</div>
+            <p>${escapeHtml(row.station || row.category || "")} | ${escapeHtml(row.rejectionReason || row.description || "")}</p>
+          </div>`).join("") || `<div class="empty">No request found for this phone number.</div>`;
+      }
+
+      $("loadStatusBtn").addEventListener("click", async () => {
+        const phone = cleanPhone($("statusPhone").value);
+        if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
+        localStorage.setItem("rkPartnerPhone", phone);
+        const partnerSnap = await db.collection("partners").where("phone", "==", phone).get();
+        const catalogSnap = await db.collection("catalogRequests").where("supplierPhone", "==", phone).get();
+        renderStatus([
+          ...partnerSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+          ...catalogSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        ]);
+      });
+      $("statusPhone").value = localStorage.getItem("rkPartnerPhone") || "";
+    });
+  </script>
+</body>
+</html>

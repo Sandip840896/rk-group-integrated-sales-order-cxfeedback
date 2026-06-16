@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Delivery App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main stack">
+    <div class="tabs">
+      <button class="tab-btn" data-tab="profile"><i data-lucide="id-card"></i> Delivery Profile</button>
+      <button class="tab-btn" data-tab="orders"><i data-lucide="package-check"></i> My Orders</button>
+      <button class="tab-btn" data-tab="open"><i data-lucide="map"></i> Open Orders</button>
+    </div>
+
+    <section class="panel pad stack" data-tab-panel="profile">
+      <div class="section-title"><div><h2>Delivery Partner Enlistment</h2><p>Photo and KYC are compressed for pilot use. Move to Firebase Storage before wide launch.</p></div></div>
+      <form id="deliveryForm" class="stack">
+        <div class="grid two">
+          <label class="field"><span>Name</span><input class="input" name="name" required></label>
+          <label class="field"><span>Mobile Number</span><input class="input" name="phone" required inputmode="tel"></label>
+          <label class="field"><span>Mode</span><select class="select" name="vehicleType"><option>Bike</option><option>Van</option><option>By Foot</option><option>Train Pantry Staff</option></select></label>
+          <label class="field"><span>Vehicle No</span><input class="input" name="vehicleNo" placeholder="Optional for foot/train"></label>
+          <label class="field"><span>Base Station / Kitchen</span><input class="input" name="baseLocation" required></label>
+          <label class="field"><span>Photo</span><input class="input" name="photoFile" type="file" accept="image/*"></label>
+          <label class="field"><span>KYC Image</span><input class="input" name="kycFile" type="file" accept="image/*"></label>
+        </div>
+        <button class="btn" type="submit"><i data-lucide="save"></i> Save Profile</button>
+      </form>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="orders">
+      <div class="row mobile-stack">
+        <label class="field grow"><span>Delivery Mobile</span><input class="input" id="deliveryPhone" inputmode="tel"></label>
+        <button class="btn secondary" id="loadMyOrders"><i data-lucide="search"></i> Load</button>
+      </div>
+      <div id="myOrders" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="open">
+      <div class="section-title"><div><h2>Unassigned Customer Orders</h2><p>Delivery partner can accept an order after profile is saved.</p></div></div>
+      <div id="openOrders" class="list"></div>
+    </section>
+  </main>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("RK Delivery App", "Pickup, route, OTP handover and delivery proof");
+      lucide.createIcons();
+      wireTabs("profile");
+      await ensureSeedData();
+
+      let profiles = [];
+      let orders = [];
+
+      function otp() {
+        return String(Math.floor(100000 + Math.random() * 900000));
+      }
+
+      function profileForPhone(phone) {
+        return profiles.find((p) => cleanPhone(p.phone) === cleanPhone(phone));
+      }
+
+      function orderCard(order, controls) {
+        const lines = (order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ");
+        return `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
+            <p><b>Passenger:</b> ${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
+            <p><b>Train:</b> ${escapeHtml(order.train || "")} ${order.trainName ? `- ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+            <p><b>Pickup:</b> ${escapeHtml(order.supplierName || order.source || "Pantry / kitchen as assigned")} | Slot ${escapeHtml(order.deliveryWindow || "")}</p>
+            <p>${lines}</p>
+            ${order.deliveryOtp ? `<div class="ack success" style="margin-top:10px;"><b>Customer OTP:</b> Passenger can see OTP in customer app after delivery starts.</div>` : ""}
+            <div class="row wrap" style="margin-top:10px;">${controls}</div>
+          </div>`;
+      }
+
+      function renderOpen() {
+        const rows = orders.filter((order) => ["new", "accepted", "preparing"].includes(String(order.status || "").toLowerCase()) && !order.deliveryPersonPhone);
+        $("openOrders").innerHTML = rows.map((order) => orderCard(order, `<button class="btn" data-take-order="${order.id}"><i data-lucide="hand"></i> Take Order</button>`)).join("") || `<div class="empty">No open order for delivery pickup.</div>`;
+        lucide.createIcons();
+      }
+
+      function renderMine() {
+        const phone = cleanPhone($("deliveryPhone").value);
+        const rows = orders.filter((order) => cleanPhone(order.deliveryPersonPhone) === phone);
+        $("myOrders").innerHTML = rows.map((order) => orderCard(order, `
+          ${order.status !== "out-for-delivery" && order.status !== "delivered" ? `<button class="btn" data-start-order="${order.id}"><i data-lucide="bike"></i> Start Delivery</button>` : ""}
+          ${order.status !== "delivered" ? `<button class="btn secondary" data-deliver-order="${order.id}"><i data-lucide="check"></i> Mark Delivered</button>` : ""}
+        `)).join("") || `<div class="empty">No assigned order found for this phone.</div>`;
+        lucide.createIcons();
+      }
+
+      $("deliveryForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = getForm(event.currentTarget);
+        const phone = cleanPhone(data.phone);
+        if (phone.length !== 10) return toast("Enter valid 10 digit mobile.");
+        const photo = await compressImage(event.currentTarget.photoFile.files[0], 520, 0.7);
+        const kyc = await compressImage(event.currentTarget.kycFile.files[0], 760, 0.7);
+        await db.collection("deliveryPartners").doc(phone).set({
+          ...data,
+          phone,
+          photo,
+          kyc,
+          status: "active",
+          deliveredCount: 0,
+          updatedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        localStorage.setItem("rkDeliveryPhone", phone);
+        $("deliveryPhone").value = phone;
+        toast("Delivery profile saved.");
+      });
+
+      async function assignOrder(order) {
+        const phone = cleanPhone($("deliveryPhone").value || localStorage.getItem("rkDeliveryPhone"));
+        const profile = profileForPhone(phone);
+        if (!profile) return toast("Save delivery profile first, then take order.");
+        await db.collection("customerOrders").doc(order.id).update({
+          deliveryPersonName: profile.name,
+          deliveryPersonPhone: phone,
+          deliveryPersonPhoto: profile.photo || "",
+          deliveryVehicleType: profile.vehicleType || "",
+          deliveryVanNo: profile.vehicleNo || "",
+          status: "accepted",
+          statusLog: FieldValue.arrayUnion({ status: "accepted", at: new Date().toISOString(), note: `Accepted by delivery partner ${profile.name}` }),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        toast("Order assigned to you.");
+      }
+
+      document.body.addEventListener("click", async (event) => {
+        const take = event.target.closest("[data-take-order]");
+        const start = event.target.closest("[data-start-order]");
+        const delivered = event.target.closest("[data-deliver-order]");
+        if (take) {
+          const order = orders.find((row) => row.id === take.dataset.takeOrder);
+          await assignOrder(order);
+        }
+        if (start) {
+          const order = orders.find((row) => row.id === start.dataset.startOrder);
+          await db.collection("customerOrders").doc(order.id).update({
+            status: "out-for-delivery",
+            deliveryOtp: order.deliveryOtp || otp(),
+            deliveryStartedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: "Delivery initiated and OTP released to passenger." }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Delivery started. OTP is visible to passenger.");
+        }
+        if (delivered) {
+          const order = orders.find((row) => row.id === delivered.dataset.deliverOrder);
+          const entered = prompt("Enter passenger OTP");
+          if (!entered || String(entered).trim() !== String(order.deliveryOtp || "").trim()) return toast("OTP does not match.");
+          await db.collection("customerOrders").doc(order.id).update({
+            status: "delivered",
+            deliveredAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "delivered", at: new Date().toISOString(), note: "Delivered after OTP verification." }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          const phone = cleanPhone(order.deliveryPersonPhone);
+          if (phone) await db.collection("deliveryPartners").doc(phone).update({ deliveredCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
+          toast("Order marked delivered.");
+        }
+      });
+
+      $("loadMyOrders").addEventListener("click", renderMine);
+      $("deliveryPhone").value = localStorage.getItem("rkDeliveryPhone") || "";
+      onLive("deliveryPartners", (rows) => { profiles = rows; }, "updatedAt", "desc", 250);
+      onLive("customerOrders", (rows) => { orders = rows; renderOpen(); renderMine(); }, "createdAt", "desc", 250);
+    });
+  </script>
+</body>
+</html>

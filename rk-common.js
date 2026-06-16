@@ -11,7 +11,7 @@ firebase.initializeApp(RK_FIREBASE_CONFIG);
 const db = firebase.firestore();
 const FieldValue = firebase.firestore.FieldValue;
 
-const SUPPORT_HTML = "System developer and support<br>Sandip Nandi | 8584833366<br>sandipnandi2000@gmail.com";
+const SUPPORT_HTML = "System developer and support<br>Sandip Nandi | 858483366<br>sandipnandi2000@gmail.com";
 
 const mealSlots = ["Breakfast", "Lunch", "Snacks", "Dinner", "Beverage", "Other"];
 const complaintNatures = ["Over Charging", "Staff Behavior", "Food Quality", "Food Qty", "Expiry Product", "Hygiene", "Others"];
@@ -33,9 +33,54 @@ const seedBaseKitchens = [
 ];
 
 const seedTrainMasters = [
+  { trainNumber: "12859", trainName: "Gitanjali Express", yardName: "Mumbai CSMT to Howrah", active: true },
+  { trainNumber: "12860", trainName: "Gitanjali Express", yardName: "Howrah to Mumbai CSMT", active: true },
   { trainNumber: "12345", trainName: "RK Demo Express", yardName: "Howrah Yard", active: true },
   { trainNumber: "12001", trainName: "Sample Rajdhani", yardName: "New Delhi Yard", active: true }
 ];
+
+const gitanjaliRouteStops = {
+  "12860": [
+    { code: "HWH", station: "Howrah Jn", day: 1, arrival: "", departure: "13:40", haltMinutes: 0, km: 0 },
+    { code: "KGP", station: "Kharagpur Jn", day: 1, arrival: "15:15", departure: "15:20", haltMinutes: 5, km: 116 },
+    { code: "TATA", station: "Tatanagar Jn", day: 1, arrival: "17:03", departure: "17:10", haltMinutes: 7, km: 250 },
+    { code: "CKP", station: "Chakradharpur", day: 1, arrival: "18:03", departure: "18:05", haltMinutes: 2, km: 312 },
+    { code: "ROU", station: "Rourkela", day: 1, arrival: "19:32", departure: "19:40", haltMinutes: 8, km: 413 },
+    { code: "JSG", station: "Jharsuguda Jn", day: 1, arrival: "21:48", departure: "21:50", haltMinutes: 2, km: 515 },
+    { code: "RIG", station: "Raigarh", day: 1, arrival: "22:48", departure: "22:50", haltMinutes: 2, km: 586 },
+    { code: "BSP", station: "Bilaspur Jn", day: 2, arrival: "00:00", departure: "00:10", haltMinutes: 10, km: 719 },
+    { code: "R", station: "Raipur Jn", day: 2, arrival: "00:40", departure: "00:45", haltMinutes: 5, km: 829 },
+    { code: "DURG", station: "Durg", day: 2, arrival: "01:35", departure: "01:40", haltMinutes: 5, km: 866 },
+    { code: "NGP", station: "Nagpur Jn", day: 2, arrival: "04:15", departure: "04:20", haltMinutes: 5, km: 1131 },
+    { code: "BSL", station: "Bhusaval Jn", day: 2, arrival: "09:25", departure: "09:30", haltMinutes: 5, km: 1521 },
+    { code: "JL", station: "Jalgaon Jn", day: 2, arrival: "09:58", departure: "10:00", haltMinutes: 2, km: 1545 },
+    { code: "NK", station: "Nasik Road", day: 2, arrival: "14:25", departure: "14:30", haltMinutes: 5, km: 1777 },
+    { code: "IGP", station: "Igatpuri", day: 2, arrival: "15:25", departure: "15:30", haltMinutes: 5, km: 1828 },
+    { code: "KYN", station: "Kalyan Jn", day: 2, arrival: "17:52", departure: "17:55", haltMinutes: 3, km: 1914 },
+    { code: "DR", station: "Mumbai Dadar Central", day: 2, arrival: "20:42", departure: "20:45", haltMinutes: 3, km: 1959 },
+    { code: "CSMT", station: "Mumbai CSMT", day: 2, arrival: "21:20", departure: "", haltMinutes: 0, km: 1968 }
+  ],
+  "12859": [
+    { code: "CSMT", station: "Mumbai CSMT", day: 1, arrival: "", departure: "06:00", haltMinutes: 0, km: 0 },
+    { code: "DR", station: "Mumbai Dadar Central", day: 1, arrival: "06:12", departure: "06:15", haltMinutes: 3, km: 9 },
+    { code: "KYN", station: "Kalyan Jn", day: 1, arrival: "06:52", departure: "06:55", haltMinutes: 3, km: 54 },
+    { code: "IGP", station: "Igatpuri", day: 1, arrival: "08:42", departure: "08:47", haltMinutes: 5, km: 137 },
+    { code: "NK", station: "Nasik Road", day: 1, arrival: "09:25", departure: "09:30", haltMinutes: 5, km: 188 },
+    { code: "JL", station: "Jalgaon Jn", day: 1, arrival: "11:58", departure: "12:00", haltMinutes: 2, km: 420 },
+    { code: "BSL", station: "Bhusaval Jn", day: 1, arrival: "12:35", departure: "12:40", haltMinutes: 5, km: 445 },
+    { code: "SEG", station: "Shegaon", day: 1, arrival: "14:03", departure: "14:05", haltMinutes: 2, km: 560 },
+    { code: "NGP", station: "Nagpur Jn", day: 1, arrival: "18:55", departure: "19:00", haltMinutes: 5, km: 837 },
+    { code: "R", station: "Raipur Jn", day: 1, arrival: "23:30", departure: "23:35", haltMinutes: 5, km: 1143 },
+    { code: "BSP", station: "Bilaspur Jn", day: 2, arrival: "01:20", departure: "01:35", haltMinutes: 15, km: 1254 },
+    { code: "JSG", station: "Jharsuguda Jn", day: 2, arrival: "04:28", departure: "04:30", haltMinutes: 2, km: 1454 },
+    { code: "ROU", station: "Rourkela", day: 2, arrival: "05:47", departure: "05:55", haltMinutes: 8, km: 1555 },
+    { code: "CKP", station: "Chakradharpur", day: 2, arrival: "07:18", departure: "07:20", haltMinutes: 2, km: 1656 },
+    { code: "TATA", station: "Tatanagar Jn", day: 2, arrival: "08:13", departure: "08:20", haltMinutes: 7, km: 1719 },
+    { code: "KGP", station: "Kharagpur Jn", day: 2, arrival: "10:18", departure: "10:23", haltMinutes: 5, km: 1853 },
+    { code: "SRC", station: "Santragachi Jn", day: 2, arrival: "11:48", departure: "11:50", haltMinutes: 2, km: 1961 },
+    { code: "HWH", station: "Howrah Jn", day: 2, arrival: "13:50", departure: "", haltMinutes: 0, km: 1968 }
+  ]
+};
 
 const seedMenuItems = [
   { name: "Veg Thali", category: "Lunch", price: 120, sellingPrice: 120, costPrice: 82, type: "veg", source: "pantry", available: true, stockQty: 24, itemImage: "" },
@@ -77,11 +122,35 @@ function trainLabel(train) {
 }
 
 function parseCsvRows(text) {
-  return String(text || "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.split(",").map((part) => part.trim()));
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  const source = String(text || "");
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      i += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") i += 1;
+      row.push(cell.trim());
+      if (row.some((part) => part !== "")) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell.trim());
+  if (row.some((part) => part !== "")) rows.push(row);
+  return rows;
 }
 
 function invoiceItemQty(line) {
@@ -135,7 +204,7 @@ function orderPrintableHtml(order) {
     </div>
     <div>
       <p><b>Developer Support:</b> Sandip Nandi</p>
-      <p>8584833366</p>
+      <p>858483366</p>
       <p>sandipnandi2000@gmail.com</p>
     </div>
   </div>
@@ -222,7 +291,7 @@ function invoicePrintableHtml(invoice) {
     </div>
     <div>
       <p><b>Developer Support:</b> Sandip Nandi</p>
-      <p>8584833366</p>
+      <p>858483366</p>
       <p>sandipnandi2000@gmail.com</p>
     </div>
   </div>

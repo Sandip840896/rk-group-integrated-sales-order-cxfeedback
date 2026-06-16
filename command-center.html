@@ -1171,7 +1171,7 @@
       });
 
       $("downloadKitchenSampleBtn").addEventListener("click", () => {
-        const csv = "id,name,city,active\nBK-HWH,Howrah Base Kitchen,Kolkata,true\nBK-NDLS,New Delhi Base Kitchen,New Delhi,true\n";
+        const csv = "id,name,city,brandType,zone,active,address,state,managerName,managerPhone,rmCmName,rmCmPhone\nBK-HWH,Howrah Base Kitchen,Kolkata,RK,East Zone,true,Howrah station area,West Bengal,Manager Name,9000000000,RM Name,9000000001\n";
         const link = document.createElement("a");
         link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
         link.download = "base-kitchen-sample.csv";
@@ -1182,22 +1182,34 @@
       $("uploadKitchenBulkBtn").addEventListener("click", async () => {
         const file = $("kitchenBulkFile").files[0];
         if (!file) return toast("Choose a CSV file first.");
-        const text = await file.text();
-        const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        const rows = parseCsvRows(await file.text());
+        const headers = rows[0].map((header) => header.trim());
         const batch = db.batch();
-        lines.slice(1).forEach((line) => {
-          const [id, name, city, active = "true"] = line.split(",").map((part) => part.trim());
+        let saved = 0;
+        rows.slice(1).forEach((row) => {
+          const data = Object.fromEntries(headers.map((header, idx) => [header, row[idx] || ""]));
+          const id = String(data.id || "").trim().toUpperCase();
+          const name = String(data.name || "").trim();
           if (!id || !name) return;
           batch.set(db.collection("baseKitchens").doc(id.toUpperCase()), {
             name,
-            city: city || "",
-            active: String(active).toLowerCase() !== "false",
+            city: data.city || "",
+            brandType: data.brandType || "",
+            zone: data.zone || "",
+            active: String(data.active || "true").toLowerCase() !== "false",
+            address: data.address || "",
+            state: data.state || "",
+            managerName: data.managerName || "",
+            managerPhone: cleanPhone(data.managerPhone || ""),
+            rmCmName: data.rmCmName || "",
+            rmCmPhone: cleanPhone(data.rmCmPhone || ""),
             updatedAt: FieldValue.serverTimestamp()
           }, { merge: true });
+          saved += 1;
         });
         await batch.commit();
         $("kitchenBulkFile").value = "";
-        toast("Base kitchen bulk upload completed.");
+        toast(`Base kitchen bulk upload completed: ${saved} rows.`);
       });
 
       function renderMenuAdmin() {
@@ -1420,11 +1432,13 @@
 
       function renderKitchenAdmin() {
         const query = kitchenMasterSearchTerm.toLowerCase().trim();
-        const filtered = kitchens.filter((kitchen) => `${kitchen.id || ""} ${kitchen.name || ""} ${kitchen.city || ""}`.toLowerCase().includes(query));
+        const filtered = kitchens.filter((kitchen) => `${kitchen.id || ""} ${kitchen.name || ""} ${kitchen.city || ""} ${kitchen.zone || ""} ${kitchen.state || ""} ${kitchen.managerName || ""}`.toLowerCase().includes(query));
         $("kitchenAdminList").innerHTML = filtered.map((kitchen) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(kitchen.name)}</h3><span class="badge ${kitchen.active === false ? "danger" : "ok"}">${escapeHtml(kitchen.id)}</span></div>
-            <p>${escapeHtml(kitchen.city || "")} | ${kitchen.active === false ? "Inactive" : "Active"}</p>
+            <p>${escapeHtml(kitchen.city || "")} | ${escapeHtml(kitchen.zone || "")} | ${escapeHtml(kitchen.state || "")} | ${kitchen.active === false ? "Inactive" : "Active"}</p>
+            ${kitchen.managerName ? `<p><b>Manager:</b> ${escapeHtml(kitchen.managerName)} | ${escapeHtml(kitchen.managerPhone || "")}</p>` : ""}
+            ${kitchen.address ? `<p>${escapeHtml(kitchen.address)}</p>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               <button class="btn secondary" data-edit-kitchen="${kitchen.id}"><i data-lucide="pencil"></i> Edit</button>
               <button class="btn ${kitchen.active === false ? "info" : "danger"}" data-toggle-kitchen="${kitchen.id}">${kitchen.active === false ? "Activate" : "Deactivate"}</button>
@@ -1540,7 +1554,7 @@
 
       $("downloadBackupBtn").addEventListener("click", async () => {
         if (currentUser?.role !== "super-admin") return toast("Super admin login required.");
-        const names = ["menuItems", "customerOrders", "feedbacks", "baseKitchens", "trainMasters", "indents", "invoices", "stockInterests", "cashPurchases", "storeInwards", "staffSales", "systemSettings"];
+        const names = ["menuItems", "customerOrders", "feedbacks", "baseKitchens", "trainMasters", "indents", "invoices", "stockInterests", "catalogRequests", "partners", "deliveryPartners", "cashPurchases", "storeInwards", "staffSales", "systemSettings"];
         const backup = {};
         for (const name of names) backup[name] = await collectCollection(name);
         downloadJson(`rk-firestore-backup-${new Date().toISOString().slice(0, 10)}.json`, backup);
@@ -1548,7 +1562,7 @@
 
       $("downloadCodeBtn").addEventListener("click", async () => {
         if (currentUser?.role !== "super-admin") return toast("Super admin login required.");
-        const files = ["index.html", "customer-app.html", "command-center.html", "base-kitchen.html", "rk-common.js", "rk-app.css"];
+        const files = ["index.html", "customer-app.html", "command-center.html", "base-kitchen.html", "control-tower.html", "partner-app.html", "delivery-app.html", "central-command.html", "rk-common.js", "rk-app.css"];
         const code = {};
         for (const file of files) code[file] = await fetch(file).then((res) => res.text());
         downloadJson(`rk-code-backup-${new Date().toISOString().slice(0, 10)}.json`, code);

@@ -35,6 +35,7 @@
 
     <div class="tabs" style="margin-top:14px;">
       <button class="tab-btn" data-tab="incoming"><i data-lucide="inbox"></i> Incoming Indents</button>
+      <button class="tab-btn" data-tab="catalog"><i data-lucide="utensils"></i> Catalog Requests</button>
       <button class="tab-btn" data-tab="invoice"><i data-lucide="file-plus-2"></i> Invoices</button>
       <button class="tab-btn" data-tab="dispute"><i data-lucide="alert-triangle"></i> Disputes</button>
     </div>
@@ -42,6 +43,25 @@
     <section class="panel pad stack" data-tab-panel="incoming">
       <div class="section-title"><div><h2>Indent Processing</h2><p>Edit approved quantity or set quantity to zero if item is unavailable.</p></div></div>
       <div id="indentWorkList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="catalog">
+      <div class="section-title"><div><h2>Upload Product for Approval</h2><p>Control Tower must approve before the item appears in Customer App.</p></div></div>
+      <form id="bkCatalogForm" class="stack">
+        <div class="grid two">
+          <label class="field"><span>Food Item</span><input class="input" name="name" required placeholder="Veg Biryani"></label>
+          <label class="field"><span>Meal Category</span><select class="select" name="category" id="bkCatalogCategory"></select></label>
+          <label class="field"><span>Selling Rate</span><input class="input" name="sellingPrice" type="number" min="0" required></label>
+          <label class="field"><span>Cost incl. food + packaging</span><input class="input" name="costPrice" type="number" min="0" required></label>
+          <label class="field"><span>Opening Qty</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
+          <label class="field"><span>Food Type</span><select class="select" name="type"><option>veg</option><option>non-veg</option><option>beverage</option><option>other</option></select></label>
+          <label class="field"><span>Linked Train</span><input class="input" name="linkedTrain" placeholder="12859 / 12860 / All"></label>
+          <label class="field"><span>Product Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
+        </div>
+        <label class="field"><span>Product Detail</span><textarea class="textarea" name="description" placeholder="Portion, ingredients, packaging note"></textarea></label>
+        <button class="btn" type="submit"><i data-lucide="send"></i> Send to Control Tower</button>
+      </form>
+      <div id="bkCatalogRequests" class="list"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="invoice">
@@ -66,7 +86,9 @@
       let activeKitchenId = localStorage.getItem("rkBaseKitchen") || "";
       let indents = [];
       let invoices = [];
+      let catalogRequests = [];
       let seenIndents = new Set();
+      $("bkCatalogCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
 
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -271,6 +293,47 @@
         lucide.createIcons();
       }
 
+      $("bkCatalogForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!activeKitchenId) return toast("Select base kitchen first.");
+        const data = getForm(event.currentTarget);
+        const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
+        const image = await compressImage(event.currentTarget.itemImageFile.files[0], 520, 0.7);
+        await db.collection("catalogRequests").add({
+          name: data.name,
+          category: data.category,
+          mealSlots: [data.category],
+          type: data.type,
+          sellingPrice: Number(data.sellingPrice || 0),
+          costPrice: Number(data.costPrice || 0),
+          stockQty: Number(data.stockQty || 0),
+          linkedTrain: data.linkedTrain || "All",
+          description: data.description || "",
+          itemImage: image,
+          sourceType: "base kitchen",
+          source: "base kitchen",
+          supplierId: activeKitchenId,
+          supplierName: kitchen?.name || activeKitchenId,
+          baseKitchenId: activeKitchenId,
+          baseKitchenName: kitchen?.name || activeKitchenId,
+          status: "pending",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        event.currentTarget.reset();
+        toast("Product sent to Control Tower for approval.");
+      });
+
+      function renderCatalogRequests() {
+        const rows = catalogRequests.filter((row) => row.baseKitchenId === activeKitchenId || row.supplierId === activeKitchenId);
+        $("bkCatalogRequests").innerHTML = rows.map((row) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(row.name || row.id)}</h3>${statusBadge(row.status || "pending")}</div>
+            <p>${escapeHtml(row.category || "")} | Sell ${money(row.sellingPrice)} | Cost ${money(row.costPrice)} | Train ${escapeHtml(row.linkedTrain || "All")}</p>
+            ${row.rejectionReason ? `<p><b>Control Tower Note:</b> ${escapeHtml(row.rejectionReason)}</p>` : ""}
+          </div>`).join("") || `<div class="empty">No catalog request submitted from this kitchen yet.</div>`;
+      }
+
       $("bkDisputeList").addEventListener("click", async (event) => {
         const resend = event.target.closest("[data-resend-invoice]");
         if (!resend) return;
@@ -317,6 +380,7 @@
         renderIndentWork();
         renderInvoices();
         renderDisputes();
+        renderCatalogRequests();
       }
 
       onLive("indents", (rows) => {
@@ -328,6 +392,7 @@
         renderAll();
       }, "createdAt", "desc", 250);
       onLive("invoices", (rows) => { invoices = rows; renderAll(); }, "createdAt", "desc", 250);
+      onLive("catalogRequests", (rows) => { catalogRequests = rows; renderAll(); }, "createdAt", "desc", 250);
     });
   </script>
 </body>

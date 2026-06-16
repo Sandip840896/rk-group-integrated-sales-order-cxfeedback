@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Central Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main stack">
+    <div class="grid four">
+      <div class="metric"><b id="kOrders">0</b><span>Total customer orders</span></div>
+      <div class="metric"><b id="kSales">Rs 0</b><span>Gross sales</span></div>
+      <div class="metric"><b id="kMargin">Rs 0</b><span>Estimated margin</span></div>
+      <div class="metric"><b id="kOntime">0%</b><span>Delivered orders</span></div>
+    </div>
+    <div class="grid four">
+      <div class="metric"><b id="kKitchens">0</b><span>Base kitchens</span></div>
+      <div class="metric"><b id="kTrains">0</b><span>Trains</span></div>
+      <div class="metric"><b id="kPartners">0</b><span>Partners</span></div>
+      <div class="metric"><b id="kDelivery">0</b><span>Delivery partners</span></div>
+    </div>
+
+    <div class="grid two">
+      <section class="panel pad stack">
+        <div class="section-title"><div><h2>Order Funnel</h2><p>Live status distribution from passenger orders.</p></div></div>
+        <div id="orderBars" class="chart-bars"></div>
+      </section>
+      <section class="panel pad stack">
+        <div class="section-title"><div><h2>Top Products</h2><p>Sales and quantity contribution by item.</p></div></div>
+        <div id="productBars" class="chart-bars"></div>
+      </section>
+    </div>
+
+    <div class="grid two">
+      <section class="panel pad stack">
+        <div class="section-title"><div><h2>Ecosystem Register</h2><p>Active network overview for management.</p></div></div>
+        <div id="networkList" class="list"></div>
+      </section>
+      <section class="panel pad stack">
+        <div class="section-title"><div><h2>Risk and Action</h2><p>Open complaints, rejected catalog and pending approvals.</p></div></div>
+        <div id="riskList" class="list"></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("RK Central Command", "Management dashboard, margin model and ecosystem control");
+      lucide.createIcons();
+      await ensureSeedData();
+
+      const state = {
+        orders: [], feedbacks: [], kitchens: [], trains: [], partners: [], deliveryPartners: [], catalogRequests: []
+      };
+
+      function pct(num, den) {
+        return den ? `${Math.round((num / den) * 100)}%` : "0%";
+      }
+
+      function barList(rows, labelKey, valueKey, valueLabel) {
+        const max = Math.max(1, ...rows.map((row) => Number(row[valueKey] || 0)));
+        return rows.map((row) => `
+          <div class="bar-row">
+            <div class="row between"><b>${escapeHtml(row[labelKey])}</b><span>${escapeHtml(valueLabel(row))}</span></div>
+            <div class="bar-track"><span style="width:${Math.max(4, Number(row[valueKey] || 0) / max * 100)}%;"></span></div>
+          </div>`).join("") || `<div class="empty">No data yet.</div>`;
+      }
+
+      function render() {
+        const activeOrders = state.orders.filter((order) => String(order.status || "").toLowerCase() !== "cancelled");
+        const sales = activeOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+        const cost = activeOrders.reduce((sum, order) => sum + (order.items || []).reduce((lineSum, line) => lineSum + Number(line.qty || 0) * costPriceOf(line), 0), 0);
+        const delivered = activeOrders.filter((order) => String(order.status || "").toLowerCase() === "delivered").length;
+        $("kOrders").textContent = state.orders.length;
+        $("kSales").textContent = money(sales);
+        $("kMargin").textContent = money(sales - cost);
+        $("kOntime").textContent = pct(delivered, activeOrders.length);
+        $("kKitchens").textContent = state.kitchens.filter((k) => k.active !== false).length;
+        $("kTrains").textContent = state.trains.filter((t) => t.active !== false).length;
+        $("kPartners").textContent = state.partners.filter((p) => p.status === "approved").length;
+        $("kDelivery").textContent = state.deliveryPartners.filter((p) => p.status !== "inactive").length;
+
+        const byStatus = {};
+        state.orders.forEach((order) => {
+          const key = String(order.status || "new").replace(/-/g, " ");
+          byStatus[key] = (byStatus[key] || 0) + 1;
+        });
+        $("orderBars").innerHTML = barList(Object.entries(byStatus).map(([label, count]) => ({ label, count })), "label", "count", (row) => `${row.count} orders`);
+
+        const byProduct = {};
+        activeOrders.forEach((order) => (order.items || []).forEach((line) => {
+          const key = line.name || "Unknown";
+          byProduct[key] ||= { label: key, qty: 0, sale: 0 };
+          byProduct[key].qty += Number(line.qty || 0);
+          byProduct[key].sale += Number(line.qty || 0) * Number(line.price ?? line.sellingPrice ?? 0);
+        }));
+        $("productBars").innerHTML = barList(Object.values(byProduct).sort((a, b) => b.sale - a.sale).slice(0, 8), "label", "sale", (row) => `${money(row.sale)} | Qty ${row.qty}`);
+
+        $("networkList").innerHTML = `
+          <div class="item"><div class="row between"><h3>Base Kitchen Network</h3><span class="badge ok">${state.kitchens.length}</span></div><p>${state.kitchens.slice(0, 8).map((k) => escapeHtml(k.name || k.id)).join(", ")}</p></div>
+          <div class="item"><div class="row between"><h3>Train Network</h3><span class="badge info">${state.trains.length}</span></div><p>${state.trains.slice(0, 8).map((t) => escapeHtml(`${t.trainNumber || t.id} ${t.trainName || ""}`)).join(", ")}</p></div>
+          <div class="item"><div class="row between"><h3>Partner Network</h3><span class="badge warn">${state.partners.length}</span></div><p>Approved ${state.partners.filter((p) => p.status === "approved").length}, pending ${state.partners.filter((p) => p.status === "pending").length}</p></div>`;
+
+        const openComplaints = state.feedbacks.filter((fb) => ["open", "investigating", "waiting for vendor", "customer-replied"].includes(String(fb.status || "").toLowerCase()));
+        const pendingCatalog = state.catalogRequests.filter((req) => req.status === "pending");
+        const rejectedCatalog = state.catalogRequests.filter((req) => req.status === "rejected");
+        $("riskList").innerHTML = `
+          <div class="item"><div class="row between"><h3>Open Complaints</h3><span class="badge danger">${openComplaints.length}</span></div><p>${openComplaints.slice(0, 5).map((fb) => escapeHtml(fb.ticketNo || fb.id)).join(", ") || "No open complaint."}</p></div>
+          <div class="item"><div class="row between"><h3>Pending Catalog Approval</h3><span class="badge warn">${pendingCatalog.length}</span></div><p>${pendingCatalog.slice(0, 5).map((req) => escapeHtml(req.name || req.id)).join(", ") || "No pending item."}</p></div>
+          <div class="item"><div class="row between"><h3>Rejected Catalog</h3><span class="badge danger">${rejectedCatalog.length}</span></div><p>${rejectedCatalog.slice(0, 5).map((req) => escapeHtml(req.name || req.id)).join(", ") || "No rejection."}</p></div>`;
+      }
+
+      onLive("customerOrders", (rows) => { state.orders = rows; render(); }, "createdAt", "desc", 500);
+      onLive("feedbacks", (rows) => { state.feedbacks = rows; render(); }, "timestamp", "desc", 500);
+      onLive("baseKitchens", (rows) => { state.kitchens = rows; render(); }, "name", "asc", 500);
+      onLive("partners", (rows) => { state.partners = rows; render(); }, "createdAt", "desc", 500);
+      onLive("deliveryPartners", (rows) => { state.deliveryPartners = rows; render(); }, "updatedAt", "desc", 500);
+      onLive("catalogRequests", (rows) => { state.catalogRequests = rows; render(); }, "createdAt", "desc", 500);
+      db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
+        state.trains = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        render();
+      });
+      render();
+    });
+  </script>
+</body>
+</html>

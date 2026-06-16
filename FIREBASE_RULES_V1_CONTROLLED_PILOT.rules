@@ -34,6 +34,18 @@ service cloud.firestore {
       allow read, create, update: if true;
       allow delete: if false;
     }
+    match /catalogRequests/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /partners/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /deliveryPartners/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
     match /cashPurchases/{docId} {
       allow read, create, update: if true;
       allow delete: if false;
