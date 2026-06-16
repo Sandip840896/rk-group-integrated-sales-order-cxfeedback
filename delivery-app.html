@@ -81,6 +81,7 @@
             <p><b>Passenger:</b> ${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
             <p><b>Train:</b> ${escapeHtml(order.train || "")} ${order.trainName ? `- ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
             <p><b>Pickup:</b> ${escapeHtml(order.supplierName || order.source || "Pantry / kitchen as assigned")} | Slot ${escapeHtml(order.deliveryWindow || "")}</p>
+            <p><b>Payment:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")} | ${money(order.total)}</p>
             <p>${lines}</p>
             ${order.deliveryOtp ? `<div class="ack success" style="margin-top:10px;"><b>Customer OTP:</b> Passenger can see OTP in customer app after delivery starts.</div>` : ""}
             <div class="row wrap" style="margin-top:10px;">${controls}</div>

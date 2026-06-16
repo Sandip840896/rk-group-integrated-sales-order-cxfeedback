@@ -215,6 +215,7 @@ function orderPrintableHtml(order) {
     <p><b>Train:</b> ${escapeHtml(order.train || "")} ${order.trainName ? `- ${escapeHtml(order.trainName)}` : ""}</p>
     <p><b>Yard / Coach / Seat:</b> ${escapeHtml(order.yardName || "")} / ${escapeHtml(order.coach || "")} / ${escapeHtml(order.seat || "")}</p>
     <p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow || order.requestedDeliveryTime || "")}</p>
+    <p><b>Payment Mode:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")}</p>
     <p><b>Order Date:</b> ${nowLabel(order.createdAt)}</p>
     ${order.deliveryPersonName ? `<p><b>Delivery By:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}${order.deliveryVanNo ? ` | Van ${escapeHtml(order.deliveryVanNo)}` : ""}</p>` : ""}
   </div>
