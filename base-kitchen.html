@@ -28,13 +28,14 @@
 
     <div class="grid four" style="margin-top:14px;">
       <div class="metric"><b id="bkNew">0</b><span>New indents</span></div>
-      <div class="metric"><b id="bkProcess">0</b><span>Processing</span></div>
+      <div class="metric"><b id="bkCustomer">0</b><span>Customer orders</span></div>
       <div class="metric"><b id="bkInvoices">0</b><span>Invoices sent</span></div>
       <div class="metric"><b id="bkDisputes">0</b><span>Disputes</span></div>
     </div>
 
     <div class="tabs" style="margin-top:14px;">
       <button class="tab-btn" data-tab="incoming"><i data-lucide="inbox"></i> Incoming Indents</button>
+      <button class="tab-btn" data-tab="customer"><i data-lucide="receipt-text"></i> Customer Orders</button>
       <button class="tab-btn" data-tab="catalog"><i data-lucide="utensils"></i> Catalog Requests</button>
       <button class="tab-btn" data-tab="invoice"><i data-lucide="file-plus-2"></i> Invoices</button>
       <button class="tab-btn" data-tab="dispute"><i data-lucide="alert-triangle"></i> Disputes</button>
@@ -43,6 +44,11 @@
     <section class="panel pad stack" data-tab-panel="incoming">
       <div class="section-title"><div><h2>Indent Processing</h2><p>Edit approved quantity or set quantity to zero if item is unavailable.</p></div></div>
       <div id="indentWorkList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="customer">
+      <div class="section-title"><div><h2>Customer Food Orders</h2><p>Orders from passengers for this base kitchen must be accepted within 5 minutes.</p></div></div>
+      <div id="bkCustomerOrders" class="list"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="catalog">
@@ -87,7 +93,9 @@
       let indents = [];
       let invoices = [];
       let catalogRequests = [];
+      let customerOrders = [];
       let seenIndents = new Set();
+      let seenCustomerOrders = new Set();
       $("bkCatalogCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
 
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
@@ -129,13 +137,49 @@
         return invoices.filter((invoice) => String(invoice.baseKitchenId || "") === activeKitchenId);
       }
 
+      function visibleCustomerOrders() {
+        if (!activeKitchenId) return [];
+        return customerOrders.filter((order) => {
+          const source = String(order.fulfillmentSource || "").toLowerCase();
+          const ownOrder = String(order.baseKitchenId || "") === activeKitchenId;
+          const ownLine = (order.items || []).some((line) => String(line.baseKitchenId || line.supplierId || "") === activeKitchenId || String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen");
+          return (source === "base-kitchen" || source === "mixed" || ownLine) && (ownOrder || ownLine);
+        });
+      }
+
       function renderMetrics() {
         const rows = visibleIndents();
         const inv = visibleInvoices();
+        const customer = visibleCustomerOrders();
         $("bkNew").textContent = rows.filter((i) => i.status === "sent").length;
-        $("bkProcess").textContent = rows.filter((i) => ["accepted", "processing"].includes(i.status)).length;
+        $("bkCustomer").textContent = customer.filter((i) => !["delivered", "cancelled"].includes(String(i.status || "").toLowerCase())).length;
         $("bkInvoices").textContent = inv.length;
         $("bkDisputes").textContent = inv.filter((i) => i.status === "disputed").length;
+      }
+
+      function acceptanceClock(order) {
+        const created = order.createdAt?.toDate ? order.createdAt.toDate() : null;
+        if (!created) return "Accept within 5 min";
+        const ageMin = Math.floor((Date.now() - created.getTime()) / 60000);
+        if (String(order.status || "").toLowerCase() !== "new") return `Accepted / updated after ${ageMin} min`;
+        return ageMin >= 5 ? `Overdue by ${ageMin - 4} min` : `${5 - ageMin} min left to accept`;
+      }
+
+      function renderCustomerOrders() {
+        const rows = visibleCustomerOrders();
+        $("bkCustomerOrders").innerHTML = rows.map((order) => `
+          <div class="item ${String(order.status || "").toLowerCase() === "new" ? "urgent-item" : ""}">
+            <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
+            <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
+            <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${escapeHtml(order.deliveryWindow || "")}</p>
+            <p>${(order.items || []).filter((line) => String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen").map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ") || (order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
+            <div class="ack ${String(order.status || "").toLowerCase() === "new" ? "danger-soft" : "success"}" style="margin-top:10px;">${escapeHtml(acceptanceClock(order))}</div>
+            <div class="row wrap" style="margin-top:10px;">
+              ${String(order.status || "").toLowerCase() === "new" ? `<button class="btn" data-bk-accept-order="${order.id}"><i data-lucide="check"></i> Accept Customer Order</button>` : ""}
+              ${["accepted", "preparing"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-bk-ready-order="${order.id}"><i data-lucide="package-check"></i> Ready for Delivery</button>` : ""}
+            </div>
+          </div>`).join("") || `<div class="empty">No customer order assigned to this base kitchen.</div>`;
+        lucide.createIcons();
       }
 
       function renderIndentWork() {
@@ -266,6 +310,29 @@
         printInvoice(invoice);
       });
 
+      $("bkCustomerOrders").addEventListener("click", async (event) => {
+        const accept = event.target.closest("[data-bk-accept-order]");
+        const ready = event.target.closest("[data-bk-ready-order]");
+        if (accept) {
+          await db.collection("customerOrders").doc(accept.dataset.bkAcceptOrder).update({
+            status: "accepted",
+            baseKitchenAcceptedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "accepted", at: new Date().toISOString(), note: "Accepted by base kitchen manager" }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Customer order accepted by base kitchen.");
+        }
+        if (ready) {
+          await db.collection("customerOrders").doc(ready.dataset.bkReadyOrder).update({
+            status: "preparing",
+            baseKitchenReadyAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "preparing", at: new Date().toISOString(), note: "Base kitchen marked order ready for delivery handover" }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Order marked ready for delivery handover.");
+        }
+      });
+
       function renderDisputes() {
         const rows = visibleInvoices().filter((invoice) => invoice.status === "disputed");
         $("bkDisputeList").innerHTML = rows.map((invoice) => `
@@ -382,6 +449,7 @@
         renderInvoices();
         renderDisputes();
         renderCatalogRequests();
+        renderCustomerOrders();
       }
 
       onLive("indents", (rows) => {
@@ -393,6 +461,18 @@
         renderAll();
       }, "createdAt", "desc", 250);
       onLive("invoices", (rows) => { invoices = rows; renderAll(); }, "createdAt", "desc", 250);
+      onLive("customerOrders", (rows) => {
+        const visible = rows.filter((order) => {
+          const source = String(order.fulfillmentSource || "").toLowerCase();
+          const ownLine = (order.items || []).some((line) => String(line.baseKitchenId || line.supplierId || "") === activeKitchenId || String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen");
+          return activeKitchenId && (source === "base-kitchen" || source === "mixed" || ownLine) && (String(order.baseKitchenId || "") === activeKitchenId || ownLine);
+        });
+        const incoming = visible.filter((row) => !seenCustomerOrders.has(row.id));
+        if (seenCustomerOrders.size && incoming.length) playBuzz(`${incoming.length} new customer order for base kitchen.`);
+        seenCustomerOrders = new Set(visible.map((row) => row.id));
+        customerOrders = rows;
+        renderAll();
+      }, "createdAt", "desc", 250);
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { catalogRequests = rows; renderAll(); }, "createdAt", "desc", 250);
     });
   </script>

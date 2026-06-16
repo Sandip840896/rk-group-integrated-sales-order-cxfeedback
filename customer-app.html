@@ -67,6 +67,12 @@
         <label class="field grow"><span>Preferred Delivery Slot</span><select id="deliveryWindow" class="select"></select></label>
         <button class="btn secondary" id="savePassengerBtn"><i data-lucide="save"></i> Save</button>
       </div>
+      <div class="source-segments" id="sourceSegments">
+        <button class="active" data-menu-source="all" type="button"><i data-lucide="layout-grid"></i> All</button>
+        <button data-menu-source="pantry" type="button"><i data-lucide="train-front"></i> Train Pantry</button>
+        <button data-menu-source="base-kitchen" type="button"><i data-lucide="chef-hat"></i> Base Kitchen</button>
+        <button data-menu-source="partner" type="button"><i data-lucide="store"></i> RK Partner</button>
+      </div>
       <div id="menuList" class="list"></div>
       <div class="cart-bar">
         <div class="row between">
@@ -189,6 +195,7 @@
       const cart = new Map();
       let menuItems = [];
       let trainMasters = [];
+      let selectedMenuSource = "all";
       let trackedOrders = [];
       let trackedFeedbacks = [];
       let unsubscribeTrack = null;
@@ -198,7 +205,10 @@
       $("mealFilter").innerHTML = ["All", ...mealSlots].map((m) => `<option>${m}</option>`).join("");
       $("complaintNature").innerHTML = complaintNatures.map((nature) => `<option>${escapeHtml(nature)}</option>`).join("");
 
-      function deliverySlotsForMeal(meal) {
+      function deliverySlotsForMeal(meal, source = selectedMenuSource) {
+        if (source === "base-kitchen") return ["Upcoming station - 45 to 75 min", "Next major halt - 75 to 120 min"];
+        if (source === "partner") return ["Upcoming station partner - 30 to 60 min", "Next partner station - 60 to 90 min"];
+        if (source === "pantry") return ["Onboard pantry - 15 to 30 min", "Onboard pantry - 30 to 45 min"];
         if (meal === "Breakfast") return ["07:00-10:00"];
         if (meal === "Lunch") return ["12:00-15:00"];
         if (meal === "Dinner") return ["19:30-22:00"];
@@ -208,7 +218,7 @@
       function renderDeliveryWindows() {
         const meal = $("mealFilter").value;
         const slots = deliverySlotsForMeal(meal);
-        $("deliveryWindow").innerHTML = slots.map((slot) => `<option value="${slot}">${slot.replace("-", " to ")}</option>`).join("");
+        $("deliveryWindow").innerHTML = slots.map((slot) => `<option value="${escapeHtml(slot)}">${escapeHtml(slot.replace("-", " to "))}</option>`).join("");
       }
       renderDeliveryWindows();
 
@@ -306,38 +316,70 @@
         if (changed) toast("Cart updated as live stock changed.");
       }
 
-      function renderMenu() {
-        const selectedMeal = $("mealFilter").value;
-        const items = menuItems.filter((item) => item.available !== false && (selectedMeal === "All" || itemMealSlots(item).includes(selectedMeal)));
-        $("menuList").innerHTML = items.length ? items.map((item) => {
-          const inCart = cart.get(item.id)?.qty || 0;
-          const sell = sellingPriceOf(item);
-          const stock = Number(item.stockQty || 0);
-          const soldOut = stock <= 0;
-          return `
-            <div class="item">
+      function menuSourceOf(item) {
+        const source = String(item.sourceType || item.source || item.fulfillmentSource || "").toLowerCase();
+        if (source.includes("partner")) return "partner";
+        if (source.includes("base")) return "base-kitchen";
+        return "pantry";
+      }
+
+      function sourceLabel(source) {
+        if (source === "base-kitchen") return "Upcoming Base Kitchen";
+        if (source === "partner") return "RK Partner From Upcoming Station";
+        return "Train Pantry";
+      }
+
+      function sourceNote(source) {
+        if (source === "base-kitchen") return "Approved base-kitchen menu with station handover timing.";
+        if (source === "partner") return "Approved RK partner menu near an upcoming station.";
+        return "Onboard pantry stock available from the train team.";
+      }
+
+      function menuItemCard(item) {
+        const inCart = cart.get(item.id)?.qty || 0;
+        const sell = sellingPriceOf(item);
+        const stock = Number(item.stockQty || 0);
+        const soldOut = stock <= 0;
+        return `
+          <div class="item menu-card">
+            <div class="menu-card-media">
+              ${item.itemImage ? `<img class="food-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : `<div class="food-img placeholder"><i data-lucide="utensils"></i></div>`}
+            </div>
+            <div class="menu-card-body">
               <div class="row between">
-                <div class="row grow">
-                  ${item.itemImage ? `<img class="food-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : ""}
-                  <div>
-                    <h3>${escapeHtml(item.name)}</h3>
-                    <p>${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
-                  </div>
-                </div>
+                <h3>${escapeHtml(item.name)}</h3>
                 <b>${money(sell)}</b>
               </div>
+              <p>${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
+              <p>${escapeHtml(item.supplierName || item.baseKitchenName || "")}</p>
               <div class="row between" style="margin-top:10px;">
                 <span class="badge ${soldOut ? "danger" : "ok"}">${soldOut ? "Sold out" : "Available"}</span>
                 <div class="row">
-                  ${soldOut ? `<button class="btn secondary" data-notify-item="${item.id}"><i data-lucide="bell"></i> Notify me</button>` : `
+                  ${soldOut ? `<button class="btn secondary compact-btn" data-notify-item="${item.id}" title="Notify"><i data-lucide="bell"></i></button>` : `
                     <button class="icon-btn" data-minus="${item.id}" title="Reduce"><i data-lucide="minus"></i></button>
                     <b style="min-width:24px;text-align:center;">${inCart}</b>
                     <button class="icon-btn" data-plus="${item.id}" title="Add" ${inCart >= stock ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
                 </div>
               </div>
-              ${soldOut ? `<p class="sold-out-note">This item is finished right now. Tap Notify me so RK can plan fresh stock.</p>` : ""}
-            </div>`;
-        }).join("") : `<div class="empty">No food item is available for this meal right now.</div>`;
+              ${soldOut ? `<p class="sold-out-note">Tap bell so RK can plan fresh stock.</p>` : ""}
+            </div>
+          </div>`;
+      }
+
+      function renderMenu() {
+        const selectedMeal = $("mealFilter").value;
+        const items = menuItems.filter((item) => item.available !== false
+          && (selectedMeal === "All" || itemMealSlots(item).includes(selectedMeal))
+          && (selectedMenuSource === "all" || menuSourceOf(item) === selectedMenuSource));
+        const groups = ["pantry", "base-kitchen", "partner"].filter((source) => selectedMenuSource === "all" || selectedMenuSource === source);
+        $("menuList").innerHTML = items.length ? groups.map((source) => {
+          const rows = items.filter((item) => menuSourceOf(item) === source);
+          if (!rows.length) return "";
+          return `<div class="menu-source-section">
+            <div class="section-title compact-title"><div><h2>${sourceLabel(source)}</h2><p>${sourceNote(source)}</p></div></div>
+            <div class="customer-menu-grid">${rows.map(menuItemCard).join("")}</div>
+          </div>`;
+        }).join("") : `<div class="empty">No food item is available for this meal and source right now.</div>`;
         lucide.createIcons();
         renderCart();
       }
@@ -429,6 +471,14 @@
         renderDeliveryWindows();
         renderMenu();
       });
+      $("sourceSegments").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-menu-source]");
+        if (!btn) return;
+        selectedMenuSource = btn.dataset.menuSource;
+        document.querySelectorAll("[data-menu-source]").forEach((node) => node.classList.toggle("active", node === btn));
+        renderDeliveryWindows();
+        renderMenu();
+      });
       $("savePassengerBtn").addEventListener("click", () => {
         if (validatePassenger()) toast("Passenger details saved.");
       });
@@ -471,9 +521,16 @@
           costPrice: costPriceOf(line),
           itemImage: line.itemImage || "",
           source: line.source || "pantry",
+          sourceType: line.sourceType || line.source || "pantry",
+          fulfillmentSource: menuSourceOf(line),
+          supplierId: line.supplierId || line.baseKitchenId || "",
+          supplierName: line.supplierName || line.baseKitchenName || "",
+          baseKitchenId: line.baseKitchenId || (menuSourceOf(line) === "base-kitchen" ? line.supplierId || "" : ""),
+          baseKitchenName: line.baseKitchenName || (menuSourceOf(line) === "base-kitchen" ? line.supplierName || "" : ""),
           mealSlots: itemMealSlots(line)
         }));
         const total = items.reduce((sum, line) => sum + line.qty * line.price, 0);
+        const orderSources = [...new Set(items.map((line) => line.fulfillmentSource || "pantry"))];
         let orderNo = "";
         try {
           await db.runTransaction(async (transaction) => {
@@ -503,6 +560,11 @@
               seat: customer.seat,
               mealSlot: $("mealFilter").value === "All" ? "Other" : $("mealFilter").value,
               deliveryWindow: $("deliveryWindow").value,
+              fulfillmentSource: orderSources.length === 1 ? orderSources[0] : "mixed",
+              orderSources,
+              baseKitchenId: items.find((line) => line.fulfillmentSource === "base-kitchen")?.baseKitchenId || "",
+              baseKitchenName: items.find((line) => line.fulfillmentSource === "base-kitchen")?.baseKitchenName || "",
+              supplierName: items.find((line) => line.supplierName)?.supplierName || "",
               paymentMode,
               paymentStatus: paymentMode === "COD" ? "cash-on-delivery" : "pending",
               items,
@@ -664,6 +726,7 @@
                 <button class="btn secondary" data-edit-order="${order.id}"><i data-lucide="pencil"></i> Edit Order</button>
                 <button class="btn danger" data-cancel-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>
               ` : ""}
+              <button class="btn secondary" data-help-order="${order.id}"><i data-lucide="message-square-warning"></i> Need Help</button>
             </div>
           </div>`).join("") : `<div class="empty">No order found for this phone number.</div>`;
         const feedbackHtml = trackedFeedbacks.length ? `
@@ -781,6 +844,7 @@
         const cancel = event.target.closest("[data-cancel-order]");
         const edit = event.target.closest("[data-edit-order]");
         const reply = event.target.closest("[data-reply-feedback]");
+        const help = event.target.closest("[data-help-order]");
         if (print) {
           const order = trackedOrders.find((entry) => entry.id === print.dataset.printOrder);
           if (String(order?.status || "").toLowerCase() === "cancelled") {
@@ -812,6 +876,15 @@
             renderMenu();
             toast("Order loaded for editing. Please review and place again.");
           });
+        }
+        if (help) {
+          const order = trackedOrders.find((entry) => entry.id === help.dataset.helpOrder);
+          showTab("feedback");
+          $("submissionType").value = "complaint";
+          $("submissionType").dispatchEvent(new Event("change"));
+          $("feedbackOrderSelect").value = order?.id || "";
+          $("feedbackForm").elements.message.value = order ? `Need help for order ${order.orderNo || order.id}: ` : "";
+          $("feedbackForm").scrollIntoView({ behavior: "smooth", block: "start" });
         }
         if (reply) {
           const id = reply.dataset.replyFeedback;

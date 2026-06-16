@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Customer Care Desk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main care-main stack">
+    <section class="panel pad" id="careLoginPanel">
+      <div class="section-title">
+        <div><h2>Customer Care Login</h2><p>Use customer-care ID created from Rack Manager Command Center.</p></div>
+        <span class="badge warn" id="careLoginBadge">not logged in</span>
+      </div>
+      <div class="row mobile-stack">
+        <input class="input grow" id="careEmail" type="email" placeholder="customer care email">
+        <input class="input grow" id="carePassword" type="password" placeholder="password">
+        <button class="btn" id="careLoginBtn"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary hidden" id="careLogoutBtn"><i data-lucide="log-out"></i> Logout</button>
+      </div>
+    </section>
+
+    <div class="grid four">
+      <div class="metric"><b id="careOrders">0</b><span>Open orders</span></div>
+      <div class="metric"><b id="careComplaints">0</b><span>Open complaints</span></div>
+      <div class="metric"><b id="careEscalated">0</b><span>Escalations</span></div>
+      <div class="metric"><b id="careResolved">0</b><span>Resolved today</span></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn" data-tab="dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</button>
+      <button class="tab-btn" data-tab="orders"><i data-lucide="receipt-text"></i> Orders</button>
+      <button class="tab-btn" data-tab="complaints"><i data-lucide="messages-square"></i> Complaints</button>
+    </div>
+
+    <section class="panel pad stack" data-tab-panel="dashboard">
+      <div class="section-title"><div><h2>Escalation Board</h2><p>Unaccepted orders and unattended complaints buzz here for customer care action.</p></div></div>
+      <div id="careEscalationList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="orders">
+      <div class="section-title"><div><h2>Customer Orders</h2><p>View passenger, train, supplier and delivery detail.</p></div></div>
+      <div id="careOrderList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="complaints">
+      <div class="section-title"><div><h2>Feedback and Complaint Resolution</h2><p>Customer care can reply to the customer and update the live ticket.</p></div></div>
+      <div id="careComplaintList" class="list"></div>
+    </section>
+  </main>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("RK Customer Care Desk", "Customer resolution bridge for rack manager, base kitchen and partners");
+      lucide.createIcons();
+      wireTabs("dashboard");
+      await ensureSeedData();
+
+      let users = [];
+      let orders = [];
+      let feedbacks = [];
+      let currentUser = JSON.parse(sessionStorage.getItem("rkCareUser") || "null");
+      let seenEscalations = new Set();
+
+      function isLoggedIn() {
+        return Boolean(currentUser);
+      }
+
+      function updateLogin() {
+        $("careLoginBadge").textContent = currentUser ? `${currentUser.email} | customer care` : "not logged in";
+        $("careLogoutBtn").classList.toggle("hidden", !currentUser);
+      }
+
+      function ageMinutes(value) {
+        const date = value?.toDate ? value.toDate() : null;
+        return date ? Math.floor((Date.now() - date.getTime()) / 60000) : 0;
+      }
+
+      function orderEscalated(order) {
+        return String(order.status || "").toLowerCase() === "new" && ageMinutes(order.createdAt) >= 10;
+      }
+
+      function complaintEscalated(fb) {
+        return !["resolved", "closed"].includes(String(fb.status || "").toLowerCase()) && ageMinutes(fb.createdAt || fb.timestamp) >= 10;
+      }
+
+      function supplierText(order) {
+        const source = String(order.fulfillmentSource || "pantry").replace(/-/g, " ");
+        return `${source} | ${order.baseKitchenName || order.supplierName || "Rack manager / pantry"}`;
+      }
+
+      function renderMetrics() {
+        const openOrders = orders.filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase()));
+        const openComplaints = feedbacks.filter((fb) => !["resolved", "closed"].includes(String(fb.status || "").toLowerCase()));
+        const escalated = [...orders.filter(orderEscalated), ...feedbacks.filter(complaintEscalated)];
+        const today = new Date().toISOString().slice(0, 10);
+        const resolvedToday = feedbacks.filter((fb) => ["resolved", "closed"].includes(String(fb.status || "").toLowerCase()) && (fb.resolvedAt?.toDate ? fb.resolvedAt.toDate().toISOString().slice(0, 10) === today : false));
+        $("careOrders").textContent = openOrders.length;
+        $("careComplaints").textContent = openComplaints.length;
+        $("careEscalated").textContent = escalated.length;
+        $("careResolved").textContent = resolvedToday.length;
+        if (isLoggedIn()) {
+          const ids = new Set(escalated.map((row) => row.id));
+          const incoming = [...ids].filter((id) => !seenEscalations.has(id));
+          if (seenEscalations.size && incoming.length) playBuzz(`${incoming.length} customer care escalation.`);
+          seenEscalations = ids;
+        }
+      }
+
+      function orderCard(order) {
+        return `<div class="item ${orderEscalated(order) ? "urgent-item" : ""}">
+          <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
+          <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
+          <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+          <p><b>Source:</b> ${escapeHtml(supplierText(order))} | <b>Slot:</b> ${escapeHtml(order.deliveryWindow || "")}</p>
+          <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")} | ${money(order.total)}</p>
+          ${orderEscalated(order) ? `<div class="ack danger-soft" style="margin-top:10px;">Order not accepted within 10 minutes. Customer care should call/coordinate now.</div>` : ""}
+          <div class="row wrap" style="margin-top:10px;">
+            ${String(order.status || "").toLowerCase() === "new" ? `<button class="btn" data-care-accept-order="${order.id}"><i data-lucide="check"></i> Accept on Behalf</button>` : ""}
+            <button class="btn secondary" data-care-call="${escapeHtml(order.customer?.phone || "")}"><i data-lucide="phone"></i> Customer ${escapeHtml(order.customer?.phone || "")}</button>
+          </div>
+        </div>`;
+      }
+
+      function complaintCard(fb) {
+        return `<div class="item ${complaintEscalated(fb) ? "urgent-item" : ""}">
+          <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")}</h3>${statusBadge(fb.status || "open")}</div>
+          <p>${escapeHtml(fb.customer?.name || "")} | ${escapeHtml(fb.customer?.phone || "")} | Train ${escapeHtml(fb.customer?.train || fb.train || "")}</p>
+          <p><b>Order:</b> ${escapeHtml(fb.orderNo || "General")} | <b>Nature:</b> ${escapeHtml(fb.nature || fb.category || "Feedback")}</p>
+          <p>${escapeHtml(fb.message || "")}</p>
+          ${complaintEscalated(fb) ? `<div class="ack danger-soft" style="margin-top:10px;">Complaint not attended within 10 minutes. Customer care can reply and coordinate action.</div>` : ""}
+          <label class="field" style="margin-top:10px;"><span>Reply to customer</span><textarea class="textarea" rows="2" data-care-reply="${fb.id}" placeholder="Write customer-care response"></textarea></label>
+          <div class="row mobile-stack">
+            <select class="select" data-care-status="${fb.id}">
+              ${complaintStatuses.map((status) => `<option value="${status}" ${String(fb.status || "").toLowerCase() === status ? "selected" : ""}>${status}</option>`).join("")}
+            </select>
+            <button class="btn" data-care-save-ticket="${fb.id}"><i data-lucide="send"></i> Reply / Update</button>
+          </div>
+        </div>`;
+      }
+
+      function render() {
+        renderMetrics();
+        $("careOrderList").innerHTML = orders.map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
+        $("careComplaintList").innerHTML = feedbacks.map(complaintCard).join("") || `<div class="empty">No complaint or feedback yet.</div>`;
+        const escalatedOrders = orders.filter(orderEscalated);
+        const escalatedFeedbacks = feedbacks.filter(complaintEscalated);
+        $("careEscalationList").innerHTML = [
+          ...escalatedOrders.map(orderCard),
+          ...escalatedFeedbacks.map(complaintCard)
+        ].join("") || `<div class="empty success">No escalated order or complaint right now.</div>`;
+        lucide.createIcons();
+      }
+
+      $("careLoginBtn").addEventListener("click", () => {
+        const email = $("careEmail").value.trim().toLowerCase();
+        const password = $("carePassword").value;
+        const found = users.find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && String(user.role || "").toLowerCase() === "customer-care");
+        if (!found) return toast("Login failed. Use a customer-care ID created from Rack Manager Command Center.");
+        currentUser = { email: found.email, name: found.name || found.email };
+        sessionStorage.setItem("rkCareUser", JSON.stringify(currentUser));
+        $("carePassword").value = "";
+        updateLogin();
+        toast("Customer care logged in.");
+      });
+
+      $("careLogoutBtn").addEventListener("click", () => {
+        currentUser = null;
+        sessionStorage.removeItem("rkCareUser");
+        updateLogin();
+      });
+
+      document.body.addEventListener("click", async (event) => {
+        if (!isLoggedIn()) return;
+        const accept = event.target.closest("[data-care-accept-order]");
+        const save = event.target.closest("[data-care-save-ticket]");
+        if (accept) {
+          await db.collection("customerOrders").doc(accept.dataset.careAcceptOrder).update({
+            status: "accepted",
+            acceptedAt: FieldValue.serverTimestamp(),
+            acceptedBy: currentUser.name,
+            acceptedByRole: "customer-care",
+            statusLog: FieldValue.arrayUnion({ status: "accepted", at: new Date().toISOString(), note: `Accepted by customer care ${currentUser.name}` }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Order accepted on behalf of operations.");
+        }
+        if (save) {
+          const id = save.dataset.careSaveTicket;
+          const note = document.querySelector(`[data-care-reply="${id}"]`).value.trim();
+          const status = document.querySelector(`[data-care-status="${id}"]`).value;
+          if (!note) return toast("Write a reply before updating customer.");
+          const payload = {
+            status,
+            managerResponse: note,
+            customerNotice: note,
+            lastResponder: currentUser.name,
+            lastResponderRole: "customer-care",
+            statusLog: FieldValue.arrayUnion({ status, note, by: currentUser.name, at: new Date().toISOString() }),
+            updatedAt: FieldValue.serverTimestamp()
+          };
+          if (["resolved", "closed"].includes(status)) payload.resolvedAt = FieldValue.serverTimestamp();
+          await db.collection("feedbacks").doc(id).update(payload);
+          toast("Customer reply updated live.");
+        }
+      });
+
+      updateLogin();
+      db.collection("systemSettings").where("type", "==", "adminUser").onSnapshot((snapshot) => {
+        users = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      });
+      onLive("customerOrders", (rows) => { orders = rows; render(); }, "createdAt", "desc", 300);
+      onLive("feedbacks", (rows) => { feedbacks = rows; render(); }, "timestamp", "desc", 300);
+    });
+  </script>
+</body>
+</html>

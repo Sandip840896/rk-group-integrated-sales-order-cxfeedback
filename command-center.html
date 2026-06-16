@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RK Unified Command Center</title>
+  <title>RK Rack Manager Command Center</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
   <main class="main">
     <section class="panel pad" id="loginPanel">
       <div class="section-title">
-        <div><h2>Command Center Login</h2><p>Prototype access control. Use Firebase Auth before production launch.</p></div>
+        <div><h2>Rack Manager Command Center Login</h2><p>Prototype access control. Use Firebase Auth before production launch.</p></div>
         <span class="badge warn" id="loginRoleBadge">not logged in</span>
       </div>
       <div class="row mobile-stack">
@@ -302,7 +302,7 @@
           </div>
           <div class="grid two">
             <label class="field"><span>User Name</span><input class="input" name="name" required placeholder="Manager / kitchen user name"></label>
-            <label class="field"><span>Role</span><select class="select" name="role"><option>manager</option><option>base-kitchen</option><option>viewer</option><option>admin</option></select></label>
+            <label class="field"><span>Role</span><select class="select" name="role"><option>manager</option><option>customer-care</option><option>base-kitchen</option><option>viewer</option><option>admin</option></select></label>
           </div>
           <div class="grid two">
             <label class="field"><span>Access Scope</span><select class="select" name="accessScope">
@@ -355,7 +355,7 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("RK Unified Command Center", "Live rail catering control room");
+      appHeader("RK Rack Manager Command Center", "Live rail catering control room");
       lucide.createIcons();
       wireTabs("overview");
       await ensureSeedData();
@@ -582,6 +582,13 @@
         return (invoice?.items || []).reduce((sum, line) => sum + invoiceItemQty(line) * invoiceLineCostPrice(line), 0);
       }
 
+      function slaText(value, minutes) {
+        const created = value?.toDate ? value.toDate() : null;
+        if (!created) return `${minutes} min SLA`;
+        const age = Math.floor((Date.now() - created.getTime()) / 60000);
+        return age >= minutes ? `Overdue by ${age - minutes + 1} min` : `${minutes - age} min left`;
+      }
+
       function orderCard(order) {
         const orderStatus = String(order.status || "new").toLowerCase();
         const canMove = !["cancelled", "delivered"].includes(orderStatus);
@@ -590,6 +597,7 @@
           <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
           <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
           ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
+          ${orderStatus === "new" ? `<div class="ack danger-soft" style="margin:8px 0;">Accept within 10 minutes: ${escapeHtml(slaText(order.createdAt, 10))}</div>` : ""}
           <p><b>Payment:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")}</p>
           <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")} | ${money(order.total)}</p>
           ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}</p>` : ""}
@@ -616,11 +624,16 @@
         const cancel = event.target.closest("[data-cancel-customer-order]");
         const initDelivery = event.target.closest("[data-init-delivery]");
         if (btn) {
-          await db.collection("customerOrders").doc(btn.dataset.id).update({
+          const payload = {
             status: btn.dataset.orderStatus,
             updatedAt: FieldValue.serverTimestamp(),
-            statusLog: FieldValue.arrayUnion({ status: btn.dataset.orderStatus, at: new Date().toISOString(), note: "Updated from command center" })
-          });
+            statusLog: FieldValue.arrayUnion({ status: btn.dataset.orderStatus, at: new Date().toISOString(), note: "Updated from rack manager command center" })
+          };
+          if (btn.dataset.orderStatus === "accepted") {
+            payload.acceptedAt = FieldValue.serverTimestamp();
+            payload.acceptedBy = currentUser?.name || currentUser?.email || "Rack Manager";
+          }
+          await db.collection("customerOrders").doc(btn.dataset.id).update(payload);
           toast("Order status updated.");
         }
         if (initDelivery) {
@@ -669,6 +682,7 @@
             <p>${escapeHtml(fb.customer?.name || fb.name || "")} | ${escapeHtml(fb.customer?.phone || fb.phone || "")} | Train ${escapeHtml(fb.train || fb.customer?.train || "")}</p>
             <p><b>Order:</b> ${escapeHtml(fb.orderNo || "General")} | <b>Nature:</b> ${escapeHtml(fb.nature || fb.category || "Feedback")}</p>
             <p>${escapeHtml(fb.message || fb.feedback || "")}</p>
+            ${!["resolved", "closed"].includes(String(fb.status || "").toLowerCase()) ? `<div class="ack danger-soft" style="margin:8px 0;">Reply within 10 minutes: ${escapeHtml(slaText(fb.createdAt || fb.timestamp, 10))}</div>` : ""}
             ${fb.proof?.dataUrl ? `
               <div class="media-proof">
                 ${String(fb.proof.type || "").startsWith("image/") ? `<img class="proof-img" src="${fb.proof.dataUrl}" alt="Customer proof">` : ""}
@@ -1293,6 +1307,7 @@
 
       async function savePurchaseLike(collectionName, form, source) {
         const data = getForm(form);
+        delete data.billImage;
         const train = trainMasters.find((entry) => (entry.trainNumber || entry.id) === data.train);
         const qty = Number(data.qty || 0);
         const costPrice = Number(data.costPrice || 0);
@@ -1572,7 +1587,7 @@
 
       $("downloadCodeBtn").addEventListener("click", async () => {
         if (currentUser?.role !== "super-admin") return toast("Super admin login required.");
-        const files = ["index.html", "customer-app.html", "command-center.html", "base-kitchen.html", "control-tower.html", "partner-app.html", "delivery-app.html", "central-command.html", "rk-common.js", "rk-app.css"];
+        const files = ["index.html", "customer-app.html", "command-center.html", "customer-care.html", "base-kitchen.html", "control-tower.html", "partner-app.html", "delivery-app.html", "central-command.html", "rk-common.js", "rk-app.css"];
         const code = {};
         for (const file of files) code[file] = await fetch(file).then((res) => res.text());
         downloadJson(`rk-code-backup-${new Date().toISOString().slice(0, 10)}.json`, code);
