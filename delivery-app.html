@@ -35,6 +35,10 @@
         </div>
         <button class="btn" type="submit"><i data-lucide="save"></i> Save Profile</button>
       </form>
+      <div class="section-title" style="margin-top:8px;">
+        <div><h2>Saved Delivery Partners</h2><p>Use this list to confirm profile creation and select a partner phone for orders.</p></div>
+      </div>
+      <div id="deliveryPartnerList" class="list"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="orders">
@@ -86,6 +90,27 @@
       function renderOpen() {
         const rows = orders.filter((order) => ["new", "accepted", "preparing"].includes(String(order.status || "").toLowerCase()) && !order.deliveryPersonPhone);
         $("openOrders").innerHTML = rows.map((order) => orderCard(order, `<button class="btn" data-take-order="${order.id}"><i data-lucide="hand"></i> Take Order</button>`)).join("") || `<div class="empty">No open order for delivery pickup.</div>`;
+        lucide.createIcons();
+      }
+
+      function renderProfiles() {
+        $("deliveryPartnerList").innerHTML = profiles.map((profile) => `
+          <div class="item">
+            <div class="row between">
+              <div class="row grow">
+                ${profile.photo ? `<img class="food-img small" src="${profile.photo}" alt="${escapeHtml(profile.name || "Delivery partner")}">` : ""}
+                <div>
+                  <h3>${escapeHtml(profile.name || profile.phone)}</h3>
+                  <p>${escapeHtml(profile.phone || "")} | ${escapeHtml(profile.vehicleType || "")}${profile.vehicleNo ? ` | ${escapeHtml(profile.vehicleNo)}` : ""}</p>
+                  <p>${escapeHtml(profile.baseLocation || "")} | Delivered ${Number(profile.deliveredCount || 0)} order(s)</p>
+                </div>
+              </div>
+              ${statusBadge(profile.status || "active")}
+            </div>
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn secondary" data-use-profile="${escapeHtml(profile.phone || "")}"><i data-lucide="check"></i> Use This Partner</button>
+            </div>
+          </div>`).join("") || `<div class="empty">No delivery partner profile saved yet.</div>`;
         lucide.createIcons();
       }
 
@@ -142,6 +167,15 @@
         const take = event.target.closest("[data-take-order]");
         const start = event.target.closest("[data-start-order]");
         const delivered = event.target.closest("[data-deliver-order]");
+        const useProfile = event.target.closest("[data-use-profile]");
+        if (useProfile) {
+          const phone = cleanPhone(useProfile.dataset.useProfile);
+          localStorage.setItem("rkDeliveryPhone", phone);
+          $("deliveryPhone").value = phone;
+          showTab("orders");
+          renderMine();
+          toast("Delivery partner selected.");
+        }
         if (take) {
           const order = orders.find((row) => row.id === take.dataset.takeOrder);
           await assignOrder(order);
@@ -175,7 +209,7 @@
 
       $("loadMyOrders").addEventListener("click", renderMine);
       $("deliveryPhone").value = localStorage.getItem("rkDeliveryPhone") || "";
-      onLive("deliveryPartners", (rows) => { profiles = rows; }, "updatedAt", "desc", 250);
+      onLive("deliveryPartners", (rows) => { profiles = rows; renderProfiles(); }, "updatedAt", "desc", 250);
       onLive("customerOrders", (rows) => { orders = rows; renderOpen(); renderMine(); }, "createdAt", "desc", 250);
     });
   </script>
