@@ -299,7 +299,7 @@
         const data = getForm(event.currentTarget);
         const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
         const image = await compressImage(event.currentTarget.itemImageFile.files[0], 520, 0.7);
-        await db.collection("catalogRequests").add({
+        await compatAdd("catalogRequests", "catalogRequest", {
           name: data.name,
           category: data.category,
           mealSlots: [data.category],
@@ -392,7 +392,7 @@
         renderAll();
       }, "createdAt", "desc", 250);
       onLive("invoices", (rows) => { invoices = rows; renderAll(); }, "createdAt", "desc", 250);
-      onLive("catalogRequests", (rows) => { catalogRequests = rows; renderAll(); }, "createdAt", "desc", 250);
+      onLiveCompat("catalogRequests", "catalogRequest", (rows) => { catalogRequests = rows; renderAll(); }, "createdAt", "desc", 250);
     });
   </script>
 </body>

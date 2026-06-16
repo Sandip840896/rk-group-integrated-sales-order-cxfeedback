@@ -162,22 +162,21 @@
           const req = requests.find((row) => row.id === approve.dataset.approveCatalog);
           if (!req) return;
           await db.collection("menuItems").add(requestPayload(req));
-          await db.collection("catalogRequests").doc(req.id).update({
+          await compatUpdate(req, "catalogRequests", {
             status: "approved",
             checkerName: "Control Tower",
-            checkedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp()
+            checkedAt: FieldValue.serverTimestamp()
           });
           toast("Catalog item approved and published to customer app.");
         }
         if (reject) {
           const reason = prompt("Reason for rejection", "Price/image/details need correction.");
           if (!reason) return;
-          await db.collection("catalogRequests").doc(reject.dataset.rejectCatalog).update({
+          const req = requests.find((row) => row.id === reject.dataset.rejectCatalog);
+          await compatUpdate(req, "catalogRequests", {
             status: "rejected",
             rejectionReason: reason,
-            checkedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp()
+            checkedAt: FieldValue.serverTimestamp()
           });
           toast("Catalog request rejected.");
         }
@@ -187,21 +186,23 @@
         const approve = event.target.closest("[data-approve-partner]");
         const reject = event.target.closest("[data-reject-partner]");
         if (approve) {
-          await db.collection("partners").doc(approve.dataset.approvePartner).update({ status: "approved", approvedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+          const partner = partners.find((row) => row.id === approve.dataset.approvePartner);
+          await compatUpdate(partner, "partners", { status: "approved", approvedAt: FieldValue.serverTimestamp() });
           toast("Partner approved.");
         }
         if (reject) {
           const reason = prompt("Reason for rejection", "Documents/details incomplete.");
           if (!reason) return;
-          await db.collection("partners").doc(reject.dataset.rejectPartner).update({ status: "rejected", rejectionReason: reason, updatedAt: FieldValue.serverTimestamp() });
+          const partner = partners.find((row) => row.id === reject.dataset.rejectPartner);
+          await compatUpdate(partner, "partners", { status: "rejected", rejectionReason: reason });
           toast("Partner rejected.");
         }
       });
 
       $("routeTrain").addEventListener("change", renderRoute);
       renderRoute();
-      onLive("catalogRequests", (rows) => { requests = rows; renderCatalog(); }, "createdAt", "desc", 250);
-      onLive("partners", (rows) => { partners = rows; renderPartners(); }, "createdAt", "desc", 250);
+      onLiveCompat("catalogRequests", "catalogRequest", (rows) => { requests = rows; renderCatalog(); }, "createdAt", "desc", 250);
+      onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); }, "createdAt", "desc", 250);
       onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); }, "name", "asc", 300);
     });
   </script>

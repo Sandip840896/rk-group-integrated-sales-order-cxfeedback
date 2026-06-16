@@ -132,9 +132,9 @@
       onLive("customerOrders", (rows) => { state.orders = rows; render(); }, "createdAt", "desc", 500);
       onLive("feedbacks", (rows) => { state.feedbacks = rows; render(); }, "timestamp", "desc", 500);
       onLive("baseKitchens", (rows) => { state.kitchens = rows; render(); }, "name", "asc", 500);
-      onLive("partners", (rows) => { state.partners = rows; render(); }, "createdAt", "desc", 500);
-      onLive("deliveryPartners", (rows) => { state.deliveryPartners = rows; render(); }, "updatedAt", "desc", 500);
-      onLive("catalogRequests", (rows) => { state.catalogRequests = rows; render(); }, "createdAt", "desc", 500);
+      onLiveCompat("partners", "partner", (rows) => { state.partners = rows; render(); }, "createdAt", "desc", 500);
+      onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { state.deliveryPartners = rows; render(); }, "updatedAt", "desc", 500);
+      onLiveCompat("catalogRequests", "catalogRequest", (rows) => { state.catalogRequests = rows; render(); }, "createdAt", "desc", 500);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         state.trains = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         render();

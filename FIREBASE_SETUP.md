@@ -57,6 +57,8 @@ The new apps need these collections to be allowed:
 - `partners`
 - `catalogRequests`
 
+The app also has a pilot fallback: if those new collections are blocked, it can save these records in `systemSettings` with type values `deliveryPartner`, `partner`, and `catalogRequest`. This keeps testing moving, but publishing the latest rules is still the cleaner setup.
+
 ## Suggested first testing rules
 
 Use open rules only for internal testing. Before public launch, add Firebase Authentication and role based rules.

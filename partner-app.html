@@ -79,7 +79,7 @@
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         try {
-          await db.collection("partners").add({
+          await compatAdd("partners", "partner", {
             ...data,
             phone,
             status: "pending",
@@ -104,7 +104,7 @@
         if (phone.length !== 10) return toast("Enter partner phone used for enlistment.");
         try {
           const image = await compressImage(event.currentTarget.itemImageFile.files[0], 520, 0.7);
-          await db.collection("catalogRequests").add({
+          await compatAdd("catalogRequests", "catalogRequest", {
             name: data.name,
             category: data.category,
             mealSlots: [data.category],
@@ -144,12 +144,21 @@
         const phone = cleanPhone($("statusPhone").value);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         localStorage.setItem("rkPartnerPhone", phone);
-        const partnerSnap = await db.collection("partners").where("phone", "==", phone).get();
-        const catalogSnap = await db.collection("catalogRequests").where("supplierPhone", "==", phone).get();
-        renderStatus([
-          ...partnerSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-          ...catalogSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        ]);
+        try {
+          const partnerSnap = await db.collection("partners").where("phone", "==", phone).get();
+          const catalogSnap = await db.collection("catalogRequests").where("supplierPhone", "==", phone).get();
+          renderStatus([
+            ...partnerSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+            ...catalogSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+          ]);
+        } catch (error) {
+          const partnerSnap = await db.collection("systemSettings").where("type", "==", "partner").get();
+          const catalogSnap = await db.collection("systemSettings").where("type", "==", "catalogRequest").get();
+          renderStatus([
+            ...partnerSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((row) => cleanPhone(row.phone) === phone),
+            ...catalogSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((row) => cleanPhone(row.supplierPhone) === phone)
+          ]);
+        }
       });
       $("statusPhone").value = localStorage.getItem("rkPartnerPhone") || "";
     });

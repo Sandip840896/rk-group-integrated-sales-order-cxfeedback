@@ -399,6 +399,10 @@ function firebaseAccessMessage(collectionName, error) {
   return `Live sync error in ${collectionName}: ${error?.message || "Unknown Firebase error"}`;
 }
 
+function compatDocId(type, value = "") {
+  return `${type}__${firebaseDocId(value || shortId(type.toUpperCase()))}`;
+}
+
 function statusBadge(status) {
   const s = String(status || "new").toLowerCase();
   let tone = "info";
@@ -523,6 +527,90 @@ function onLive(collectionName, callback, orderField = "createdAt", direction = 
       console.error(error);
       toast(firebaseAccessMessage(collectionName, error));
     });
+}
+
+function onLiveCompat(collectionName, fallbackType, callback, orderField = "createdAt", direction = "desc", limit = 100) {
+  let fallbackUnsubscribe = null;
+  const fallback = () => db.collection("systemSettings")
+    .where("type", "==", fallbackType)
+    .limit(limit)
+    .onSnapshot((snapshot) => {
+      const rows = snapshot.docs
+        .map((doc) => ({ id: doc.id, compatSource: "systemSettings", ...doc.data() }))
+        .sort((a, b) => {
+          const left = (a[orderField]?.toMillis ? a[orderField].toMillis() : 0);
+          const right = (b[orderField]?.toMillis ? b[orderField].toMillis() : 0);
+          return direction === "asc" ? left - right : right - left;
+        });
+      callback(rows);
+    }, (error) => {
+      console.error(error);
+      toast(firebaseAccessMessage("systemSettings", error));
+    });
+  const primaryUnsubscribe = db.collection(collectionName)
+    .orderBy(orderField, direction)
+    .limit(limit)
+    .onSnapshot((snapshot) => {
+      callback(snapshot.docs.map((doc) => ({ id: doc.id, compatSource: collectionName, ...doc.data() })));
+    }, (error) => {
+      console.error(error);
+      if (String(error?.message || "").toLowerCase().includes("permission")) {
+        toast(`${collectionName} is blocked by Firebase rules. Using pilot fallback storage.`);
+        fallbackUnsubscribe = fallback();
+        return;
+      }
+      toast(firebaseAccessMessage(collectionName, error));
+    });
+  return () => {
+    primaryUnsubscribe();
+    if (fallbackUnsubscribe) fallbackUnsubscribe();
+  };
+}
+
+async function compatAdd(collectionName, fallbackType, payload) {
+  try {
+    const ref = await db.collection(collectionName).add(payload);
+    return { id: ref.id, collectionName };
+  } catch (error) {
+    if (!String(error?.message || "").toLowerCase().includes("permission")) throw error;
+    const id = compatDocId(fallbackType);
+    await db.collection("systemSettings").doc(id).set({
+      ...payload,
+      type: fallbackType,
+      compatCollection: collectionName,
+      compatFallback: true,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    toast(`${collectionName} is blocked by Firebase rules. Saved in pilot fallback storage.`);
+    return { id, collectionName: "systemSettings" };
+  }
+}
+
+async function compatSet(collectionName, fallbackType, docId, payload) {
+  try {
+    await db.collection(collectionName).doc(docId).set(payload, { merge: true });
+    return { id: docId, collectionName };
+  } catch (error) {
+    if (!String(error?.message || "").toLowerCase().includes("permission")) throw error;
+    const id = compatDocId(fallbackType, docId);
+    await db.collection("systemSettings").doc(id).set({
+      ...payload,
+      type: fallbackType,
+      compatCollection: collectionName,
+      compatFallback: true,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    toast(`${collectionName} is blocked by Firebase rules. Saved in pilot fallback storage.`);
+    return { id, collectionName: "systemSettings" };
+  }
+}
+
+async function compatUpdate(row, collectionName, payload) {
+  const targetCollection = row?.compatSource === "systemSettings" ? "systemSettings" : collectionName;
+  await db.collection(targetCollection).doc(row.id).update({
+    ...payload,
+    updatedAt: FieldValue.serverTimestamp()
+  });
 }
 
 async function compressImage(file, maxSize = 760, quality = 0.72) {

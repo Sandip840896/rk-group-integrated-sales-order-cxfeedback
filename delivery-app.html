@@ -133,7 +133,7 @@
         try {
           const photo = await compressImage(event.currentTarget.photoFile.files[0], 520, 0.7);
           const kyc = await compressImage(event.currentTarget.kycFile.files[0], 760, 0.7);
-          await db.collection("deliveryPartners").doc(phone).set({
+          await compatSet("deliveryPartners", "deliveryPartner", phone, {
             ...data,
             phone,
             photo,
@@ -215,7 +215,7 @@
 
       $("loadMyOrders").addEventListener("click", renderMine);
       $("deliveryPhone").value = localStorage.getItem("rkDeliveryPhone") || "";
-      onLive("deliveryPartners", (rows) => { profiles = rows; renderProfiles(); }, "updatedAt", "desc", 250);
+      onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { profiles = rows; renderProfiles(); }, "updatedAt", "desc", 250);
       onLive("customerOrders", (rows) => { orders = rows; renderOpen(); renderMine(); }, "createdAt", "desc", 250);
     });
   </script>
