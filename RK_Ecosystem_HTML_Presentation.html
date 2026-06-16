@@ -1,0 +1,1347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RK Rail Passenger Ecosystem - HTML Presentation</title>
+  <style>
+    :root {
+      --bg: #f6f8f7;
+      --ink: #17212b;
+      --muted: #5a6572;
+      --green: #0e6b4f;
+      --green2: #1f8a70;
+      --mint: #dff3ea;
+      --rail: #27364a;
+      --blue: #2d6cdf;
+      --saffron: #f4a261;
+      --amber: #f7c948;
+      --red: #d64545;
+      --line: #d8e0e0;
+      --dark: #101820;
+      --white: #ffffff;
+      --shadow: 0 18px 60px rgba(16, 24, 32, .13);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #eef7f3;
+      color: var(--ink);
+      font-family: Inter, Aptos, Arial, sans-serif;
+    }
+
+    body.theme-dark {
+      background: #0b1117;
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    a { color: inherit; }
+
+    .deck {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(31, 138, 112, .16), transparent 26%),
+        radial-gradient(circle at 92% 88%, rgba(244, 162, 97, .14), transparent 24%),
+        linear-gradient(135deg, #eef7f3, #f8fbfa);
+    }
+
+    body.theme-dark .deck {
+      background:
+        radial-gradient(circle at 12% 8%, rgba(31, 138, 112, .22), transparent 26%),
+        radial-gradient(circle at 92% 88%, rgba(244, 162, 97, .18), transparent 24%),
+        #0b1117;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 18px 18px 82px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(24px) scale(.985);
+      transition: opacity .5s ease, transform .5s ease;
+      overflow: hidden;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0) scale(1);
+    }
+
+    .stage {
+      width: min(1320px, 100%);
+      height: calc(100vh - 118px);
+      min-height: 0;
+      background: var(--bg);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: relative;
+      padding: clamp(24px, 3.2vw, 48px);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(14, 107, 79, .45) transparent;
+    }
+
+    .dark {
+      background: linear-gradient(135deg, #101820 0%, #152331 100%);
+      color: var(--white);
+    }
+
+    body:not(.theme-dark) .stage.dark {
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(236,247,242,.98)),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    body:not(.theme-dark) .stage.dark h1,
+    body:not(.theme-dark) .stage.dark h2 {
+      color: var(--ink) !important;
+    }
+
+    body:not(.theme-dark) .stage.dark .sub {
+      color: var(--muted);
+    }
+
+    body:not(.theme-dark) .stage.dark .footer {
+      background: linear-gradient(180deg, transparent, var(--bg) 42%);
+      color: #7a858f;
+    }
+
+    .kicker {
+      color: var(--green);
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: .08em;
+      font-size: clamp(10px, 1vw, 13px);
+      margin-bottom: 14px;
+    }
+
+    .dark .kicker { color: var(--saffron); }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      font-size: clamp(32px, 4.1vw, 60px);
+      line-height: 1.05;
+      letter-spacing: 0;
+      max-width: 980px;
+    }
+
+    h2 {
+      font-size: clamp(27px, 3vw, 42px);
+      line-height: 1.1;
+      letter-spacing: 0;
+      max-width: 1040px;
+    }
+
+    .sub {
+      margin-top: 14px;
+      font-size: clamp(15px, 1.45vw, 21px);
+      line-height: 1.42;
+      color: var(--muted);
+      max-width: 980px;
+    }
+
+    .dark .sub { color: #dce7e2; }
+
+    .row { display: flex; gap: 22px; align-items: stretch; }
+    .grid { display: grid; gap: 20px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px 20px;
+      box-shadow: 0 8px 26px rgba(16, 24, 32, .08);
+    }
+
+    .card h3 {
+      font-size: clamp(19px, 1.9vw, 26px);
+      margin-bottom: 12px;
+      color: var(--ink);
+    }
+
+    .card p, li {
+      font-size: clamp(14px, 1.25vw, 19px);
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 34px;
+    }
+
+    .pill {
+      color: var(--white);
+      padding: 13px 24px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: clamp(13px, 1vw, 15px);
+    }
+
+    .metric {
+      display: grid;
+      align-content: start;
+      min-height: 142px;
+    }
+
+    .metric b {
+      font-size: clamp(30px, 4.3vw, 58px);
+      line-height: 1;
+      color: var(--green);
+      margin-bottom: 12px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 34px;
+    }
+
+    .flow .card {
+      position: relative;
+      min-height: 138px;
+    }
+
+    .flow .card:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -21px;
+      top: 50%;
+      width: 22px;
+      height: 3px;
+      background: var(--green);
+    }
+
+    .num {
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      color: var(--white);
+      background: var(--green);
+      font-weight: 900;
+      margin-bottom: 16px;
+    }
+
+    .app-map {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 20px;
+      align-items: center;
+      margin-top: 34px;
+    }
+
+    .hub {
+      background: var(--rail);
+      color: var(--white);
+      border-radius: 12px;
+      padding: 34px 26px;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .app-node {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-left: 8px solid var(--green);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 22px rgba(16, 24, 32, .07);
+    }
+
+    .app-node b {
+      display: grid;
+      place-items: center;
+      min-width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--mint);
+      color: var(--green);
+    }
+
+    .master-flow {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1.08fr .76fr 1.08fr .76fr 1.08fr;
+      grid-template-rows: repeat(4, minmax(74px, auto));
+      gap: 14px 16px;
+      margin-top: 22px;
+      padding: 8px 0 4px;
+    }
+
+    .flow-card {
+      position: relative;
+      z-index: 2;
+      min-height: 74px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--white);
+      box-shadow: 0 8px 22px rgba(16, 24, 32, .07);
+      padding: 13px 14px;
+    }
+
+    .flow-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: clamp(14px, 1.15vw, 18px);
+      margin-bottom: 6px;
+      color: var(--ink);
+    }
+
+    .flow-card p {
+      color: var(--muted);
+      font-size: clamp(11px, .9vw, 13px);
+      line-height: 1.32;
+    }
+
+    .flow-card small {
+      display: inline-block;
+      margin-top: 5px;
+      color: var(--green);
+      font-weight: 900;
+      font-size: 11px;
+    }
+
+    .flow-card.customer { border-top: 5px solid var(--green); }
+    .flow-card.command { border-top: 5px solid var(--blue); }
+    .flow-card.kitchen { border-top: 5px solid var(--saffron); }
+    .flow-card.delivery { border-top: 5px solid var(--rail); }
+    .flow-card.control { border-top: 5px solid var(--red); }
+    .flow-card.central { border-top: 5px solid var(--green2); }
+    .flow-card.no { border-top: 5px solid var(--red); background: #fff3f2; }
+    .flow-card.yes { border-top: 5px solid var(--green); background: #f3fbf7; }
+
+    .decision {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+      padding: 18px 24px;
+      min-height: 96px;
+      background: #fff8e8;
+      border: 0;
+      box-shadow: 0 8px 22px rgba(16, 24, 32, .09);
+    }
+
+    .decision h3 { justify-content: center; margin: 0; }
+    .decision p { display: none; }
+
+    .flow-card .tag {
+      display: inline-grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      color: var(--white);
+      font-size: 12px;
+      font-weight: 900;
+      background: var(--green);
+    }
+
+    .flow-card.command .tag { background: var(--blue); }
+    .flow-card.kitchen .tag { background: var(--saffron); }
+    .flow-card.delivery .tag { background: var(--rail); }
+    .flow-card.control .tag, .flow-card.no .tag { background: var(--red); }
+    .flow-card.central .tag { background: var(--green2); }
+
+    .pathline {
+      position: absolute;
+      z-index: 1;
+      height: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(14, 107, 79, .16), rgba(14, 107, 79, .95), rgba(14, 107, 79, .16));
+      background-size: 220% 100%;
+      animation: flowPulse 2.2s linear infinite;
+    }
+
+    .pathline.no-path {
+      background: linear-gradient(90deg, rgba(214, 69, 69, .14), rgba(214, 69, 69, .9), rgba(214, 69, 69, .14));
+      background-size: 220% 100%;
+      animation-duration: 2.8s;
+    }
+
+    .pathline.vertical {
+      width: 3px;
+      height: auto;
+      background: linear-gradient(180deg, rgba(14, 107, 79, .16), rgba(14, 107, 79, .95), rgba(14, 107, 79, .16));
+      background-size: 100% 220%;
+    }
+
+    .flow-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .flow-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.74);
+      border: 1px solid var(--line);
+    }
+
+    .flow-legend i {
+      display: inline-block;
+      width: 18px;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--green);
+    }
+
+    .flow-legend .red i { background: var(--red); }
+    .flow-legend .amber i { background: var(--saffron); }
+
+    @keyframes flowPulse {
+      from { background-position: 0 0; }
+      to { background-position: 220% 0; }
+    }
+
+    .operating-flow {
+      position: relative;
+      min-height: 500px;
+      margin-top: 18px;
+      border-radius: 14px;
+      background:
+        linear-gradient(90deg, rgba(31, 138, 112, .07) 0 100%),
+        repeating-linear-gradient(0deg, transparent, transparent 34px, rgba(39,54,74,.06) 35px),
+        repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(39,54,74,.055) 81px);
+      border: 1px solid var(--line);
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.65);
+    }
+
+    .flow-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .flow-svg path {
+      fill: none;
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 14 14;
+      animation: dashFlow 1.7s linear infinite;
+      filter: drop-shadow(0 3px 5px rgba(16,24,32,.18));
+    }
+
+    .flow-svg .order-path { stroke: var(--green); }
+    .flow-svg .support-path { stroke: var(--blue); animation-duration: 2.1s; }
+    .flow-svg .exception-path { stroke: var(--red); animation-duration: 2.4s; }
+    .flow-svg .management-path { stroke: var(--saffron); animation-duration: 2.8s; }
+
+    @keyframes dashFlow {
+      to { stroke-dashoffset: -56; }
+    }
+
+    .of-node {
+      position: absolute;
+      z-index: 2;
+      width: 172px;
+      min-height: 74px;
+      padding: 12px 13px;
+      border-radius: 8px;
+      background: rgba(255,255,255,.96);
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--green);
+      box-shadow: 0 10px 26px rgba(16,24,32,.13);
+    }
+
+    .of-node h3 {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 15px;
+      margin-bottom: 5px;
+      color: var(--ink);
+    }
+
+    .of-node p {
+      font-size: 11px;
+      line-height: 1.28;
+      color: var(--muted);
+    }
+
+    .of-node b {
+      display: inline-grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      font-size: 11px;
+      flex: 0 0 auto;
+    }
+
+    .of-node.customer { left: 43%; top: 16px; border-top-color: var(--green); }
+    .of-node.order { left: 43%; top: 118px; border-top-color: var(--green); }
+    .of-node.pantry { left: 15%; top: 112px; border-top-color: var(--rail); }
+    .of-node.kitchen { left: 34%; top: 222px; border-top-color: var(--saffron); }
+    .of-node.partner { left: 56%; top: 222px; border-top-color: var(--green2); }
+    .of-node.rack { left: 42%; bottom: 102px; border-top-color: var(--blue); }
+    .of-node.rider { left: 66%; top: 286px; border-top-color: var(--rail); }
+    .of-node.care { left: 15%; top: 272px; border-top-color: var(--blue); }
+    .of-node.feedback { left: 64%; top: 116px; border-top-color: var(--blue); }
+    .of-node.tracking { right: 13%; top: 92px; border-top-color: var(--blue); }
+    .of-node.central { right: 2.8%; top: 210px; border-top-color: var(--saffron); }
+    .of-node.exception { left: 26%; bottom: 18px; border-top-color: var(--red); background: #fff4f2; }
+
+    .of-node.pantry b { background: var(--rail); }
+    .of-node.kitchen b { background: var(--saffron); }
+    .of-node.partner b { background: var(--green2); }
+    .of-node.rack b, .of-node.care b, .of-node.feedback b, .of-node.tracking b { background: var(--blue); }
+    .of-node.rider b { background: var(--rail); }
+    .of-node.central b { background: var(--saffron); }
+    .of-node.exception b { background: var(--red); }
+
+    .flow-callouts {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 3;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .flow-callouts span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .flow-callouts i {
+      width: 20px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--green);
+    }
+
+    .flow-callouts .blue i { background: var(--blue); }
+    .flow-callouts .red i { background: var(--red); }
+    .flow-callouts .amber i { background: var(--saffron); }
+
+    .mode-toggle {
+      position: fixed;
+      right: 18px;
+      bottom: 16px;
+      z-index: 12;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 999px;
+      background: rgba(16, 24, 32, .78);
+      color: #fff;
+      font-weight: 900;
+      padding: 10px 15px;
+      cursor: pointer;
+      backdrop-filter: blur(14px);
+    }
+
+    .phone {
+      width: min(300px, 34vw);
+      min-width: 220px;
+      height: min(430px, 48vh);
+      border: 10px solid #17212b;
+      border-radius: 28px;
+      overflow: hidden;
+      background: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .browser-frame {
+      flex: 1;
+      min-height: min(390px, 44vh);
+      height: min(430px, 48vh);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .browser-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 34px;
+      padding: 0 12px;
+      background: #edf2f4;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #bdc7cf; }
+
+    iframe {
+      width: 100%;
+      height: calc(100% - 34px);
+      border: 0;
+      background: var(--white);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+      overflow: hidden;
+      border-radius: 8px;
+      font-size: clamp(12px, 1.1vw, 17px);
+      box-shadow: 0 8px 22px rgba(16, 24, 32, .07);
+    }
+
+    th {
+      background: var(--rail);
+      color: var(--white);
+      padding: 13px 10px;
+      text-align: center;
+    }
+
+    td {
+      background: var(--white);
+      padding: 14px 10px;
+      border: 1px solid var(--line);
+      text-align: center;
+      font-weight: 600;
+    }
+
+    tr.highlight td { background: var(--mint); }
+
+    .note {
+      margin-top: 18px;
+      padding: 14px 20px;
+      border-radius: 8px;
+      background: #fff4d8;
+      border: 1px solid #f2c879;
+      color: #7a4f00;
+      font-weight: 800;
+      text-align: center;
+      font-size: clamp(14px, 1.25vw, 18px);
+    }
+
+    .launcher {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 22px;
+      padding-bottom: 46px;
+    }
+
+    .launch-link {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      color: var(--ink);
+      text-decoration: none;
+      box-shadow: 0 8px 22px rgba(16, 24, 32, .07);
+      transition: transform .2s ease, border-color .2s ease;
+    }
+
+    .launch-link:hover {
+      transform: translateY(-3px);
+      border-color: var(--green);
+    }
+
+    .launch-link strong { font-size: clamp(15px, 1.3vw, 20px); }
+    .launch-link span { color: var(--muted); font-size: clamp(12px, .95vw, 14px); }
+
+    .nav {
+      position: fixed;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 10;
+      background: rgba(16, 24, 32, .78);
+      border: 1px solid rgba(255,255,255,.13);
+      backdrop-filter: blur(14px);
+      padding: 8px;
+      border-radius: 999px;
+    }
+
+    .nav button, .open-btn {
+      border: 0;
+      border-radius: 999px;
+      background: var(--green2);
+      color: var(--white);
+      font-weight: 900;
+      padding: 10px 17px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .nav button.secondary { background: #263443; }
+
+    .counter {
+      min-width: 86px;
+      color: var(--white);
+      text-align: center;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .progress {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 4px;
+      background: rgba(255,255,255,.12);
+      z-index: 11;
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--green2), var(--saffron));
+      transition: width .25s ease;
+    }
+
+    .footer {
+      position: sticky;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      color: #7a858f;
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 24px;
+      padding-top: 10px;
+      background: linear-gradient(180deg, transparent, var(--bg) 42%);
+    }
+
+    .dark .footer {
+      background: linear-gradient(180deg, transparent, #101820 42%);
+    }
+
+    .fade-up {
+      animation: fadeUp .7s ease both;
+    }
+
+    .active .delay-1 { animation-delay: .12s; }
+    .active .delay-2 { animation-delay: .22s; }
+    .active .delay-3 { animation-delay: .32s; }
+    .active .delay-4 { animation-delay: .42s; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 860px) {
+      body { overflow: auto; }
+      .deck { height: auto; min-height: 100vh; }
+      .slide {
+        position: relative;
+        display: none;
+        min-height: 100vh;
+        padding-bottom: 96px;
+      }
+      .slide.active { display: grid; }
+      .stage {
+        aspect-ratio: auto;
+        height: auto;
+        min-height: calc(100vh - 118px);
+        max-height: none;
+        padding: 26px;
+      }
+      .row, .grid.two, .grid.three, .grid.five, .flow, .launcher, .app-map, .master-flow {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+      }
+      .master-flow { display: grid; }
+      .flow-card { grid-column: auto !important; grid-row: auto !important; }
+      .pathline { display: none; }
+      .operating-flow {
+        min-height: auto;
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+      }
+      .flow-svg { display: none; }
+      .of-node {
+        position: static;
+        width: auto;
+      }
+      .flow-callouts {
+        position: static;
+        justify-content: flex-start;
+        margin-top: 4px;
+      }
+      .flow .card:not(:last-child)::after { display: none; }
+      .phone { width: 100%; height: 430px; }
+      .browser-frame { min-height: 430px; height: 430px; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+      .nav { width: calc(100% - 20px); justify-content: center; }
+      .mode-toggle { top: 10px; right: 10px; bottom: auto; padding: 8px 11px; }
+    }
+
+    @media (max-height: 780px) and (min-width: 861px) {
+      .slide { padding: 10px 12px 68px; }
+      .stage { height: calc(100vh - 88px); padding: 28px 38px; border-radius: 14px; }
+      h1 { font-size: clamp(30px, 3.55vw, 52px); }
+      h2 { font-size: clamp(25px, 2.6vw, 36px); }
+      .sub { font-size: clamp(14px, 1.25vw, 18px); margin-top: 10px; }
+      .kicker { margin-bottom: 9px; }
+      .launcher { gap: 10px; margin-top: 16px; grid-template-columns: 1fr 1fr; }
+      .launch-link { padding: 11px 16px; }
+      .launch-link strong { font-size: 17px; }
+      .launch-link span { font-size: 13px; }
+      .phone { height: 390px; }
+      .browser-frame { height: 390px; min-height: 390px; }
+      .card { padding: 14px 16px; }
+      .card h3 { margin-bottom: 7px; }
+      table { margin-top: 18px; }
+      th { padding: 10px 8px; }
+      td { padding: 11px 8px; }
+      .note { margin-top: 14px; padding: 12px 16px; }
+      .footer { margin-top: 16px; }
+      .master-flow { gap: 10px; margin-top: 14px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .flow-card { min-height: 62px; padding: 10px 11px; }
+      .flow-card h3 { font-size: 13px; margin-bottom: 4px; }
+      .flow-card p { font-size: 10px; line-height: 1.22; }
+      .flow-card small { font-size: 9px; margin-top: 3px; }
+      .decision { min-height: 76px; padding: 13px 20px; }
+      .flow-card .tag { width: 20px; height: 20px; font-size: 10px; }
+      .flow-legend { margin-top: 9px; font-size: 11px; }
+      .operating-flow { min-height: 468px; margin-top: 12px; }
+      .of-node { width: 148px; min-height: 62px; padding: 9px 10px; }
+      .of-node h3 { font-size: 12px; margin-bottom: 3px; }
+      .of-node p { font-size: 9.5px; line-height: 1.18; }
+      .of-node b { width: 18px; height: 18px; font-size: 9px; }
+      .of-node.customer { left: 43%; top: 12px; }
+      .of-node.order { left: 43%; top: 92px; }
+      .of-node.pantry { left: 13%; top: 92px; }
+      .of-node.kitchen { left: 34%; top: 190px; }
+      .of-node.partner { left: 56%; top: 190px; }
+      .of-node.rack { left: 42%; bottom: 76px; }
+      .of-node.rider { left: 66%; top: 248px; }
+      .of-node.care { left: 14%; top: 240px; }
+      .of-node.feedback { left: 64%; top: 94px; }
+      .of-node.tracking { right: 13%; top: 76px; }
+      .of-node.central { right: 2.6%; top: 180px; }
+      .of-node.exception { left: 26%; bottom: 10px; }
+      .flow-callouts { bottom: 10px; left: 10px; right: 10px; gap: 6px; }
+      .flow-callouts span { padding: 6px 8px; font-size: 10px; }
+      .mode-toggle { bottom: 16px; right: 14px; padding: 9px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <section class="slide active">
+      <div class="stage dark">
+        <div class="kicker fade-up">RK Group</div>
+        <h1 class="fade-up delay-1">Rail Passenger Food, Sales & Customer Experience Ecosystem</h1>
+        <p class="sub fade-up delay-2">A browser-based demonstration deck for top management. Step 1 connects passenger ordering, onboard operations, base kitchens, partners, delivery and management analytics in one live workflow.</p>
+        <div class="pill-row fade-up delay-3">
+          <span class="pill" style="background:var(--green2)">Customer app</span>
+          <span class="pill" style="background:var(--blue)">Command center</span>
+          <span class="pill" style="background:var(--saffron)">Base kitchen</span>
+          <span class="pill" style="background:var(--red)">Central command</span>
+        </div>
+        <div class="footer"><span>RK Group Rail Passenger Ecosystem | HTML deck</span><span>01</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Executive idea</div>
+        <h2 class="fade-up delay-1">One passenger journey. One operating truth.</h2>
+        <p class="sub fade-up delay-2">Every team sees the same live order, complaint, indent, invoice and margin picture.</p>
+        <div class="flow">
+          <div class="card fade-up delay-1"><span class="num">1</span><h3>Passenger</h3><p>Order, track, invoice, feedback and complaint from one simple link.</p></div>
+          <div class="card fade-up delay-2"><span class="num">2</span><h3>Train manager</h3><p>Accept, prepare, deliver, cancel if needed and respond to complaints.</p></div>
+          <div class="card fade-up delay-3"><span class="num">3</span><h3>Base kitchen</h3><p>Accept indents, adjust quantity, create invoice and settle disputes.</p></div>
+          <div class="card fade-up delay-4"><span class="num">4</span><h3>Control tower</h3><p>Approve catalog, partner and network growth before it reaches passengers.</p></div>
+          <div class="card fade-up delay-4"><span class="num">5</span><h3>Management</h3><p>View sales, margin, complaints, approval risk and network coverage.</p></div>
+        </div>
+        <div class="footer"><span>Customer convenience in front, operating discipline behind it</span><span>02</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Common launcher</div>
+        <h2 class="fade-up delay-1">One link opens the complete app ecosystem</h2>
+        <p class="sub fade-up delay-2">Use this during the presentation. It gives one entry point to all apps.</p>
+        <div style="margin-top:28px" class="fade-up delay-3">
+          <a class="open-btn" href="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/index.html" target="_blank" rel="noopener">Open common live launcher</a>
+        </div>
+        <div class="launcher fade-up delay-4">
+          <a class="launch-link" href="customer-app.html" target="_blank" rel="noopener"><div><strong>Customer App</strong><br><span>Passenger order, invoice, feedback and tracking</span></div><b>Open</b></a>
+          <a class="launch-link" href="command-center.html" target="_blank" rel="noopener"><div><strong>Command Center</strong><br><span>Train manager control room</span></div><b>Open</b></a>
+          <a class="launch-link" href="customer-care.html" target="_blank" rel="noopener"><div><strong>Customer Care</strong><br><span>Complaint desk and passenger resolution flow</span></div><b>Open</b></a>
+          <a class="launch-link" href="base-kitchen.html" target="_blank" rel="noopener"><div><strong>Base Kitchen</strong><br><span>Indent, invoice and dispute workflow</span></div><b>Open</b></a>
+          <a class="launch-link" href="control-tower.html" target="_blank" rel="noopener"><div><strong>Control Tower</strong><br><span>Approval and governance workflow</span></div><b>Open</b></a>
+          <a class="launch-link" href="partner-app.html" target="_blank" rel="noopener"><div><strong>Partner App</strong><br><span>Restaurant onboarding and catalog request</span></div><b>Open</b></a>
+          <a class="launch-link" href="delivery-app.html" target="_blank" rel="noopener"><div><strong>Delivery App</strong><br><span>Pickup, OTP and delivery confirmation</span></div><b>Open</b></a>
+          <a class="launch-link" href="central-command.html" target="_blank" rel="noopener"><div><strong>Central Command</strong><br><span>Management dashboard and margin model</span></div><b>Open</b></a>
+        </div>
+        <div class="footer"><span>Live URL: sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/index.html</span><span>03</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Ecosystem map</div>
+        <h2 class="fade-up delay-1">How all apps work together</h2>
+        <p class="sub fade-up delay-2">Each app is simple for its user group, while the shared data layer keeps the full operation connected.</p>
+        <div class="app-map fade-up delay-3">
+          <div>
+            <div class="app-node"><b>C</b><span>Customer App</span></div>
+            <div class="app-node" style="border-left-color:var(--blue)"><b>O</b><span>Command Center</span></div>
+            <div class="app-node" style="border-left-color:var(--saffron)"><b>B</b><span>Base Kitchen</span></div>
+          </div>
+          <div class="hub">
+            <h3>Live Data Layer</h3>
+            <p style="color:#dce7e2;margin-top:10px">Firebase Firestore for pilot, then Auth, App Check, rules and backend APIs for production.</p>
+          </div>
+          <div>
+            <div class="app-node" style="border-left-color:var(--red)"><b>T</b><span>Control Tower</span></div>
+            <div class="app-node" style="border-left-color:var(--green2)"><b>P</b><span>Partner App</span></div>
+            <div class="app-node" style="border-left-color:var(--rail)"><b>D</b><span>Delivery App</span></div>
+          </div>
+        </div>
+        <div class="footer"><span>Central Command reads all key operating signals</span><span>04</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Animated operating flow</div>
+        <h2 class="fade-up delay-1">How every app manages order, care, rider and exception flow</h2>
+        <p class="sub fade-up delay-2">Use this slide as the main management explanation: one customer action creates a controlled chain across supply, rack manager, rider, customer care and central command.</p>
+        <div class="operating-flow fade-up delay-3" aria-label="Animated RK operating flow chart">
+          <svg class="flow-svg" viewBox="0 0 1200 500" preserveAspectRatio="none" aria-hidden="true">
+            <path class="order-path" d="M 590 72 C 590 100, 590 105, 590 128" />
+            <path class="order-path" d="M 570 170 C 420 182, 315 182, 245 158" />
+            <path class="order-path" d="M 590 170 C 520 222, 500 220, 500 258" />
+            <path class="order-path" d="M 620 170 C 730 205, 775 218, 780 258" />
+            <path class="support-path" d="M 640 128 C 735 116, 780 115, 838 138" />
+            <path class="support-path" d="M 840 168 C 795 235, 820 310, 785 352" />
+            <path class="support-path" d="M 880 152 C 1015 138, 1050 112, 1046 98" />
+            <path class="support-path" d="M 1042 142 C 1072 190, 1072 215, 1045 242" />
+            <path class="support-path" d="M 840 170 C 650 282, 436 300, 282 304" />
+            <path class="support-path" d="M 282 340 C 382 372, 460 386, 555 380" />
+            <path class="exception-path" d="M 498 320 C 438 402, 372 430, 330 452" />
+            <path class="exception-path" d="M 782 320 C 690 405, 560 432, 430 452" />
+            <path class="exception-path" d="M 232 188 C 182 258, 160 335, 184 430" />
+            <path class="management-path" d="M 245 158 C 500 118, 770 120, 1048 242" />
+            <path class="management-path" d="M 785 352 C 920 342, 1004 310, 1048 274" />
+            <path class="management-path" d="M 555 380 C 750 420, 925 388, 1048 274" />
+          </svg>
+
+          <div class="of-node customer"><h3><b>C</b> Customer App</h3><p>Passenger places order, checks tracking, invoice, feedback and complaint.</p></div>
+          <div class="of-node order"><h3><b>O</b> Order Created</h3><p>Order enters live database with train, coach, berth, item and delivery slot.</p></div>
+          <div class="of-node pantry"><h3><b>P</b> Train Pantry</h3><p>If item is available onboard, rack manager accepts and prepares directly.</p></div>
+          <div class="of-node kitchen"><h3><b>B</b> Base Kitchen App</h3><p>Receives order/indent, accepts within time, prepares, marks ready and invoices.</p></div>
+          <div class="of-node partner"><h3><b>R</b> RK Partner App</h3><p>Approved partner supplies when route/station/catalog rule permits.</p></div>
+          <div class="of-node rack"><h3><b>M</b> Rack Manager Command Center</h3><p>Controls accept, prepare, initiate delivery, dispute, cancel and complaint status.</p></div>
+          <div class="of-node rider"><h3><b>D</b> Rider App</h3><p>Pickup, OTP, cash collection if COD, delivered confirmation and proof.</p></div>
+          <div class="of-node care"><h3><b>CC</b> Customer Care App</h3><p>Sees complaint, calls passenger/vendor, updates status and resolution note.</p></div>
+          <div class="of-node feedback"><h3><b>F</b> Feedback / Complaint</h3><p>Passenger issue routes to rack manager and customer care for action.</p></div>
+          <div class="of-node tracking"><h3><b>T</b> Tracking</h3><p>Passenger sees accepted, preparing, out-for-delivery, delivered or cancelled.</p></div>
+          <div class="of-node central"><h3><b>CM</b> Central Command</h3><p>Management sees live orders, GMV, margin, rider status, complaints and risk.</p></div>
+          <div class="of-node exception"><h3><b>N</b> If No / Failed</h3><p>No stock, partial quantity, rider delay, COD issue or unresolved complaint moves to alternate source, refund/cancel, dispute or escalation.</p></div>
+
+          <div class="flow-callouts">
+            <span><i></i>Order and supply flow</span>
+            <span class="blue"><i></i>Tracking and care flow</span>
+            <span class="red"><i></i>No / exception flow</span>
+            <span class="amber"><i></i>Management visibility</span>
+          </div>
+        </div>
+        <div class="footer"><span>Animated paths show how every order, complaint and exception moves through the ecosystem</span><span>05</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Care and rider operations</div>
+        <h2 class="fade-up delay-1">Customer care and rider protect the passenger promise</h2>
+        <p class="sub fade-up delay-2">After order acceptance, delivery execution and complaint resolution become the two main control loops.</p>
+        <div class="row fade-up delay-3" style="margin-top:24px">
+          <div class="browser-frame">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <iframe title="Customer care preview" src="customer-care.html"></iframe>
+          </div>
+          <div class="phone">
+            <iframe title="Rider app preview" src="delivery-app.html"></iframe>
+          </div>
+          <div class="grid" style="width:min(350px,100%);gap:12px">
+            <div class="card"><h3>Customer care</h3><p>Checks order history, calls passenger or vendor, records resolution status and note.</p></div>
+            <div class="card"><h3>Rider app</h3><p>Pickup task, handover, OTP/COD, delivered status and proof.</p></div>
+            <div class="card"><h3>If something fails</h3><p>Delay, COD issue or unresolved complaint escalates to rack manager and central command.</p></div>
+          </div>
+        </div>
+        <div class="footer"><span>Care and rider workflows make the service promise measurable after order acceptance</span><span>06</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Customer app tour</div>
+        <h2 class="fade-up delay-1">Passenger can order and raise feedback from the train</h2>
+        <p class="sub fade-up delay-2">QR or link opens the app. Passenger enters journey details, selects meal, tracks order, downloads invoice, and can submit feedback or complaint.</p>
+        <div class="row fade-up delay-3" style="margin-top:28px;align-items:center">
+          <div class="phone">
+            <iframe title="Customer app preview" src="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/customer-app.html"></iframe>
+          </div>
+          <div class="grid two" style="flex:1">
+            <div class="card"><h3>Order from seat</h3><p>PNR, train, coach, berth, phone, meal type and delivery slot.</p></div>
+            <div class="card"><h3>Track live status</h3><p>Passenger can see the order status using the same phone number.</p></div>
+            <div class="card"><h3>Invoice ready</h3><p>Customer invoice is available from the passenger side.</p></div>
+            <div class="card"><h3>Feedback loop</h3><p>Complaint, proof media, RK response, customer reply and rating.</p></div>
+          </div>
+        </div>
+        <div class="footer"><span>Customer benefit: less uncertainty, faster service and visible resolution</span><span>07</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Command center tour</div>
+        <h2 class="fade-up delay-1">Train manager controls order, stock, indent and complaints</h2>
+        <p class="sub fade-up delay-2">New orders and feedback arrive live; operating actions update customer tracking and management dashboards.</p>
+        <div class="row fade-up delay-3" style="margin-top:28px">
+          <div class="browser-frame">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <iframe title="Command center preview" src="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/command-center.html"></iframe>
+          </div>
+          <div class="grid" style="width:min(360px,100%)">
+            <div class="card"><h3>1. Accept</h3><p>New passenger order captured.</p></div>
+            <div class="card"><h3>2. Prepare</h3><p>Pantry or supply action begins.</p></div>
+            <div class="card"><h3>3. Deliver</h3><p>Delivery person and status updated.</p></div>
+            <div class="card"><h3>4. Resolve</h3><p>Complaint response and customer rating.</p></div>
+          </div>
+        </div>
+        <div class="footer"><span>One cockpit for train manager and supervisor workflow</span><span>08</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Supply-side tour</div>
+        <h2 class="fade-up delay-1">Base kitchen and delivery close the execution loop</h2>
+        <p class="sub fade-up delay-2">The train sends requirement, base kitchen confirms quantity, invoice is created, delivery proof completes the service.</p>
+        <div class="row fade-up delay-3" style="margin-top:28px">
+          <div class="browser-frame">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <iframe title="Base kitchen preview" src="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/base-kitchen.html"></iframe>
+          </div>
+          <div class="phone">
+            <iframe title="Delivery app preview" src="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/delivery-app.html"></iframe>
+          </div>
+        </div>
+        <div class="footer"><span>Indent, quantity adjustment, invoice, pickup and delivered confirmation</span><span>09</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Governance</div>
+        <h2 class="fade-up delay-1">Control Tower keeps menus, partners and risk under approval</h2>
+        <p class="sub fade-up delay-2">New catalog items, base kitchen items and partner requests move through approval before they reach passengers.</p>
+        <div class="row fade-up delay-3" style="margin-top:28px">
+          <div class="browser-frame">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <iframe title="Control tower preview" src="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/control-tower.html"></iframe>
+          </div>
+          <div class="grid" style="width:min(420px,100%)">
+            <div class="card"><h3>Approval queue</h3><p>Maker-checker flow protects customer menu quality.</p></div>
+            <div class="card"><h3>Partner growth</h3><p>Restaurants can submit profile and catalog for review.</p></div>
+            <div class="card"><h3>Network control</h3><p>Pending approvals and risks stay visible to management.</p></div>
+          </div>
+        </div>
+        <div class="footer"><span>Governance is required before national scale</span><span>10</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Central command tour</div>
+        <h2 class="fade-up delay-1">Management sees sales, margin, complaints and network health</h2>
+        <p class="sub fade-up delay-2">The management view converts live operations into measurable business control.</p>
+        <div class="row fade-up delay-3" style="margin-top:28px">
+          <div class="browser-frame">
+            <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <iframe title="Central command preview" src="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/central-command.html"></iframe>
+          </div>
+          <div class="grid two" style="width:min(440px,100%)">
+            <div class="card metric"><b>Sales</b><p>Daily and train-wise order value.</p></div>
+            <div class="card metric"><b>Margin</b><p>Selling price minus item cost.</p></div>
+            <div class="card metric"><b>CX</b><p>Complaint ageing and RK response.</p></div>
+            <div class="card metric"><b>Network</b><p>Kitchens, partners and delivery coverage.</p></div>
+          </div>
+        </div>
+        <div class="footer"><span>Board-level operating dashboard foundation</span><span>11</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Revenue creation</div>
+        <h2 class="fade-up delay-1">Scale target revenue model: 200 RK trains</h2>
+        <p class="sub fade-up delay-2">Business volume target: cross 5,000 daily orders in 3 months and 20,000 daily orders in 6 months.</p>
+        <table class="fade-up delay-3">
+          <thead>
+            <tr>
+              <th>Milestone</th>
+              <th>Orders/day</th>
+              <th>Orders/train/day</th>
+              <th>AOV</th>
+              <th>Daily GMV</th>
+              <th>Monthly GMV</th>
+              <th>Monthly contribution</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Pilot start</td>
+              <td>1,000</td>
+              <td>5</td>
+              <td>Rs 160</td>
+              <td>Rs 1.6L</td>
+              <td>Rs 4.8Cr</td>
+              <td>Rs 28.8L @ 6%</td>
+            </tr>
+            <tr class="highlight">
+              <td>Month 3 target</td>
+              <td>5,000</td>
+              <td>25</td>
+              <td>Rs 180</td>
+              <td>Rs 9.0L</td>
+              <td>Rs 27.0Cr</td>
+              <td>Rs 3.24Cr @ 12%</td>
+            </tr>
+            <tr>
+              <td>Month 6 target</td>
+              <td>20,000</td>
+              <td>100</td>
+              <td>Rs 190</td>
+              <td>Rs 38.0L</td>
+              <td>Rs 114.0Cr</td>
+              <td>Rs 17.1Cr @ 15%</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="sub fade-up delay-4" style="font-size:clamp(13px,1.15vw,17px);max-width:1120px">Calculation basis: 200 trains, monthly GMV = orders/day x AOV x 30 days. Monthly contribution uses assumed net margin. Additional upside can come from partner commission, promoted menu placement, catering analytics and route services.</p>
+        <div class="note fade-up delay-4">Next step after pilot validation: build detailed CAPEX/OPEX requirement and train-wise measurement sheet.</div>
+        <div class="footer"><span>Planning scenario, not committed forecast</span><span>12</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Business control</div>
+        <h2 class="fade-up delay-1">Where leakage reduces and margin improves</h2>
+        <p class="sub fade-up delay-2">Digital workflow creates traceability between sale, supply, purchase, invoice and complaint.</p>
+        <div class="grid two fade-up delay-3" style="margin-top:32px">
+          <div class="card"><h3 style="color:var(--red)">Before</h3><p>Manual orders, unclear status, delayed complaint handling, stock mismatch and limited train-wise margin visibility.</p></div>
+          <div class="card"><h3 style="color:var(--green)">After</h3><p>Live order trail, item cost control, base kitchen invoice matching, complaint response history and central dashboard.</p></div>
+          <div class="card"><h3>Revenue discipline</h3><p>Food master carries selling price, purchase price and active item status for consistent control.</p></div>
+          <div class="card"><h3>Service discipline</h3><p>Passenger complaint, proof, RK response and customer rating become measurable.</p></div>
+        </div>
+        <div class="footer"><span>Better service and better control can grow together</span><span>13</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Technical architecture</div>
+        <h2 class="fade-up delay-1">Pilot now, production-ready path next</h2>
+        <p class="sub fade-up delay-2">Version 1 is intentionally lean: static apps plus Firebase live sync. Version 2 hardens identity, security and audit.</p>
+        <div class="grid fade-up delay-3" style="margin-top:34px">
+          <div class="card"><h3>User apps</h3><p>Customer, command center, base kitchen, partner, delivery, control tower and central command.</p></div>
+          <div class="card"><h3>Web hosting</h3><p>GitHub Pages static deployment for controlled pilot.</p></div>
+          <div class="card"><h3>Data layer</h3><p>Firebase Firestore live collections: orders, feedbacks, indents, invoices and masters.</p></div>
+          <div class="card"><h3>Security path</h3><p>Firebase Auth, role claims, App Check and strict Firestore rules in production.</p></div>
+          <div class="card"><h3>Integration path</h3><p>Secure backend/API proxy for PNR, WhatsApp/SMS, payment and reporting database.</p></div>
+        </div>
+        <div class="footer"><span>PNR lookup should be protected through backend/API proxy</span><span>14</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Scalability and cost ability</div>
+        <h2 class="fade-up delay-1">Can start small and scale by train, route and transaction volume</h2>
+        <p class="sub fade-up delay-2">The stack supports a controlled pilot at low cost, then expands with security, storage, backend APIs and analytics.</p>
+        <div class="grid three fade-up delay-3" style="margin-top:34px">
+          <div class="card"><h3>Pilot infra</h3><p>GitHub Pages and Firebase for controlled users.</p></div>
+          <div class="card"><h3>Production hardening</h3><p>Auth, App Check, role rules, audit logs, export/import and monitoring.</p></div>
+          <div class="card"><h3>Media scale</h3><p>Firebase Storage for product photos, KYC, delivery proof and complaint media.</p></div>
+          <div class="card"><h3>Integration scale</h3><p>Backend proxy for PNR/API, WhatsApp/SMS and payments.</p></div>
+          <div class="card"><h3>Analytics scale</h3><p>Daily snapshots, route/train profitability, scorecards and BI database.</p></div>
+          <div class="card"><h3>CAPEX detail</h3><p>After pilot validation, prepare vendor, infra, device and manpower requirement.</p></div>
+        </div>
+        <div class="footer"><span>Scale in stages, measure every stage</span><span>15</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Version roadmap</div>
+        <h2 class="fade-up delay-1">Where we take it after Step 1</h2>
+        <p class="sub fade-up delay-2">Each version adds one layer of business maturity.</p>
+        <div class="grid five fade-up delay-3" style="margin-top:34px">
+          <div class="card"><h3>V1</h3><p>Controlled pilot: order, feedback, indent, invoice, masters and dashboard.</p></div>
+          <div class="card"><h3>V2</h3><p>Production hardening: auth, roles, App Check, audit logs and offline queue.</p></div>
+          <div class="card"><h3>V3</h3><p>External integrations: PNR, WhatsApp/SMS and payment through secure backend.</p></div>
+          <div class="card"><h3>V4</h3><p>Media and route scale: storage, image rules, KYC and proof media.</p></div>
+          <div class="card"><h3>V5</h3><p>Management analytics: train profitability, scorecards and complaint ageing.</p></div>
+        </div>
+        <div class="note fade-up delay-4">With suggestions and required support, Step 1 can grow toward a leading Indian app serving Indian rail passengers.</div>
+        <div class="footer"><span>Ambition with staged control</span><span>16</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade-up">Pilot success scorecard</div>
+        <h2 class="fade-up delay-1">What should be measured in Step 1</h2>
+        <p class="sub fade-up delay-2">Further build can be based on evidence, not only enthusiasm.</p>
+        <div class="grid three fade-up delay-3" style="margin-top:34px">
+          <div class="card metric"><b>Order</b><p>Passenger order conversion after QR/link exposure.</p></div>
+          <div class="card metric"><b>Fill</b><p>Orders delivered compared with accepted orders.</p></div>
+          <div class="card metric"><b>GMV</b><p>Daily and monthly sales volume across trains.</p></div>
+          <div class="card metric"><b>Margin</b><p>Selling price less item cost and purchase adjustment.</p></div>
+          <div class="card metric"><b>CX</b><p>Complaint response time, closure and rating.</p></div>
+          <div class="card metric"><b>Adoption</b><p>Train manager, kitchen and delivery usage discipline.</p></div>
+        </div>
+        <div class="footer"><span>Measure what management needs to decide the next build</span><span>17</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage dark">
+        <div class="kicker fade-up">Closing</div>
+        <h2 class="fade-up delay-1" style="color:var(--white)">Step 1 is ready for controlled demonstration</h2>
+        <p class="sub fade-up delay-2">With management suggestions and required support, this ecosystem can mature into a number one Indian app serving Indian rail passengers with food, service assurance and live operational control.</p>
+        <div class="grid two fade-up delay-3" style="margin-top:34px">
+          <div class="card"><h3>Immediate next actions</h3><p>Pilot train/route selection, master data clean-up, QR readiness, user testing and pilot measurement dashboard.</p></div>
+          <div class="card"><h3>Common live demo link</h3><p><a href="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/index.html" target="_blank" rel="noopener">https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/index.html</a></p></div>
+        </div>
+        <div style="margin-top:30px" class="fade-up delay-4">
+          <a class="open-btn" href="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/index.html" target="_blank" rel="noopener">Open live app ecosystem</a>
+        </div>
+        <div class="footer"><span>Open this HTML file in any modern browser</span><span>18</span></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="nav" aria-label="Presentation controls">
+    <button class="secondary" id="prevBtn" type="button">Prev</button>
+    <div class="counter" id="counter">1 / 18</div>
+    <button id="nextBtn" type="button">Next</button>
+  </div>
+  <button class="mode-toggle" id="modeToggle" type="button">Dark mode</button>
+  <div class="progress"><span id="progress"></span></div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const counter = document.getElementById("counter");
+    const progress = document.getElementById("progress");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const modeToggle = document.getElementById("modeToggle");
+    let index = 0;
+
+    function setMode(mode) {
+      const dark = mode === "dark";
+      document.body.classList.toggle("theme-dark", dark);
+      modeToggle.textContent = dark ? "Light mode" : "Dark mode";
+      localStorage.setItem("rkDeckMode", mode);
+    }
+
+    function showSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+      counter.textContent = `${index + 1} / ${slides.length}`;
+      progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+      location.hash = `slide-${index + 1}`;
+    }
+
+    prevBtn.addEventListener("click", () => showSlide(index - 1));
+    nextBtn.addEventListener("click", () => showSlide(index + 1));
+    modeToggle.addEventListener("click", () => {
+      setMode(document.body.classList.contains("theme-dark") ? "light" : "dark");
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (["ArrowRight", "PageDown", " "].includes(event.key)) {
+        event.preventDefault();
+        showSlide(index + 1);
+      }
+      if (["ArrowLeft", "PageUp"].includes(event.key)) {
+        event.preventDefault();
+        showSlide(index - 1);
+      }
+      if (event.key === "Home") showSlide(0);
+      if (event.key === "End") showSlide(slides.length - 1);
+    });
+
+    setMode(localStorage.getItem("rkDeckMode") || "light");
+    const match = location.hash.match(/slide-(\d+)/);
+    if (match) showSlide(Number(match[1]) - 1);
+    else showSlide(0);
+  </script>
+</body>
+</html>
