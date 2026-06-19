@@ -109,6 +109,8 @@ a {
 
 .mobile-main {
   width: min(640px, 100%);
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .rider-main,
@@ -599,12 +601,17 @@ a {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .menu-card {
   display: grid;
   gap: 8px;
   padding: 9px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .menu-card h3 {
@@ -612,9 +619,47 @@ a {
   word-break: break-word;
 }
 
-.menu-card b {
+.menu-price {
   white-space: nowrap;
   font-size: 13px;
+}
+
+.menu-card-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.menu-card-body {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.menu-card-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.qty-stepper {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(24px, 1fr) 42px;
+  align-items: center;
+  justify-items: center;
+  gap: 6px;
+}
+
+.qty-stepper b {
+  min-width: 0;
+  width: 100%;
+  text-align: center;
+}
+
+.qty-stepper .icon-btn {
+  width: 42px;
+  min-width: 42px;
 }
 
 .menu-card-media .food-img,
@@ -1073,17 +1118,21 @@ th {
   }
 
   .customer-tabs {
-    top: 72px;
+    top: 58px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    padding: 8px 0;
+    gap: 6px;
+    padding: 6px 0;
   }
 
   .customer-tabs .tab-btn {
     min-width: 0;
     justify-content: center;
-    padding: 8px 6px;
-    font-size: 13px;
+    padding: 8px 4px;
+    font-size: 12px;
+    gap: 4px;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   .customer-tabs .tab-btn svg {
@@ -1092,7 +1141,10 @@ th {
   }
 
   .meal-filter-bar {
-    top: 116px;
+    position: static;
+    margin: 0;
+    padding: 10px;
+    border-radius: 8px;
     align-items: stretch;
     flex-direction: column;
   }
@@ -1114,18 +1166,48 @@ th {
   .customer-menu-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+    width: 100%;
   }
 
   .menu-card {
-    padding: 8px;
+    padding: 7px;
+    gap: 7px;
+    min-width: 0;
   }
 
   .menu-card h3 {
-    font-size: 13px;
+    font-size: 15px;
+    line-height: 1.18;
   }
 
   .menu-card p {
     font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .menu-price {
+    font-size: 12px;
+  }
+
+  .menu-card-actions {
+    align-items: stretch;
+  }
+
+  .menu-card-actions .badge {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .qty-stepper {
+    grid-template-columns: 38px minmax(22px, 1fr) 38px;
+    gap: 5px;
+  }
+
+  .qty-stepper .icon-btn {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
   }
 
   .mobile-earnings-grid {
@@ -1174,6 +1256,15 @@ th {
   .cart-bar {
     margin: 14px -14px -14px;
     padding: 12px 14px;
+  }
+
+  .customer-panel {
+    overflow-x: hidden;
+    padding-bottom: 90px;
+  }
+
+  #menuList {
+    padding-bottom: 18px;
   }
 
   .row.mobile-stack {

@@ -385,18 +385,18 @@
               ${item.itemImage ? `<img class="food-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : `<div class="food-img placeholder"><i data-lucide="utensils"></i></div>`}
             </div>
             <div class="menu-card-body">
-              <div class="row between">
+              <div class="menu-card-title">
                 <h3>${escapeHtml(item.name)}</h3>
-                <b>${money(sell)}</b>
+                <b class="menu-price">${money(sell)}</b>
               </div>
               <p>${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
               <p>${escapeHtml(item.supplierName || item.baseKitchenName || "")}</p>
-              <div class="row between" style="margin-top:10px;">
+              <div class="menu-card-actions">
                 <span class="badge ${soldOut ? "danger" : "ok"}">${soldOut ? "Sold out" : "Available"}</span>
-                <div class="row">
+                <div class="qty-stepper">
                   ${soldOut ? `<button class="btn secondary compact-btn" data-notify-item="${item.id}" title="Notify"><i data-lucide="bell"></i></button>` : `
                     <button class="icon-btn" data-minus="${item.id}" title="Reduce"><i data-lucide="minus"></i></button>
-                    <b style="min-width:24px;text-align:center;">${inCart}</b>
+                    <b>${inCart}</b>
                     <button class="icon-btn" data-plus="${item.id}" title="Add" ${inCart >= stock ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
                 </div>
               </div>
