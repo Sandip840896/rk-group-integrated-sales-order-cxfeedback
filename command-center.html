@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RK Rack Manager Command Center</title>
+  <title>RK Rake Manager Command Center</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
   <main class="main">
     <section class="panel pad" id="loginPanel">
       <div class="section-title">
-        <div><h2>Rack Manager Command Center Login</h2><p>Prototype access control. Use Firebase Auth before production launch.</p></div>
+        <div><h2>Rake Manager Command Center Login</h2><p>Prototype access control. Use Firebase Auth before production launch.</p></div>
         <span class="badge warn" id="loginRoleBadge">not logged in</span>
       </div>
       <div class="row mobile-stack">
@@ -130,7 +130,7 @@
     </section>
 
     <section data-tab-panel="invoice" class="panel pad stack hidden">
-      <div class="section-title"><div><h2>Base Kitchen Invoices and Delivery</h2><p>Rack manager accepts delivery or raises dispute with photo proof.</p></div></div>
+      <div class="section-title"><div><h2>Base Kitchen Invoices and Delivery</h2><p>Rake manager accepts delivery or raises dispute with photo proof.</p></div></div>
       <div id="invoiceList" class="list"></div>
     </section>
 
@@ -355,7 +355,7 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("RK Rack Manager Command Center", "Live rail catering control room");
+      appHeader("RK Rake Manager Command Center", "Live rail catering control room");
       lucide.createIcons();
       wireTabs("overview");
       await ensureSeedData();
@@ -627,11 +627,11 @@
           const payload = {
             status: btn.dataset.orderStatus,
             updatedAt: FieldValue.serverTimestamp(),
-            statusLog: FieldValue.arrayUnion({ status: btn.dataset.orderStatus, at: new Date().toISOString(), note: "Updated from rack manager command center" })
+            statusLog: FieldValue.arrayUnion({ status: btn.dataset.orderStatus, at: new Date().toISOString(), note: "Updated from rake manager command center" })
           };
           if (btn.dataset.orderStatus === "accepted") {
             payload.acceptedAt = FieldValue.serverTimestamp();
-            payload.acceptedBy = currentUser?.name || currentUser?.email || "Rack Manager";
+            payload.acceptedBy = currentUser?.name || currentUser?.email || "Rake Manager";
           }
           await db.collection("customerOrders").doc(btn.dataset.id).update(payload);
           toast("Order status updated.");
@@ -1654,3 +1654,4 @@
   </script>
 </body>
 </html>
+

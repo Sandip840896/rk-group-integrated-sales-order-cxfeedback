@@ -188,6 +188,7 @@
         const data = getForm(form);
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit mobile.");
+        setSubmitState(form, "saving", "Submitting...");
         try {
           const photo = await compressImage(form.photoFile.files[0], 520, 0.7);
           const kyc = await compressImage(form.kycFile.files[0], 760, 0.7);
@@ -212,9 +213,11 @@
           localStorage.setItem("rkDeliveryPhone", phone);
           $("deliveryPhone").value = phone;
           form.reset();
+          finishSubmitState(form, "Submitted");
           toast("Rider profile submitted for approval.");
         } catch (error) {
           console.error(error);
+          setSubmitState(form, "idle");
           toast(firebaseAccessMessage("deliveryPartners", error));
         }
       });

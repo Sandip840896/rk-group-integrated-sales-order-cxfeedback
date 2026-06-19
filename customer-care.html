@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -17,7 +17,7 @@
   <main class="main care-main stack">
     <section class="panel pad" id="careLoginPanel">
       <div class="section-title">
-        <div><h2>Customer Care Login</h2><p>Use customer-care ID created from Rack Manager Command Center.</p></div>
+        <div><h2>Customer Care Login</h2><p>Use customer-care ID created from Rake Manager Command Center.</p></div>
         <span class="badge warn" id="careLoginBadge">not logged in</span>
       </div>
       <div class="row mobile-stack">
@@ -59,7 +59,7 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("RK Customer Care Desk", "Customer resolution bridge for rack manager, base kitchen and partners");
+      appHeader("RK Customer Care Desk", "Customer resolution bridge for rake manager, base kitchen and partners");
       lucide.createIcons();
       wireTabs("dashboard");
       await ensureSeedData();
@@ -94,7 +94,7 @@
 
       function supplierText(order) {
         const source = String(order.fulfillmentSource || "pantry").replace(/-/g, " ");
-        return `${source} | ${order.baseKitchenName || order.supplierName || "Rack manager / pantry"}`;
+        return `${source} | ${order.baseKitchenName || order.supplierName || "Rake manager / pantry"}`;
       }
 
       function renderMetrics() {
@@ -164,7 +164,7 @@
         const email = $("careEmail").value.trim().toLowerCase();
         const password = $("carePassword").value;
         const found = users.find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && String(user.role || "").toLowerCase() === "customer-care");
-        if (!found) return toast("Login failed. Use a customer-care ID created from Rack Manager Command Center.");
+        if (!found) return toast("Login failed. Use a customer-care ID created from Rake Manager Command Center.");
         currentUser = { email: found.email, name: found.name || found.email };
         sessionStorage.setItem("rkCareUser", JSON.stringify(currentUser));
         $("carePassword").value = "";
@@ -223,3 +223,4 @@
   </script>
 </body>
 </html>
+

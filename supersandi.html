@@ -1,0 +1,1073 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sandip Nandi Super Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+  <style>
+    body.super-body {
+      background:
+        linear-gradient(180deg, #f7fafc 0, #eef3f8 48%, #f8fafc 100%);
+    }
+
+    .super-shell {
+      min-height: 100vh;
+    }
+
+    .super-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      border-bottom: 1px solid #d8dee8;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(14px);
+    }
+
+    .super-topbar-inner {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .super-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: linear-gradient(135deg, #0f766e, #1264d8 58%, #ffb020);
+      font-weight: 800;
+      letter-spacing: 0;
+      flex: 0 0 auto;
+    }
+
+    .super-title h1 {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.1;
+    }
+
+    .super-title p {
+      margin: 4px 0 0;
+      color: #687385;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .super-main {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 16px 18px 28px;
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .super-nav {
+      position: sticky;
+      top: 82px;
+      align-self: start;
+      display: grid;
+      gap: 8px;
+    }
+
+    .super-nav button {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 9px;
+      padding: 0 12px;
+      border-radius: 8px;
+      color: #2d3a4d;
+      background: #e8edf5;
+      font-weight: 800;
+    }
+
+    .super-nav button.active {
+      color: #fff;
+      background: #1264d8;
+    }
+
+    .super-nav button.danger-nav.active {
+      background: #b42318;
+    }
+
+    .super-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .super-grid.two {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .super-grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .super-grid.app-grid {
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    }
+
+    .super-card {
+      min-height: 126px;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      background: #fff;
+      padding: 14px;
+      box-shadow: 0 14px 40px rgba(26, 39, 64, 0.09);
+    }
+
+    .super-card h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+    }
+
+    .super-card p {
+      margin: 0;
+      color: #687385;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .super-card .row {
+      margin-top: 12px;
+    }
+
+    .iframe-shell {
+      height: min(760px, calc(100vh - 150px));
+      min-height: 520px;
+      overflow: hidden;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 14px 40px rgba(26, 39, 64, 0.09);
+    }
+
+    .iframe-shell iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+
+    .code-view {
+      width: 100%;
+      min-height: 460px;
+      padding: 12px;
+      border: 1px solid #cfd7e6;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e2e8f0;
+      font: 12px/1.55 Consolas, Monaco, "Courier New", monospace;
+      resize: vertical;
+      white-space: pre;
+      overflow: auto;
+    }
+
+    .json-editor {
+      width: 100%;
+      min-height: 300px;
+      padding: 12px;
+      border: 1px solid #cfd7e6;
+      border-radius: 8px;
+      font: 12px/1.55 Consolas, Monaco, "Courier New", monospace;
+      resize: vertical;
+    }
+
+    .super-table {
+      min-width: 980px;
+    }
+
+    .danger-wall {
+      border: 1px solid #fecaca;
+      background: #fff7f7;
+    }
+
+    .danger-unlocked {
+      border-color: #b42318;
+      box-shadow: 0 14px 40px rgba(180, 35, 24, 0.13);
+    }
+
+    .log-box {
+      max-height: 300px;
+      overflow: auto;
+      padding: 12px;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      background: #f8fafc;
+      font: 12px/1.5 Consolas, Monaco, "Courier New", monospace;
+      white-space: pre-wrap;
+    }
+
+    .file-drop {
+      min-height: 112px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed #aab7ca;
+      border-radius: 8px;
+      background: #fbfcff;
+      text-align: center;
+      padding: 14px;
+    }
+
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill-list span {
+      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 9px;
+      border-radius: 999px;
+      background: #eef2f7;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    @media (max-width: 980px) {
+      .super-main {
+        grid-template-columns: 1fr;
+      }
+
+      .super-nav {
+        position: static;
+        grid-auto-flow: column;
+        grid-auto-columns: max-content;
+        overflow-x: auto;
+      }
+
+      .super-grid.two,
+      .super-grid.three {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body class="super-body">
+  <div class="super-shell">
+    <header class="super-topbar">
+      <div class="super-topbar-inner">
+        <div class="brand">
+          <div class="super-logo">SN</div>
+          <div class="super-title">
+            <h1>Sandip Nandi Super Admin</h1>
+            <p>Hidden control room for every RK app, data collection, master, backup and emergency action.</p>
+          </div>
+        </div>
+        <div class="row wrap">
+          <span class="badge info" id="cloudBadge">checking cloud</span>
+          <button class="btn secondary" id="syncBtn"><i data-lucide="refresh-cw"></i> Force Sync</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="super-main">
+      <nav class="super-nav panel pad" aria-label="Super admin sections">
+        <button data-super-tab="overview"><i data-lucide="radar"></i> Overview</button>
+        <button data-super-tab="apps"><i data-lucide="monitor-up"></i> Open Apps</button>
+        <button data-super-tab="inspect"><i data-lucide="search-code"></i> See Issue</button>
+        <button data-super-tab="data"><i data-lucide="database"></i> Data & Masters</button>
+        <button data-super-tab="backup"><i data-lucide="database-backup"></i> Backup</button>
+        <button data-super-tab="upload"><i data-lucide="upload-cloud"></i> Upload / Download</button>
+        <button data-super-tab="sessions"><i data-lucide="log-out"></i> User Control</button>
+        <button class="danger-nav" data-super-tab="danger"><i data-lucide="shield-alert"></i> Danger Zone</button>
+      </nav>
+
+      <section class="super-grid">
+        <section data-super-panel="overview" class="super-grid">
+          <div class="customer-hero">
+            <div>
+              <p class="eyebrow">private direct link only</p>
+              <h2>Ultimate control console for Sandip Nandi</h2>
+              <p>This file is not linked from the public launcher. Open it directly as <b>supersandi.html</b> when you need to inspect, backup, edit, export, import, force logout or clean an app.</p>
+              <div class="hero-points">
+                <span><i data-lucide="eye"></i> Inspect</span>
+                <span><i data-lucide="pencil"></i> Edit JSON</span>
+                <span><i data-lucide="download"></i> Backups</span>
+                <span><i data-lucide="shield-alert"></i> Password danger</span>
+              </div>
+            </div>
+            <div class="hero-visual">
+              <div class="meal-card main-meal">
+                <b id="overviewClock">--</b>
+                <small>Daily backup reminder is set for 12:00 PM while this page is open.</small>
+              </div>
+              <div class="meal-card mini-meal">
+                <b id="totalDocs">0 docs</b>
+              </div>
+            </div>
+          </div>
+
+          <div class="super-grid three">
+            <div class="metric"><b id="mApps">0</b><span>Apps controlled</span></div>
+            <div class="metric"><b id="mCollections">0</b><span>Cloud collections</span></div>
+            <div class="metric"><b id="mBackups">0</b><span>Backup logs found</span></div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-title">
+              <div><h2>Live Collection Health</h2><p>Counts from Firebase Firestore. Permission errors show in the log.</p></div>
+              <button class="btn secondary" id="refreshHealthBtn"><i data-lucide="rotate-cw"></i> Refresh</button>
+            </div>
+            <div class="table-wrap">
+              <table class="super-table">
+                <thead><tr><th>App Area</th><th>Collection</th><th>Documents</th><th>Last Check</th><th>Status</th></tr></thead>
+                <tbody id="healthRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section data-super-panel="apps" class="super-grid hidden">
+          <div class="panel pad">
+            <div class="section-title">
+              <div><h2>Open Any App</h2><p>Launch in this page for inspection or open in a new tab for direct work.</p></div>
+              <select class="select" id="appSelect" style="max-width:300px;"></select>
+            </div>
+            <div class="super-grid app-grid" id="appCards"></div>
+          </div>
+          <div class="iframe-shell">
+            <iframe id="appFrame" title="Selected app preview"></iframe>
+          </div>
+        </section>
+
+        <section data-super-panel="inspect" class="super-grid hidden">
+          <div class="super-grid two">
+            <div class="panel pad stack">
+              <div class="section-title"><div><h2>Issue Desk</h2><p>Find the related app, data and source file before asking for code change.</p></div></div>
+              <div class="grid two">
+                <label class="field"><span>Complaint / issue keyword</span><input class="input" id="issueSearch" placeholder="PNR, phone, order no, item, train"></label>
+                <label class="field"><span>Search in collection</span><select class="select" id="issueCollection"></select></label>
+              </div>
+              <div class="row wrap">
+                <button class="btn" id="issueSearchBtn"><i data-lucide="search"></i> Search Issue</button>
+                <button class="btn secondary" id="copyIssueBriefBtn"><i data-lucide="copy"></i> Copy Brief For Codex</button>
+              </div>
+              <div id="issueResults" class="list"></div>
+            </div>
+            <div class="panel pad stack">
+              <div class="section-title"><div><h2>Source Viewer</h2><p>Read any app file and capture what should change.</p></div></div>
+              <div class="row mobile-stack">
+                <select class="select grow" id="codeFileSelect"></select>
+                <button class="btn secondary" id="loadCodeBtn"><i data-lucide="file-search"></i> Load</button>
+                <button class="btn secondary" id="downloadCodeFileBtn"><i data-lucide="download"></i> File</button>
+              </div>
+              <textarea class="code-view" id="codeView" spellcheck="false" readonly></textarea>
+              <div class="empty">Browser security cannot save changes directly back into HTML or JS files. Use this viewer to inspect and then come to Codex for code changes.</div>
+            </div>
+          </div>
+        </section>
+
+        <section data-super-panel="data" class="super-grid hidden">
+          <div class="panel pad stack">
+            <div class="section-title">
+              <div><h2>Data & Master Editor</h2><p>Open any collection, edit one document as JSON, save it back to cloud.</p></div>
+              <div class="row wrap">
+                <select class="select" id="collectionSelect" style="width:260px;"></select>
+                <button class="btn secondary" id="loadCollectionBtn"><i data-lucide="list"></i> Load</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="super-table">
+                <thead><tr><th>Document ID</th><th>Quick View</th><th>Updated</th><th>Action</th></tr></thead>
+                <tbody id="collectionRows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel pad stack">
+            <div class="section-title"><div><h2>Selected Document</h2><p>Add or edit any master/data document.</p></div></div>
+            <div class="grid two">
+              <label class="field"><span>Collection</span><input class="input" id="docCollection" readonly></label>
+              <label class="field"><span>Document ID</span><input class="input" id="docId" placeholder="leave blank to create new"></label>
+            </div>
+            <textarea class="json-editor" id="docEditor" spellcheck="false">{}</textarea>
+            <div class="row wrap">
+              <button class="btn" id="saveDocBtn"><i data-lucide="save"></i> Save Document</button>
+              <button class="btn secondary" id="newDocBtn"><i data-lucide="file-plus"></i> New</button>
+              <button class="btn secondary" id="downloadCollectionBtn"><i data-lucide="download"></i> Download Collection</button>
+            </div>
+          </div>
+        </section>
+
+        <section data-super-panel="backup" class="super-grid hidden">
+          <div class="super-grid two">
+            <div class="panel pad stack">
+              <div class="section-title"><div><h2>Everything Backup</h2><p>Data backup includes every live collection. Code backup includes every app file.</p></div></div>
+              <div class="pill-list" id="backupPills"></div>
+              <div class="row wrap">
+                <button class="btn" id="downloadDataBackupBtn"><i data-lucide="database-backup"></i> Download Data</button>
+                <button class="btn secondary" id="downloadCodeBackupBtn"><i data-lucide="file-archive"></i> Download Code</button>
+                <button class="btn info" id="saveCloudBackupBtn"><i data-lucide="cloud-upload"></i> Save Cloud Backup</button>
+              </div>
+              <div class="empty">The 12:00 PM daily cloud backup runs only when this browser page is open. For guaranteed unattended backup later, add a Firebase Cloud Function or server job.</div>
+            </div>
+            <div class="panel pad stack">
+              <div class="section-title"><div><h2>Backup Logs</h2><p>Download previous cloud backup entries created from this app.</p></div><button class="btn secondary" id="refreshBackupLogsBtn"><i data-lucide="rotate-cw"></i> Refresh</button></div>
+              <div id="backupLogs" class="list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section data-super-panel="upload" class="super-grid hidden">
+          <div class="super-grid two">
+            <div class="panel pad stack">
+              <div class="section-title"><div><h2>Upload Data JSON</h2><p>Restore a downloaded data backup or import a single collection JSON.</p></div></div>
+              <label class="file-drop">
+                <input id="uploadJsonFile" class="hidden" type="file" accept=".json,application/json">
+                <span><b>Click to choose JSON file</b><br>Full backup restores collection wise. Single collection restores into selected collection.</span>
+              </label>
+              <div class="grid two">
+                <label class="field"><span>Import mode</span><select class="select" id="importMode"><option value="merge">Merge / update</option><option value="replace">Replace requires Danger Zone</option></select></label>
+                <label class="field"><span>Single collection target</span><select class="select" id="singleImportCollection"></select></label>
+              </div>
+              <button class="btn" id="importJsonBtn"><i data-lucide="upload"></i> Import JSON</button>
+            </div>
+            <div class="panel pad stack">
+              <div class="section-title"><div><h2>Download Anything</h2><p>Quick export for app files, data collections and issue evidence.</p></div></div>
+              <div class="row wrap">
+                <button class="btn secondary" id="downloadAllBtn"><i data-lucide="package-down"></i> Data + Code Manifest</button>
+                <button class="btn secondary" id="downloadIssueBtn"><i data-lucide="file-text"></i> Issue Evidence</button>
+              </div>
+              <div class="log-box" id="uploadLog">Ready.</div>
+            </div>
+          </div>
+        </section>
+
+        <section data-super-panel="sessions" class="super-grid hidden">
+          <div class="super-grid two">
+            <div class="panel pad stack">
+              <div class="section-title"><div><h2>Force Logout</h2><p>For future authentication, all apps can read this signal and immediately logout users.</p></div></div>
+              <label class="field"><span>Reason</span><textarea class="textarea" id="logoutReason" placeholder="Maintenance, security reset, role update"></textarea></label>
+              <button class="btn danger" id="forceLogoutBtn"><i data-lucide="log-out"></i> Force Logout All Users</button>
+              <div class="empty">Current apps do not yet enforce this signal. It is saved in Firebase now so future login code can obey it.</div>
+            </div>
+            <div class="panel pad stack">
+              <div class="section-title"><div><h2>Control Signals</h2><p>Live operational commands saved in system settings.</p></div></div>
+              <div id="signalsList" class="list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section data-super-panel="danger" class="super-grid hidden">
+          <div class="panel pad stack danger-wall" id="dangerWall">
+            <div class="section-title">
+              <div><h2>Danger Zone</h2><p>Delete app-wise data only after special password unlock.</p></div>
+              <span class="badge danger">special password required</span>
+            </div>
+            <div class="grid three">
+              <label class="field"><span>Password hint</span><input class="input" value="Mon and Tinai" readonly></label>
+              <label class="field"><span>Special password</span><input class="input" id="dangerPassword" type="password" placeholder="enter password"></label>
+              <label class="field"><span>Unlock</span><button class="btn danger" id="unlockDangerBtn"><i data-lucide="lock-keyhole"></i> Unlock Danger</button></label>
+            </div>
+            <div class="empty danger-soft">If no date range is given, the selected app collection will be cleaned completely. Current Firebase pilot rules may block hard delete until delete permission is intentionally enabled.</div>
+          </div>
+
+          <div class="panel pad stack hidden" id="dangerPanel">
+            <div class="section-title"><div><h2>Delete App Data</h2><p>Choose app area, optional date range, then type DELETE to confirm.</p></div></div>
+            <div class="grid three">
+              <label class="field"><span>App / data area</span><select class="select" id="dangerAppSelect"></select></label>
+              <label class="field"><span>From date</span><input class="input" id="dangerFrom" type="date"></label>
+              <label class="field"><span>To date</span><input class="input" id="dangerTo" type="date"></label>
+            </div>
+            <label class="field"><span>Confirm text</span><input class="input" id="dangerConfirm" placeholder="type DELETE"></label>
+            <div class="row wrap">
+              <button class="btn danger" id="deleteAppDataBtn"><i data-lucide="trash-2"></i> Delete Selected App Data</button>
+              <button class="btn secondary" id="previewDeleteBtn"><i data-lucide="eye"></i> Preview Affected Docs</button>
+            </div>
+            <div class="log-box" id="dangerLog">Locked actions will appear here.</div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", () => {
+      const apps = [
+        { id: "index", name: "Main Launcher", file: "index.html", area: "Suite", collections: [] },
+        { id: "customer", name: "Customer App", file: "customer-app.html", area: "Passenger", collections: ["customerOrders", "feedbacks", "stockInterests"] },
+        { id: "command", name: "Rake Manager Command Center", file: "command-center.html", area: "Operations", collections: ["customerOrders", "feedbacks", "indents", "invoices", "cashPurchases", "storeInwards", "staffSales", "menuItems", "baseKitchens", "trainMasters"] },
+        { id: "care", name: "Customer Care", file: "customer-care.html", area: "Support", collections: ["customerOrders", "feedbacks", "systemSettings"] },
+        { id: "kitchen", name: "Base Kitchen", file: "base-kitchen.html", area: "Kitchen", collections: ["baseKitchens", "indents", "invoices", "customerOrders"] },
+        { id: "tower", name: "Control Tower", file: "control-tower.html", area: "Checker", collections: ["catalogRequests", "partners", "menuItems"] },
+        { id: "partner", name: "Partner App", file: "partner-app.html", area: "Partner", collections: ["partners", "catalogRequests", "systemSettings"] },
+        { id: "delivery", name: "Delivery App", file: "delivery-app.html", area: "Delivery", collections: ["deliveryPartners", "customerOrders"] },
+        { id: "central", name: "Central Command", file: "central-command.html", area: "Management", collections: ["customerOrders", "feedbacks", "indents", "invoices", "cashPurchases", "storeInwards", "staffSales"] }
+      ];
+
+      const collections = [
+        { name: "menuItems", label: "Food Item Master", app: "Command Center", dateField: "updatedAt" },
+        { name: "customerOrders", label: "Customer Orders", app: "Customer / Care / Delivery", dateField: "createdAt" },
+        { name: "feedbacks", label: "Feedback and Complaints", app: "Customer / Care", dateField: "timestamp" },
+        { name: "baseKitchens", label: "Base Kitchen Master", app: "Base Kitchen", dateField: "updatedAt" },
+        { name: "trainMasters", label: "Train Master", app: "Command Center", dateField: "updatedAt" },
+        { name: "indents", label: "Base Kitchen Indents", app: "Command / Kitchen", dateField: "createdAt" },
+        { name: "invoices", label: "Invoices", app: "Kitchen / Command", dateField: "createdAt" },
+        { name: "stockInterests", label: "Sold Out Interest", app: "Customer", dateField: "createdAt" },
+        { name: "catalogRequests", label: "Catalog Requests", app: "Partner / Control Tower", dateField: "createdAt" },
+        { name: "partners", label: "Partners", app: "Partner", dateField: "createdAt" },
+        { name: "deliveryPartners", label: "Delivery Partners", app: "Delivery", dateField: "updatedAt" },
+        { name: "cashPurchases", label: "Cash Purchases", app: "Command Center", dateField: "createdAt" },
+        { name: "storeInwards", label: "Store Inwards", app: "Command Center", dateField: "createdAt" },
+        { name: "staffSales", label: "Staff Sales", app: "Command Center", dateField: "createdAt" },
+        { name: "systemSettings", label: "Admin and System Settings", app: "All Apps", dateField: "updatedAt" },
+        { name: "adminUsers", label: "Admin Users", app: "Command Center", dateField: "updatedAt" }
+      ];
+
+      const codeFiles = [
+        "index.html", "customer-app.html", "command-center.html", "customer-care.html", "base-kitchen.html",
+        "control-tower.html", "partner-app.html", "delivery-app.html", "central-command.html",
+        "rk-common.js", "rk-app.css", "FIREBASE_RULES_V1_CONTROLLED_PILOT.rules", "FIREBASE_SETUP.md",
+        "README.md", "USER_GUIDE_V1.md", "VERSION1_LAUNCH_CHECKLIST.md", "RK_APP_DEVELOPMENT_ROADMAP.md"
+      ];
+
+      const appDataGroups = [
+        { id: "customer", label: "Customer App", collections: ["customerOrders", "feedbacks", "stockInterests"] },
+        { id: "command", label: "Command Center", collections: ["customerOrders", "feedbacks", "indents", "invoices", "cashPurchases", "storeInwards", "staffSales"] },
+        { id: "masters", label: "All Masters", collections: ["menuItems", "baseKitchens", "trainMasters"] },
+        { id: "kitchen", label: "Base Kitchen", collections: ["indents", "invoices", "baseKitchens"] },
+        { id: "partner", label: "Partner and Catalog", collections: ["partners", "catalogRequests"] },
+        { id: "delivery", label: "Delivery", collections: ["deliveryPartners", "customerOrders"] },
+        { id: "admin", label: "Admin Users and Settings", collections: ["systemSettings", "adminUsers"] },
+        { id: "everything", label: "Everything", collections: collections.map((entry) => entry.name) }
+      ];
+
+      let health = {};
+      let activeCollectionRows = [];
+      let activeCollectionName = "customerOrders";
+      let lastIssueResults = [];
+      let selectedUploadJson = null;
+      let dangerUnlocked = false;
+      let noonBackupKey = "";
+
+      const id = (value) => document.getElementById(value);
+      const nowStamp = () => new Date().toISOString().replace(/[:.]/g, "-");
+      const todayKey = () => new Date().toISOString().slice(0, 10);
+
+      function optionHtml(rows, valueKey = "name", labelKey = "label") {
+        return rows.map((row) => `<option value="${escapeHtml(row[valueKey])}">${escapeHtml(row[labelKey] || row[valueKey])}</option>`).join("");
+      }
+
+      function readableDate(value) {
+        if (!value) return "";
+        if (value.toDate) return value.toDate().toISOString();
+        if (value.seconds) return new Date(value.seconds * 1000).toISOString();
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
+      }
+
+      function sanitizeForFirestore(value) {
+        if (Array.isArray(value)) return value.map(sanitizeForFirestore);
+        if (value && typeof value === "object") {
+          const clean = {};
+          Object.entries(value).forEach(([key, val]) => {
+            if (key !== "id") clean[key] = sanitizeForFirestore(val);
+          });
+          return clean;
+        }
+        return value;
+      }
+
+      function serializeDoc(value) {
+        return JSON.parse(JSON.stringify(value, (key, val) => {
+          if (val && typeof val.toDate === "function") return val.toDate().toISOString();
+          return val;
+        }));
+      }
+
+      function quickView(row) {
+        const text = [
+          row.orderNo, row.ticketNo, row.name, row.itemName, row.trainNumber, row.trainName, row.train,
+          row.customer?.name, row.customerPhone, row.phone, row.status, row.role, row.email, row.type
+        ].filter(Boolean).join(" | ");
+        return text || JSON.stringify(serializeDoc(row)).slice(0, 160);
+      }
+
+      function downloadBlob(filename, content, type = "application/json") {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([content], { type }));
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+      }
+
+      function downloadJson(filename, data) {
+        downloadBlob(filename, JSON.stringify(data, null, 2), "application/json;charset=utf-8");
+      }
+
+      function logTo(target, message) {
+        const line = `[${new Date().toLocaleTimeString("en-IN")}] ${message}`;
+        target.textContent = target.textContent === "Ready." || target.textContent === "Locked actions will appear here." ? line : `${target.textContent}\n${line}`;
+        target.scrollTop = target.scrollHeight;
+      }
+
+      function setCloud(status, tone = "info") {
+        id("cloudBadge").className = `badge ${tone}`;
+        id("cloudBadge").textContent = status;
+      }
+
+      function showSuperTab(name) {
+        document.querySelectorAll("[data-super-panel]").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.superPanel !== name));
+        document.querySelectorAll("[data-super-tab]").forEach((btn) => btn.classList.toggle("active", btn.dataset.superTab === name));
+      }
+
+      function renderStatic() {
+        id("mApps").textContent = apps.length;
+        id("mCollections").textContent = collections.length;
+        id("appSelect").innerHTML = apps.map((app) => `<option value="${app.file}">${escapeHtml(app.name)}</option>`).join("");
+        id("issueCollection").innerHTML = `<option value="all">All collections</option>${optionHtml(collections)}`;
+        id("collectionSelect").innerHTML = optionHtml(collections);
+        id("singleImportCollection").innerHTML = optionHtml(collections);
+        id("dangerAppSelect").innerHTML = appDataGroups.map((group) => `<option value="${group.id}">${escapeHtml(group.label)}</option>`).join("");
+        id("codeFileSelect").innerHTML = codeFiles.map((file) => `<option value="${file}">${escapeHtml(file)}</option>`).join("");
+        id("backupPills").innerHTML = collections.map((entry) => `<span>${escapeHtml(entry.name)}</span>`).join("");
+        id("appCards").innerHTML = apps.map((app) => `
+          <article class="super-card">
+            <div class="row between" style="margin-top:0;"><h3>${escapeHtml(app.name)}</h3><span class="badge info">${escapeHtml(app.area)}</span></div>
+            <p>${escapeHtml(app.file)}</p>
+            <p>${app.collections.length ? escapeHtml(app.collections.join(", ")) : "Launcher only"}</p>
+            <div class="row wrap">
+              <button class="btn secondary" data-preview-app="${escapeHtml(app.file)}"><i data-lucide="panel-top-open"></i> Preview</button>
+              <a class="btn" href="${escapeHtml(app.file)}" target="_blank" rel="noopener"><i data-lucide="external-link"></i> Open</a>
+            </div>
+          </article>
+        `).join("");
+        id("appFrame").src = apps[1].file;
+        id("docCollection").value = activeCollectionName;
+        if (window.lucide) lucide.createIcons();
+      }
+
+      async function collectCollection(name) {
+        const snapshot = await db.collection(name).get();
+        return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      }
+
+      async function loadHealth() {
+        setCloud("syncing", "warn");
+        const rows = [];
+        let total = 0;
+        for (const entry of collections) {
+          try {
+            const snapshot = await db.collection(entry.name).limit(500).get();
+            health[entry.name] = { count: snapshot.size, ok: true, checkedAt: new Date().toLocaleString("en-IN") };
+            total += snapshot.size;
+          } catch (error) {
+            health[entry.name] = { count: 0, ok: false, checkedAt: new Date().toLocaleString("en-IN"), error: error.message };
+          }
+          const row = health[entry.name];
+          rows.push(`
+            <tr>
+              <td>${escapeHtml(entry.app)}</td>
+              <td><b>${escapeHtml(entry.name)}</b><br><span class="muted-text">${escapeHtml(entry.label)}</span></td>
+              <td>${row.count}</td>
+              <td>${escapeHtml(row.checkedAt)}</td>
+              <td>${row.ok ? '<span class="badge ok">connected</span>' : `<span class="badge danger">${escapeHtml(row.error || "blocked")}</span>`}</td>
+            </tr>
+          `);
+        }
+        id("healthRows").innerHTML = rows.join("");
+        id("totalDocs").textContent = `${total} docs`;
+        setCloud("cloud synced", "ok");
+      }
+
+      async function loadBackupLogs() {
+        try {
+          const snapshot = await db.collection("systemSettings").where("type", "==", "superBackupLog").limit(20).get();
+          const logs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+          id("mBackups").textContent = logs.length;
+          id("backupLogs").innerHTML = logs.map((log) => `
+            <div class="item">
+              <div class="row between"><h3>${escapeHtml(log.backupName || log.id)}</h3><span class="badge ok">${escapeHtml(log.mode || "manual")}</span></div>
+              <p>${escapeHtml(log.createdAt || "")} | Collections ${Number(log.collectionCount || 0)} | Docs ${Number(log.documentCount || 0)}</p>
+              <button class="btn secondary" data-download-cloud-backup="${escapeHtml(log.backupId || log.id)}"><i data-lucide="download"></i> Download Cloud Backup</button>
+            </div>
+          `).join("") || `<div class="empty">No backup log created yet.</div>`;
+          if (window.lucide) lucide.createIcons();
+        } catch (error) {
+          id("backupLogs").innerHTML = `<div class="empty danger-soft">${escapeHtml(error.message)}</div>`;
+        }
+      }
+
+      async function collectDataBackup() {
+        const backup = {
+          type: "rk-super-data-backup",
+          createdAt: new Date().toISOString(),
+          createdBy: "Sandip Nandi Super Admin",
+          collections: {}
+        };
+        for (const entry of collections) {
+          backup.collections[entry.name] = (await collectCollection(entry.name)).map(serializeDoc);
+        }
+        return backup;
+      }
+
+      async function collectCodeBackup() {
+        const code = {
+          type: "rk-super-code-backup",
+          createdAt: new Date().toISOString(),
+          files: {}
+        };
+        for (const file of codeFiles) {
+          try {
+            const res = await fetch(file, { cache: "no-store" });
+            code.files[file] = await res.text();
+          } catch (error) {
+            code.files[file] = `/* Unable to load ${file}: ${error.message} */`;
+          }
+        }
+        return code;
+      }
+
+      async function saveCloudBackup(mode = "manual") {
+        const backup = await collectDataBackup();
+        const backupId = `superBackup__${todayKey()}__${Date.now()}`;
+        const text = JSON.stringify(backup);
+        const chunkSize = 750000;
+        const chunks = Math.ceil(text.length / chunkSize);
+        const batch = db.batch();
+        for (let index = 0; index < chunks; index += 1) {
+          batch.set(db.collection("systemSettings").doc(`${backupId}__chunk_${String(index).padStart(3, "0")}`), {
+            type: "superBackupChunk",
+            backupId,
+            chunkIndex: index,
+            chunkTotal: chunks,
+            payload: text.slice(index * chunkSize, (index + 1) * chunkSize),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+        }
+        const docCount = Object.values(backup.collections).reduce((sum, rows) => sum + rows.length, 0);
+        batch.set(db.collection("systemSettings").doc(backupId), {
+          type: "superBackupLog",
+          backupId,
+          backupName: `RK backup ${todayKey()}`,
+          mode,
+          createdAt: new Date().toISOString(),
+          collectionCount: Object.keys(backup.collections).length,
+          documentCount: docCount,
+          chunkTotal: chunks,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        toast("Cloud backup saved.");
+        await loadBackupLogs();
+      }
+
+      async function downloadCloudBackup(backupId) {
+        const snapshot = await db.collection("systemSettings").where("backupId", "==", backupId).where("type", "==", "superBackupChunk").get();
+        const chunks = snapshot.docs.map((doc) => doc.data()).sort((a, b) => Number(a.chunkIndex) - Number(b.chunkIndex));
+        if (!chunks.length) return toast("No backup chunks found.");
+        const text = chunks.map((chunk) => chunk.payload || "").join("");
+        downloadBlob(`rk-cloud-backup-${backupId}.json`, text, "application/json;charset=utf-8");
+      }
+
+      async function loadCollection(name = activeCollectionName) {
+        activeCollectionName = name;
+        id("docCollection").value = name;
+        id("collectionSelect").value = name;
+        try {
+          activeCollectionRows = await collectCollection(name);
+          activeCollectionRows.sort((a, b) => String(quickView(a)).localeCompare(String(quickView(b))));
+          id("collectionRows").innerHTML = activeCollectionRows.map((row) => `
+            <tr>
+              <td><b>${escapeHtml(row.id)}</b></td>
+              <td>${escapeHtml(quickView(row))}</td>
+              <td>${escapeHtml(readableDate(row.updatedAt || row.createdAt || row.timestamp))}</td>
+              <td><button class="btn secondary" data-edit-doc="${escapeHtml(row.id)}"><i data-lucide="pencil"></i> Edit</button></td>
+            </tr>
+          `).join("") || `<tr><td colspan="4">No documents in ${escapeHtml(name)}.</td></tr>`;
+          if (window.lucide) lucide.createIcons();
+        } catch (error) {
+          id("collectionRows").innerHTML = `<tr><td colspan="4">${escapeHtml(error.message)}</td></tr>`;
+        }
+      }
+
+      function editDoc(docId) {
+        const row = activeCollectionRows.find((entry) => entry.id === docId);
+        if (!row) return;
+        id("docCollection").value = activeCollectionName;
+        id("docId").value = row.id;
+        id("docEditor").value = JSON.stringify(serializeDoc(row), null, 2);
+      }
+
+      async function searchIssues() {
+        const term = id("issueSearch").value.trim().toLowerCase();
+        const selected = id("issueCollection").value;
+        const targets = selected === "all" ? collections.map((entry) => entry.name) : [selected];
+        lastIssueResults = [];
+        if (!term) return toast("Enter a keyword, phone, PNR, order no or train.");
+        for (const name of targets) {
+          try {
+            const rows = await collectCollection(name);
+            rows.forEach((row) => {
+              const text = JSON.stringify(serializeDoc(row)).toLowerCase();
+              if (text.includes(term)) lastIssueResults.push({ collection: name, row: serializeDoc(row) });
+            });
+          } catch (error) {
+            lastIssueResults.push({ collection: name, error: error.message });
+          }
+        }
+        id("issueResults").innerHTML = lastIssueResults.slice(0, 50).map((result) => {
+          if (result.error) return `<div class="item"><h3>${escapeHtml(result.collection)}</h3><p>${escapeHtml(result.error)}</p></div>`;
+          return `<div class="item"><div class="row between"><h3>${escapeHtml(result.collection)} / ${escapeHtml(result.row.id)}</h3><button class="btn secondary" data-jump-doc="${escapeHtml(result.collection)}::${escapeHtml(result.row.id)}"><i data-lucide="database"></i> Open Data</button></div><p>${escapeHtml(quickView(result.row))}</p></div>`;
+        }).join("") || `<div class="empty">No matching issue data found.</div>`;
+        if (window.lucide) lucide.createIcons();
+      }
+
+      async function loadCode(file) {
+        try {
+          const res = await fetch(file, { cache: "no-store" });
+          id("codeView").value = await res.text();
+        } catch (error) {
+          id("codeView").value = `Unable to load ${file}: ${error.message}`;
+        }
+      }
+
+      async function importRows(rows, collectionName) {
+        let count = 0;
+        for (const row of rows) {
+          const docId = String(row.id || "").trim() || undefined;
+          const payload = sanitizeForFirestore(row);
+          if (docId) await db.collection(collectionName).doc(docId).set({ ...payload, importedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          else await db.collection(collectionName).add({ ...payload, importedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+          count += 1;
+        }
+        return count;
+      }
+
+      function appGroupById(value) {
+        return appDataGroups.find((group) => group.id === value) || appDataGroups[0];
+      }
+
+      function docDate(row, field) {
+        const value = row[field] || row.createdAt || row.updatedAt || row.timestamp;
+        if (!value) return null;
+        if (value.toDate) return value.toDate();
+        if (value.seconds) return new Date(value.seconds * 1000);
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+
+      function inDateRange(row, field, fromValue, toValue) {
+        if (!fromValue && !toValue) return true;
+        const value = docDate(row, field);
+        if (!value) return false;
+        const from = fromValue ? new Date(`${fromValue}T00:00:00`) : null;
+        const to = toValue ? new Date(`${toValue}T23:59:59`) : null;
+        if (from && value < from) return false;
+        if (to && value > to) return false;
+        return true;
+      }
+
+      async function affectedDangerDocs() {
+        const group = appGroupById(id("dangerAppSelect").value);
+        const from = id("dangerFrom").value;
+        const to = id("dangerTo").value;
+        const affected = [];
+        for (const name of group.collections) {
+          const meta = collections.find((entry) => entry.name === name) || { dateField: "createdAt" };
+          const rows = await collectCollection(name);
+          rows.filter((row) => inDateRange(row, meta.dateField, from, to)).forEach((row) => affected.push({ collection: name, id: row.id }));
+        }
+        return affected;
+      }
+
+      function unlockDanger() {
+        const raw = id("dangerPassword").value.trim().toLowerCase().replace(/\s+/g, "");
+        dangerUnlocked = ["monandtinai", "montinai", "mon&tinai", "mon-tinai"].includes(raw);
+        id("dangerPanel").classList.toggle("hidden", !dangerUnlocked);
+        id("dangerWall").classList.toggle("danger-unlocked", dangerUnlocked);
+        toast(dangerUnlocked ? "Danger Zone unlocked." : "Wrong special password.");
+      }
+
+      async function deleteAppData() {
+        if (!dangerUnlocked) return toast("Unlock Danger Zone first.");
+        if (id("dangerConfirm").value.trim() !== "DELETE") return toast("Type DELETE to confirm.");
+        const affected = await affectedDangerDocs();
+        if (!affected.length) return logTo(id("dangerLog"), "No matching documents found.");
+        if (!confirm(`Delete ${affected.length} documents? This cannot be undone if Firebase rules allow delete.`)) return;
+        let deleted = 0;
+        let failed = 0;
+        for (const entry of affected) {
+          try {
+            await db.collection(entry.collection).doc(entry.id).delete();
+            deleted += 1;
+            logTo(id("dangerLog"), `Deleted ${entry.collection}/${entry.id}`);
+          } catch (error) {
+            failed += 1;
+            logTo(id("dangerLog"), `Blocked ${entry.collection}/${entry.id}: ${error.message}`);
+          }
+        }
+        toast(`Danger action finished. Deleted ${deleted}, blocked ${failed}.`);
+        await loadHealth();
+      }
+
+      async function renderSignals() {
+        try {
+          const docs = await Promise.all(["forceLogout", "cloudSync", "superAdminAccess"].map((key) => db.collection("systemSettings").doc(key).get()));
+          id("signalsList").innerHTML = docs.map((doc) => {
+            const data = doc.exists ? doc.data() : {};
+            return `<div class="item"><div class="row between"><h3>${escapeHtml(doc.id)}</h3><span class="badge info">${doc.exists ? "active" : "not set"}</span></div><p>${escapeHtml(JSON.stringify(serializeDoc(data)).slice(0, 260))}</p></div>`;
+          }).join("");
+        } catch (error) {
+          id("signalsList").innerHTML = `<div class="empty danger-soft">${escapeHtml(error.message)}</div>`;
+        }
+      }
+
+      function tickClock() {
+        const now = new Date();
+        id("overviewClock").textContent = now.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+        const isNoon = now.getHours() === 12 && now.getMinutes() === 0;
+        const key = todayKey();
+        if (isNoon && noonBackupKey !== key) {
+          noonBackupKey = key;
+          saveCloudBackup("daily-12pm").catch((error) => toast(`Daily backup failed: ${error.message}`));
+        }
+      }
+
+      document.querySelectorAll("[data-super-tab]").forEach((btn) => btn.addEventListener("click", () => showSuperTab(btn.dataset.superTab)));
+      id("appSelect").addEventListener("change", () => { id("appFrame").src = id("appSelect").value; });
+      id("appCards").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-preview-app]");
+        if (!btn) return;
+        id("appFrame").src = btn.dataset.previewApp;
+        id("appSelect").value = btn.dataset.previewApp;
+      });
+      id("refreshHealthBtn").addEventListener("click", loadHealth);
+      id("syncBtn").addEventListener("click", async () => {
+        await db.collection("systemSettings").doc("cloudSync").set({ requestedBy: "Sandip Nandi", requestedAt: FieldValue.serverTimestamp(), note: "Manual force sync from supersandi.html" }, { merge: true });
+        await loadHealth();
+        await renderSignals();
+        toast("Force sync signal saved.");
+      });
+      id("loadCollectionBtn").addEventListener("click", () => loadCollection(id("collectionSelect").value));
+      id("collectionRows").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-edit-doc]");
+        if (btn) editDoc(btn.dataset.editDoc);
+      });
+      id("newDocBtn").addEventListener("click", () => {
+        id("docId").value = "";
+        id("docEditor").value = JSON.stringify({ updatedAtNote: "Saved from supersandi.html" }, null, 2);
+      });
+      id("saveDocBtn").addEventListener("click", async () => {
+        const collectionName = id("docCollection").value || activeCollectionName;
+        const docId = id("docId").value.trim();
+        const payload = sanitizeForFirestore(JSON.parse(id("docEditor").value || "{}"));
+        if (docId) await db.collection(collectionName).doc(docId).set({ ...payload, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        else await db.collection(collectionName).add({ ...payload, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+        toast("Document saved.");
+        await loadCollection(collectionName);
+      });
+      id("downloadCollectionBtn").addEventListener("click", () => downloadJson(`rk-${activeCollectionName}-${todayKey()}.json`, activeCollectionRows.map(serializeDoc)));
+      id("issueSearchBtn").addEventListener("click", searchIssues);
+      id("issueResults").addEventListener("click", async (event) => {
+        const btn = event.target.closest("[data-jump-doc]");
+        if (!btn) return;
+        const [collectionName, docId] = btn.dataset.jumpDoc.split("::");
+        showSuperTab("data");
+        await loadCollection(collectionName);
+        editDoc(docId);
+      });
+      id("copyIssueBriefBtn").addEventListener("click", async () => {
+        const brief = {
+          issueKeyword: id("issueSearch").value,
+          found: lastIssueResults.slice(0, 10),
+          createdAt: new Date().toISOString(),
+          note: "Use this evidence for Codex code change or data repair."
+        };
+        await navigator.clipboard.writeText(JSON.stringify(brief, null, 2));
+        toast("Issue brief copied.");
+      });
+      id("loadCodeBtn").addEventListener("click", () => loadCode(id("codeFileSelect").value));
+      id("downloadCodeFileBtn").addEventListener("click", () => downloadBlob(id("codeFileSelect").value.replace(/[\\\/]/g, "-"), id("codeView").value, "text/plain;charset=utf-8"));
+      id("downloadDataBackupBtn").addEventListener("click", async () => downloadJson(`rk-data-backup-${nowStamp()}.json`, await collectDataBackup()));
+      id("downloadCodeBackupBtn").addEventListener("click", async () => downloadJson(`rk-code-backup-${nowStamp()}.json`, await collectCodeBackup()));
+      id("saveCloudBackupBtn").addEventListener("click", () => saveCloudBackup("manual").catch((error) => toast(error.message)));
+      id("refreshBackupLogsBtn").addEventListener("click", loadBackupLogs);
+      id("backupLogs").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-download-cloud-backup]");
+        if (btn) downloadCloudBackup(btn.dataset.downloadCloudBackup).catch((error) => toast(error.message));
+      });
+      id("uploadJsonFile").addEventListener("change", async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        selectedUploadJson = JSON.parse(await file.text());
+        logTo(id("uploadLog"), `Loaded ${file.name}`);
+      });
+      id("importJsonBtn").addEventListener("click", async () => {
+        if (!selectedUploadJson) return toast("Choose a JSON file first.");
+        if (id("importMode").value === "replace") return toast("Replace mode must be handled through Danger Zone first.");
+        let total = 0;
+        if (selectedUploadJson.collections) {
+          for (const [collectionName, rows] of Object.entries(selectedUploadJson.collections)) {
+            total += await importRows(rows, collectionName);
+            logTo(id("uploadLog"), `Imported ${rows.length} rows into ${collectionName}`);
+          }
+        } else if (Array.isArray(selectedUploadJson)) {
+          const target = id("singleImportCollection").value;
+          total += await importRows(selectedUploadJson, target);
+          logTo(id("uploadLog"), `Imported ${selectedUploadJson.length} rows into ${target}`);
+        } else {
+          return toast("JSON must be a full backup or an array of documents.");
+        }
+        toast(`Imported ${total} documents.`);
+        await loadHealth();
+      });
+      id("downloadAllBtn").addEventListener("click", async () => {
+        downloadJson(`rk-super-manifest-${nowStamp()}.json`, { data: await collectDataBackup(), code: await collectCodeBackup() });
+      });
+      id("downloadIssueBtn").addEventListener("click", () => downloadJson(`rk-issue-evidence-${nowStamp()}.json`, { keyword: id("issueSearch").value, results: lastIssueResults }));
+      id("forceLogoutBtn").addEventListener("click", async () => {
+        await db.collection("systemSettings").doc("forceLogout").set({
+          active: true,
+          version: Date.now(),
+          reason: id("logoutReason").value.trim() || "Super admin force logout",
+          requestedBy: "Sandip Nandi",
+          requestedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        toast("Force logout signal saved.");
+        await renderSignals();
+      });
+      id("unlockDangerBtn").addEventListener("click", unlockDanger);
+      id("previewDeleteBtn").addEventListener("click", async () => {
+        if (!dangerUnlocked) return toast("Unlock Danger Zone first.");
+        const affected = await affectedDangerDocs();
+        id("dangerLog").textContent = affected.length ? affected.map((entry) => `${entry.collection}/${entry.id}`).join("\n") : "No matching documents found.";
+      });
+      id("deleteAppDataBtn").addEventListener("click", () => deleteAppData().catch((error) => logTo(id("dangerLog"), error.message)));
+
+      renderStatic();
+      showSuperTab("overview");
+      loadHealth();
+      loadBackupLogs();
+      loadCollection("customerOrders");
+      loadCode("index.html");
+      renderSignals();
+      tickClock();
+      setInterval(tickClock, 30000);
+    });
+  </script>
+</body>
+</html>
+

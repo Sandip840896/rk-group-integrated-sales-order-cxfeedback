@@ -46,22 +46,32 @@
     </div>
 
     <section class="panel pad stack customer-panel" data-tab-panel="order">
-      <div class="section-title">
+      <div class="passenger-compact">
         <div>
           <h2>Passenger Details</h2>
-          <p>Required for both food order and service feedback.</p>
+          <p id="passengerSummary">Add passenger, train and seat details before placing order.</p>
+        </div>
+        <button class="btn secondary" id="openPassengerBtn" type="button"><i data-lucide="user-round"></i> Passenger Details</button>
+      </div>
+      <div class="modal-backdrop hidden" id="passengerModal">
+        <div class="modal stack">
+          <div class="section-title">
+            <div><h2>Passenger Details</h2><p>Required for order, invoice and tracking.</p></div>
+            <button class="icon-btn" id="closePassengerBtn" type="button" title="Close"><i data-lucide="x"></i></button>
+          </div>
+          <form id="customerForm" class="grid two">
+            <label class="field"><span>Name</span><input class="input" name="name" required placeholder="Passenger name"></label>
+            <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
+            <label class="field"><span>Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
+            <label class="field"><span>PNR Number</span><input class="input" name="pnr" required inputmode="numeric" maxlength="10" placeholder="10 digit PNR, e.g. 1234567890"></label>
+            <label class="field"><span>Search Train</span><input class="input" id="customerTrainSearch" placeholder="Type train number, name or yard"></label>
+            <label class="field"><span>Train Number</span><select class="select" name="train" id="customerTrainSelect" required></select></label>
+            <label class="field"><span>Coach</span><input class="input" name="coach" required placeholder="B2"></label>
+            <label class="field"><span>Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
+          </form>
+          <button class="btn" id="savePassengerModalBtn" type="button"><i data-lucide="save"></i> Save Passenger</button>
         </div>
       </div>
-      <form id="customerForm" class="grid two">
-        <label class="field"><span>Name</span><input class="input" name="name" required placeholder="Passenger name"></label>
-        <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
-        <label class="field"><span>Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
-        <label class="field"><span>PNR Number</span><input class="input" name="pnr" required inputmode="numeric" maxlength="10" placeholder="10 digit PNR, e.g. 1234567890"></label>
-        <label class="field"><span>Search Train</span><input class="input" id="customerTrainSearch" placeholder="Type train number, name or yard"></label>
-        <label class="field"><span>Train Number</span><select class="select" name="train" id="customerTrainSelect" required></select></label>
-        <label class="field"><span>Coach</span><input class="input" name="coach" required placeholder="B2"></label>
-        <label class="field"><span>Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
-      </form>
       <div class="meal-filter-bar">
         <label class="field grow"><span>Meal</span><select id="mealFilter" class="select"></select></label>
         <label class="field grow"><span>Preferred Delivery Slot</span><select id="deliveryWindow" class="select"></select></label>
@@ -110,6 +120,16 @@
           <button class="btn secondary grow" id="continueShoppingBtn"><i data-lucide="utensils"></i> Add More Items</button>
           <button class="btn grow" id="confirmOrderBtn"><i data-lucide="send"></i> Confirm Order</button>
         </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop hidden" id="productDetailModal">
+      <div class="modal stack product-detail-modal">
+        <div class="section-title">
+          <div><h2 id="productDetailTitle">Food Detail</h2><p id="productDetailMeta"></p></div>
+          <button class="icon-btn" id="closeProductDetailBtn" title="Close"><i data-lucide="x"></i></button>
+        </div>
+        <div id="productDetailBody"></div>
       </div>
     </div>
 
@@ -246,8 +266,26 @@
         }
       }
 
+      function renderPassengerSummary(data = passenger()) {
+        const enough = data.name && data.phone && data.pnr && data.train && data.coach && data.seat;
+        $("passengerSummary").textContent = enough
+          ? `${data.name} | ${data.train} | ${data.coach}/${data.seat} | PNR ${data.pnr}`
+          : "Add passenger, train and seat details before placing order.";
+      }
+
+      function openPassengerModal() {
+        $("passengerModal").classList.remove("hidden");
+      }
+
+      function closePassengerModal() {
+        $("passengerModal").classList.add("hidden");
+      }
+
       function validatePassenger() {
-        if (!$("customerForm").reportValidity()) return null;
+        if (!$("customerForm").reportValidity()) {
+          openPassengerModal();
+          return null;
+        }
         const data = passenger();
         if (data.phone.length !== 10) {
           toast("Please enter a valid 10 digit phone number.");
@@ -259,6 +297,7 @@
         }
         localStorage.setItem("rkPassenger", JSON.stringify(data));
         $("trackPhone").value = data.phone;
+        renderPassengerSummary(data);
         return data;
       }
 
@@ -342,7 +381,7 @@
         const soldOut = stock <= 0;
         return `
           <div class="item menu-card">
-            <div class="menu-card-media">
+            <div class="menu-card-media" data-product-detail="${item.id}" title="View food detail">
               ${item.itemImage ? `<img class="food-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : `<div class="food-img placeholder"><i data-lucide="utensils"></i></div>`}
             </div>
             <div class="menu-card-body">
@@ -416,6 +455,7 @@
           </div>`).join("") || `<div class="empty">Your cart is empty.</div>`;
         $("cartReviewTotal").textContent = money(total);
         $("confirmOrderBtn").disabled = !lines.length;
+        $("confirmOrderBtn").innerHTML = `<i data-lucide="send"></i> Confirm Order`;
         lucide.createIcons();
       }
 
@@ -430,9 +470,15 @@
       }
 
       $("menuList").addEventListener("click", async (event) => {
+        const detail = event.target.closest("[data-product-detail]");
         const plus = event.target.closest("[data-plus]");
         const minus = event.target.closest("[data-minus]");
         const notify = event.target.closest("[data-notify-item]");
+        if (detail && !plus && !minus && !notify) {
+          const item = menuItems.find((entry) => entry.id === detail.dataset.productDetail);
+          if (item) openProductDetail(item);
+          return;
+        }
         const id = plus?.dataset.plus || minus?.dataset.minus || notify?.dataset.notifyItem;
         if (!id) return;
         const item = menuItems.find((entry) => entry.id === id);
@@ -482,6 +528,30 @@
       $("savePassengerBtn").addEventListener("click", () => {
         if (validatePassenger()) toast("Passenger details saved.");
       });
+      $("openPassengerBtn").addEventListener("click", openPassengerModal);
+      $("closePassengerBtn").addEventListener("click", closePassengerModal);
+      $("savePassengerModalBtn").addEventListener("click", () => {
+        if (validatePassenger()) {
+          closePassengerModal();
+          toast("Passenger details saved.");
+        }
+      });
+
+      function openProductDetail(item) {
+        $("productDetailTitle").textContent = item.name || "Food Detail";
+        $("productDetailMeta").textContent = `${sourceLabel(menuSourceOf(item))} | ${itemMealSlots(item).join(", ")} | ${money(sellingPriceOf(item))}`;
+        $("productDetailBody").innerHTML = `
+          ${item.itemImage ? `<img class="product-detail-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : ""}
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(item.name || "")}</h3><b>${money(sellingPriceOf(item))}</b></div>
+            <p>${escapeHtml(item.description || "Fresh food item available from RK approved catalog.")}</p>
+            <p><b>Source:</b> ${escapeHtml(sourceLabel(menuSourceOf(item)))} ${item.supplierName || item.baseKitchenName ? `| ${escapeHtml(item.supplierName || item.baseKitchenName)}` : ""}</p>
+            <p><b>Type:</b> ${escapeHtml(item.type || "veg")} | <b>Stock:</b> ${Number(item.stockQty || 0)}</p>
+          </div>`;
+        $("productDetailModal").classList.remove("hidden");
+      }
+
+      $("closeProductDetailBtn").addEventListener("click", () => $("productDetailModal").classList.add("hidden"));
 
       $("cartReviewList").addEventListener("click", (event) => {
         const plus = event.target.closest("[data-review-plus]");
@@ -510,6 +580,10 @@
       $("confirmOrderBtn").addEventListener("click", async () => {
         const customer = validatePassenger();
         if (!customer) return;
+        const confirmBtn = $("confirmOrderBtn");
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = `<i data-lucide="loader-2"></i> Placing`;
+        lucide.createIcons();
         const paymentMode = $("paymentMode").value || "COD";
         const items = [...cart.values()].map((line) => ({
           itemId: line.id,
@@ -577,6 +651,9 @@
           });
         } catch (error) {
           toast(error.message || "Unable to place order because stock changed.");
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = `<i data-lucide="send"></i> Confirm Order`;
+          lucide.createIcons();
           return;
         }
         cart.clear();
@@ -586,6 +663,9 @@
         showTab("track");
         loadTracking(customer.phone);
         $("trackList").insertAdjacentHTML("afterbegin", `<div class="ack success">Thank you for giving RK Group the opportunity to serve you. Your order ${escapeHtml(orderNo)} has reached our team.</div>`);
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `<i data-lucide="check"></i> Order Placed`;
+        lucide.createIcons();
       });
 
       $("feedbackForm").addEventListener("submit", async (event) => {
@@ -934,7 +1014,9 @@
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((train) => train.active !== false);
         renderCustomerTrainSelect();
+        renderPassengerSummary();
       });
+      renderPassengerSummary(saved);
       loadTracking(saved.phone || localStorage.getItem("rkTrackPhone") || "");
     });
   </script>

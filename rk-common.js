@@ -1,4 +1,4 @@
-const RK_FIREBASE_CONFIG = {
+﻿const RK_FIREBASE_CONFIG = {
   apiKey: "AIzaSyDQSWV0QrVQx2C_t-BDndqjuQLnxELdClA",
   authDomain: "rk-rail-cx.firebaseapp.com",
   projectId: "rk-rail-cx",
@@ -298,7 +298,7 @@ function invoicePrintableHtml(invoice) {
   </div>
   <div class="box">
     <p><b>Train No:</b> ${escapeHtml(invoice.train || "")}</p>
-    <p><b>Train / Rack Manager:</b> ${escapeHtml(invoice.rackManager || "")}</p>
+    <p><b>Train / Rake Manager:</b> ${escapeHtml(invoice.rackManager || "")}</p>
     <p><b>Supplier Base Kitchen:</b> ${escapeHtml(invoice.baseKitchenName || "")}</p>
     <p><b>Indent No:</b> ${escapeHtml(invoice.indentNo || "")}</p>
     ${invoice.deliveryStation ? `<p><b>Delivery Station:</b> ${escapeHtml(invoice.deliveryStation)}</p>` : ""}
@@ -317,7 +317,7 @@ function invoicePrintableHtml(invoice) {
   ${invoice.settlementNote ? `<div class="box"><b>Settlement Note:</b> ${escapeHtml(invoice.settlementNote)}</div>` : ""}
   <div class="sign">
     <div class="line">Base Kitchen Signature</div>
-    <div class="line">Train / Rack Manager Signature</div>
+    <div class="line">Train / Rake Manager Signature</div>
   </div>
 </body>
 </html>`;
@@ -467,6 +467,23 @@ function escapeHtml(value) {
 
 function getForm(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function setSubmitState(form, state = "idle", label = "") {
+  const btn = form?.querySelector?.("button[type='submit']");
+  if (!btn) return () => {};
+  if (!btn.dataset.idleHtml) btn.dataset.idleHtml = btn.innerHTML;
+  btn.disabled = state !== "idle";
+  if (state === "saving") btn.innerHTML = `<i data-lucide="loader-2"></i> ${escapeHtml(label || "Submitting...")}`;
+  if (state === "saved") btn.innerHTML = `<i data-lucide="check"></i> ${escapeHtml(label || "Submitted")}`;
+  if (state === "idle") btn.innerHTML = btn.dataset.idleHtml;
+  lucide?.createIcons?.();
+  return () => setSubmitState(form, "idle");
+}
+
+function finishSubmitState(form, message = "Submitted") {
+  setSubmitState(form, "saved", message);
+  setTimeout(() => setSubmitState(form, "idle"), 1600);
 }
 
 function showTab(name) {
@@ -670,3 +687,4 @@ function appHeader(title, subtitle) {
     </div>
   `);
 }
+

@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -71,7 +71,7 @@
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="invoice">
-      <div class="section-title"><div><h2>Invoices Sent to Train</h2><p>Rack manager can accept or dispute these invoices from command center.</p></div></div>
+      <div class="section-title"><div><h2>Invoices Sent to Train</h2><p>Rake manager can accept or dispute these invoices from command center.</p></div></div>
       <div id="bkInvoiceList" class="list"></div>
     </section>
 
@@ -284,7 +284,7 @@
             updatedAt: FieldValue.serverTimestamp()
           });
           await db.collection("indents").doc(indent.id).update({ status: "invoiced", updatedAt: FieldValue.serverTimestamp() });
-          toast("Invoice created and sent to rack manager.");
+          toast("Invoice created and sent to rake manager.");
         }
       });
 
@@ -366,6 +366,8 @@
         const form = event.currentTarget;
         const data = getForm(form);
         const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
+        setSubmitState(form, "saving", "Submitting...");
+        try {
         const image = await compressImage(form.itemImageFile.files[0], 520, 0.7);
         await compatAdd("catalogRequests", "catalogRequest", {
           name: data.name,
@@ -389,18 +391,74 @@
           updatedAt: FieldValue.serverTimestamp()
         });
         form.reset();
+        finishSubmitState(form, "Submitted");
         toast("Product sent to Control Tower for approval.");
+        } catch (error) {
+          console.error(error);
+          setSubmitState(form, "idle");
+          toast(firebaseAccessMessage("catalogRequests", error));
+        }
       });
 
       function renderCatalogRequests() {
         const rows = catalogRequests.filter((row) => row.baseKitchenId === activeKitchenId || row.supplierId === activeKitchenId);
-        $("bkCatalogRequests").innerHTML = rows.map((row) => `
+        $("bkCatalogRequests").innerHTML = rows.map((row) => {
+          const returned = ["returned", "rejected"].includes(String(row.status || "").toLowerCase());
+          const slots = row.mealSlots?.length ? row.mealSlots : [row.category || "Other"];
+          return `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(row.name || row.id)}</h3>${statusBadge(row.status || "pending")}</div>
             <p>${escapeHtml(row.category || "")} | Sell ${money(row.sellingPrice)} | Cost ${money(row.costPrice)} | Train ${escapeHtml(row.linkedTrain || "All")}</p>
             ${row.rejectionReason ? `<p><b>Control Tower Note:</b> ${escapeHtml(row.rejectionReason)}</p>` : ""}
-          </div>`).join("") || `<div class="empty">No catalog request submitted from this kitchen yet.</div>`;
+            ${row.reworkRemarks ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Control Tower Rework:</b> ${escapeHtml(row.reworkRemarks)}</div>` : ""}
+            ${returned ? `
+              <div class="grid two" style="margin-top:10px;">
+                <label class="field"><span>Item</span><input class="input" value="${escapeHtml(row.name || "")}" data-bk-request="${row.id}" data-field="name"></label>
+                <label class="field"><span>Selling Rate</span><input class="input" type="number" value="${Number(row.sellingPrice || 0)}" data-bk-request="${row.id}" data-field="sellingPrice"></label>
+                <label class="field"><span>Cost Rate</span><input class="input" type="number" value="${Number(row.costPrice || 0)}" data-bk-request="${row.id}" data-field="costPrice"></label>
+                <label class="field"><span>Opening Qty</span><input class="input" type="number" value="${Number(row.stockQty || 0)}" data-bk-request="${row.id}" data-field="stockQty"></label>
+                <label class="field" style="grid-column:1/-1;"><span>Meal Categories</span><div class="check-grid">
+                  ${mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${escapeHtml(slot)}" data-bk-request-meal="${row.id}" ${slots.includes(slot) ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("")}
+                </div></label>
+                <label class="field" style="grid-column:1/-1;"><span>Product Detail</span><textarea class="textarea" data-bk-request="${row.id}" data-field="description">${escapeHtml(row.description || "")}</textarea></label>
+              </div>
+              <div class="row wrap" style="margin-top:10px;">
+                <button class="btn" data-bk-resubmit-catalog="${row.id}"><i data-lucide="send"></i> Resend Request</button>
+                <button class="btn danger" data-bk-withdraw-catalog="${row.id}"><i data-lucide="trash-2"></i> Withdraw Request</button>
+              </div>` : ""}
+          </div>`;
+        }).join("") || `<div class="empty">No catalog request submitted from this kitchen yet.</div>`;
+        lucide.createIcons();
       }
+
+      $("bkCatalogRequests").addEventListener("click", async (event) => {
+        const resend = event.target.closest("[data-bk-resubmit-catalog]");
+        const withdraw = event.target.closest("[data-bk-withdraw-catalog]");
+        if (resend) {
+          const row = catalogRequests.find((entry) => entry.id === resend.dataset.bkResubmitCatalog);
+          const field = (name) => document.querySelector(`[data-bk-request="${row.id}"][data-field="${name}"]`)?.value || "";
+          const slots = [...document.querySelectorAll(`[data-bk-request-meal="${row.id}"]:checked`)].map((box) => box.value);
+          if (!slots.length) return toast("Choose at least one meal category.");
+          await compatUpdate(row, "catalogRequests", {
+            name: field("name"),
+            category: slots[0],
+            mealSlots: slots,
+            sellingPrice: Number(field("sellingPrice") || 0),
+            costPrice: Number(field("costPrice") || 0),
+            stockQty: Number(field("stockQty") || 0),
+            description: field("description"),
+            status: "resubmitted",
+            resubmittedAt: FieldValue.serverTimestamp()
+          });
+          toast("Catalog request resent to Control Tower.");
+        }
+        if (withdraw) {
+          const row = catalogRequests.find((entry) => entry.id === withdraw.dataset.bkWithdrawCatalog);
+          if (!row || !confirm("Withdraw this catalog request?")) return;
+          await compatUpdate(row, "catalogRequests", { status: "withdrawn", withdrawnAt: FieldValue.serverTimestamp() });
+          toast("Catalog request withdrawn.");
+        }
+      });
 
       $("bkDisputeList").addEventListener("click", async (event) => {
         const resend = event.target.closest("[data-resend-invoice]");
@@ -478,3 +536,4 @@
   </script>
 </body>
 </html>
+

@@ -24,6 +24,7 @@
 
     <div class="tabs">
       <button class="tab-btn" data-tab="catalog"><i data-lucide="badge-check"></i> Catalog Approval</button>
+      <button class="tab-btn" data-tab="masters"><i data-lucide="database"></i> Master Rectification</button>
       <button class="tab-btn" data-tab="partners"><i data-lucide="store"></i> Partner Onboarding</button>
       <button class="tab-btn" data-tab="riders"><i data-lucide="bike"></i> Rider Approval</button>
       <button class="tab-btn" data-tab="route"><i data-lucide="rail-symbol"></i> Gitanjali Route</button>
@@ -34,6 +35,20 @@
         <div><h2>Maker Checker Catalog Queue</h2><p>Approve only after checking price, cost, image, source and linked train.</p></div>
       </div>
       <div id="catalogQueue" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="masters">
+      <div class="section-title">
+        <div><h2>Live Master Rectification</h2><p>Edit published catalog, base kitchens and RK partner masters when wrong data is uploaded.</p></div>
+      </div>
+      <div class="tabs sub-tabs">
+        <button class="tab-btn active" type="button" data-master-view="catalogMaster">Catalog</button>
+        <button class="tab-btn" type="button" data-master-view="kitchenMaster">Base Kitchen</button>
+        <button class="tab-btn" type="button" data-master-view="partnerMaster">RK Partner</button>
+      </div>
+      <div id="catalogMaster" class="list"></div>
+      <div id="kitchenMaster" class="list hidden"></div>
+      <div id="partnerMaster" class="list hidden"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="partners">
@@ -70,6 +85,7 @@
       let partners = [];
       let riders = [];
       let menuItems = [];
+      let kitchens = [];
 
       function requestPayload(req) {
         const sell = Number(req.sellingPrice || req.price || 0);
@@ -96,8 +112,37 @@
         };
       }
 
+      function requestValue(req, field) {
+        const input = document.querySelector(`[data-request="${req.id}"][data-field="${field}"]`);
+        return input?.value ?? "";
+      }
+
+      function requestMealSlots(req) {
+        const selected = [...document.querySelectorAll(`[data-request-meal="${req.id}"]:checked`)].map((box) => box.value);
+        return selected.length ? selected : (req.mealSlots?.length ? req.mealSlots : [req.category || "Other"]);
+      }
+
+      function editedRequestPayload(req) {
+        const slots = requestMealSlots(req);
+        return {
+          name: requestValue(req, "name") || req.name || "",
+          category: slots[0] || "Other",
+          mealSlots: slots,
+          type: requestValue(req, "type") || req.type || "veg",
+          sellingPrice: Number(requestValue(req, "sellingPrice") || req.sellingPrice || 0),
+          costPrice: Number(requestValue(req, "costPrice") || req.costPrice || 0),
+          stockQty: Number(requestValue(req, "stockQty") || req.stockQty || 0),
+          linkedTrain: requestValue(req, "linkedTrain") || req.linkedTrain || "All",
+          description: requestValue(req, "description") || req.description || "",
+          supplierName: requestValue(req, "supplierName") || req.supplierName || req.baseKitchenName || req.partnerName || req.supplierPhone || "",
+          sourceType: req.sourceType || req.source || "base kitchen",
+          source: req.source || req.sourceType || "base kitchen",
+          itemImage: req.itemImage || ""
+        };
+      }
+
       function renderMetrics() {
-        $("mPending").textContent = requests.filter((r) => r.status === "pending").length;
+        $("mPending").textContent = requests.filter((r) => ["pending", "resubmitted"].includes(String(r.status || "").toLowerCase())).length;
         $("mApproved").textContent = requests.filter((r) => r.status === "approved").length;
         $("mPartners").textContent = partners.filter((p) => p.status === "pending").length + riders.filter((p) => p.status === "pending").length;
         $("mLiveItems").textContent = menuItems.length;
@@ -107,6 +152,7 @@
         const sorted = [...requests].sort((a, b) => String(a.status).localeCompare(String(b.status)));
         $("catalogQueue").innerHTML = sorted.map((req) => {
           const margin = Number(req.sellingPrice || 0) - Number(req.costPrice || 0);
+          const selectedSlots = req.mealSlots?.length ? req.mealSlots : [req.category || "Other"];
           return `
             <div class="item">
               <div class="row between">
@@ -120,10 +166,34 @@
                 </div>
                 ${statusBadge(req.status || "pending")}
               </div>
-              ${req.description ? `<p style="margin-top:8px;">${escapeHtml(req.description)}</p>` : ""}
+              <details class="status-details" open>
+                <summary><i data-lucide="clipboard-list"></i> Request detail and correction</summary>
+                <div class="grid two" style="margin-top:10px;">
+                  <label class="field"><span>Item Name</span><input class="input" value="${escapeHtml(req.name || "")}" data-request="${req.id}" data-field="name"></label>
+                  <label class="field"><span>Supplier / Sender</span><input class="input" value="${escapeHtml(req.supplierName || req.baseKitchenName || req.partnerName || req.supplierPhone || "")}" data-request="${req.id}" data-field="supplierName"></label>
+                  <label class="field"><span>Source App</span><input class="input" value="${escapeHtml(req.sourceType || req.source || "")}" readonly></label>
+                  <label class="field"><span>Linked Train</span><input class="input" value="${escapeHtml(req.linkedTrain || "All")}" data-request="${req.id}" data-field="linkedTrain"></label>
+                  <label class="field"><span>Selling Rate</span><input class="input" type="number" min="0" value="${Number(req.sellingPrice || 0)}" data-request="${req.id}" data-field="sellingPrice"></label>
+                  <label class="field"><span>Cost Rate</span><input class="input" type="number" min="0" value="${Number(req.costPrice || 0)}" data-request="${req.id}" data-field="costPrice"></label>
+                  <label class="field"><span>Opening Qty</span><input class="input" type="number" min="0" value="${Number(req.stockQty || 0)}" data-request="${req.id}" data-field="stockQty"></label>
+                  <label class="field"><span>Food Type</span><select class="select" data-request="${req.id}" data-field="type">
+                    ${["veg", "non-veg", "beverage", "other"].map((type) => `<option value="${type}" ${String(req.type || "veg") === type ? "selected" : ""}>${type}</option>`).join("")}
+                  </select></label>
+                  <label class="field" style="grid-column:1/-1;"><span>Meal Categories</span><div class="check-grid">
+                    ${mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${escapeHtml(slot)}" data-request-meal="${req.id}" ${selectedSlots.includes(slot) ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("")}
+                  </div></label>
+                  <label class="field" style="grid-column:1/-1;"><span>Product Detail</span><textarea class="textarea" data-request="${req.id}" data-field="description">${escapeHtml(req.description || "")}</textarea></label>
+                </div>
+                <div class="ack" style="margin-top:10px;">
+                  <b>Sender detail:</b> ${escapeHtml(req.supplierPhone || req.phone || req.partnerPhone || req.supplierId || req.baseKitchenId || "")}
+                  ${req.reworkRemarks ? `<br><b>Last rework note:</b> ${escapeHtml(req.reworkRemarks)}` : ""}
+                  ${req.rejectionReason ? `<br><b>Rejection note:</b> ${escapeHtml(req.rejectionReason)}` : ""}
+                </div>
+              </details>
               <div class="row wrap" style="margin-top:10px;">
-                ${req.status === "pending" ? `
+                ${["pending", "resubmitted"].includes(String(req.status || "").toLowerCase()) ? `
                   <button class="btn" data-approve-catalog="${req.id}"><i data-lucide="check"></i> Approve and Publish</button>
+                  <button class="btn secondary" data-return-catalog="${req.id}"><i data-lucide="rotate-ccw"></i> Return for Rework</button>
                   <button class="btn danger" data-reject-catalog="${req.id}"><i data-lucide="x"></i> Reject</button>
                 ` : ""}
               </div>
@@ -131,6 +201,42 @@
         }).join("") || `<div class="empty">No catalog request is waiting right now.</div>`;
         lucide.createIcons();
         renderMetrics();
+      }
+
+      function renderMasters() {
+        $("catalogMaster").innerHTML = menuItems.map((item) => `
+          <div class="item">
+            <div class="grid two">
+              <label class="field"><span>Item</span><input class="input" value="${escapeHtml(item.name || "")}" data-menu-master="${item.id}" data-field="name"></label>
+              <label class="field"><span>Source</span><input class="input" value="${escapeHtml(item.source || "")}" data-menu-master="${item.id}" data-field="source"></label>
+              <label class="field"><span>Sell</span><input class="input" type="number" value="${Number(item.sellingPrice || item.price || 0)}" data-menu-master="${item.id}" data-field="sellingPrice"></label>
+              <label class="field"><span>Cost</span><input class="input" type="number" value="${Number(item.costPrice || 0)}" data-menu-master="${item.id}" data-field="costPrice"></label>
+              <label class="field"><span>Stock</span><input class="input" type="number" value="${Number(item.stockQty || 0)}" data-menu-master="${item.id}" data-field="stockQty"></label>
+              <label class="field"><span>Available</span><select class="select" data-menu-master="${item.id}" data-field="available"><option value="true" ${item.available === false ? "" : "selected"}>true</option><option value="false" ${item.available === false ? "selected" : ""}>false</option></select></label>
+            </div>
+            <button class="btn secondary" data-save-menu-master="${item.id}"><i data-lucide="save"></i> Save Catalog</button>
+          </div>`).join("") || `<div class="empty">No catalog master found.</div>`;
+        $("kitchenMaster").innerHTML = kitchens.map((kitchen) => `
+          <div class="item">
+            <div class="grid two">
+              <label class="field"><span>Name</span><input class="input" value="${escapeHtml(kitchen.name || "")}" data-kitchen-master="${kitchen.id}" data-field="name"></label>
+              <label class="field"><span>City</span><input class="input" value="${escapeHtml(kitchen.city || "")}" data-kitchen-master="${kitchen.id}" data-field="city"></label>
+              <label class="field"><span>Active</span><select class="select" data-kitchen-master="${kitchen.id}" data-field="active"><option value="true" ${kitchen.active === false ? "" : "selected"}>true</option><option value="false" ${kitchen.active === false ? "selected" : ""}>false</option></select></label>
+            </div>
+            <button class="btn secondary" data-save-kitchen-master="${kitchen.id}"><i data-lucide="save"></i> Save Kitchen</button>
+          </div>`).join("") || `<div class="empty">No base kitchen master found.</div>`;
+        $("partnerMaster").innerHTML = partners.map((partner) => `
+          <div class="item">
+            <div class="grid two">
+              <label class="field"><span>Restaurant</span><input class="input" value="${escapeHtml(partner.restaurantName || partner.name || "")}" data-partner-master="${partner.id}" data-field="restaurantName"></label>
+              <label class="field"><span>Station</span><input class="input" value="${escapeHtml(partner.station || "")}" data-partner-master="${partner.id}" data-field="station"></label>
+              <label class="field"><span>Owner</span><input class="input" value="${escapeHtml(partner.ownerName || "")}" data-partner-master="${partner.id}" data-field="ownerName"></label>
+              <label class="field"><span>Phone</span><input class="input" value="${escapeHtml(partner.phone || "")}" data-partner-master="${partner.id}" data-field="phone"></label>
+              <label class="field"><span>Status</span><select class="select" data-partner-master="${partner.id}" data-field="status">${["pending", "approved", "rejected"].map((status) => `<option value="${status}" ${String(partner.status || "pending") === status ? "selected" : ""}>${status}</option>`).join("")}</select></label>
+            </div>
+            <button class="btn secondary" data-save-partner-master="${partner.id}"><i data-lucide="save"></i> Save Partner</button>
+          </div>`).join("") || `<div class="empty">No RK partner master found.</div>`;
+        lucide.createIcons();
       }
 
       function renderPartners() {
@@ -193,22 +299,39 @@
       $("catalogQueue").addEventListener("click", async (event) => {
         const approve = event.target.closest("[data-approve-catalog]");
         const reject = event.target.closest("[data-reject-catalog]");
+        const rework = event.target.closest("[data-return-catalog]");
         if (approve) {
           const req = requests.find((row) => row.id === approve.dataset.approveCatalog);
           if (!req) return;
-          await db.collection("menuItems").add(requestPayload(req));
+          const corrected = { ...req, ...editedRequestPayload(req) };
+          await db.collection("menuItems").add(requestPayload(corrected));
           await compatUpdate(req, "catalogRequests", {
+            ...editedRequestPayload(req),
             status: "approved",
             checkerName: "Control Tower",
             checkedAt: FieldValue.serverTimestamp()
           });
           toast("Catalog item approved and published to customer app.");
         }
+        if (rework) {
+          const reason = prompt("Remark for sender rework", "Please correct price/details/image and resend.");
+          if (!reason) return;
+          const req = requests.find((row) => row.id === rework.dataset.returnCatalog);
+          await compatUpdate(req, "catalogRequests", {
+            ...editedRequestPayload(req),
+            status: "returned",
+            reworkRemarks: reason,
+            returnedAt: FieldValue.serverTimestamp(),
+            checkerName: "Control Tower"
+          });
+          toast("Catalog request returned for rework.");
+        }
         if (reject) {
           const reason = prompt("Reason for rejection", "Price/image/details need correction.");
           if (!reason) return;
           const req = requests.find((row) => row.id === reject.dataset.rejectCatalog);
           await compatUpdate(req, "catalogRequests", {
+            ...editedRequestPayload(req),
             status: "rejected",
             rejectionReason: reason,
             checkedAt: FieldValue.serverTimestamp()
@@ -259,12 +382,63 @@
         }
       });
 
+      document.querySelector("[data-tab-panel='masters']").addEventListener("click", async (event) => {
+        const viewBtn = event.target.closest("[data-master-view]");
+        const saveMenu = event.target.closest("[data-save-menu-master]");
+        const saveKitchen = event.target.closest("[data-save-kitchen-master]");
+        const savePartner = event.target.closest("[data-save-partner-master]");
+        if (viewBtn) {
+          document.querySelectorAll("[data-master-view]").forEach((btn) => btn.classList.toggle("active", btn === viewBtn));
+          ["catalogMaster", "kitchenMaster", "partnerMaster"].forEach((id) => $(id).classList.toggle("hidden", id !== viewBtn.dataset.masterView));
+        }
+        if (saveMenu) {
+          const id = saveMenu.dataset.saveMenuMaster;
+          const field = (name) => document.querySelector(`[data-menu-master="${id}"][data-field="${name}"]`)?.value || "";
+          await db.collection("menuItems").doc(id).update({
+            name: field("name"),
+            source: field("source"),
+            sellingPrice: Number(field("sellingPrice") || 0),
+            price: Number(field("sellingPrice") || 0),
+            costPrice: Number(field("costPrice") || 0),
+            stockQty: Number(field("stockQty") || 0),
+            available: field("available") === "true",
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Catalog master updated.");
+        }
+        if (saveKitchen) {
+          const id = saveKitchen.dataset.saveKitchenMaster;
+          const field = (name) => document.querySelector(`[data-kitchen-master="${id}"][data-field="${name}"]`)?.value || "";
+          await db.collection("baseKitchens").doc(id).update({
+            name: field("name"),
+            city: field("city"),
+            active: field("active") === "true",
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Base kitchen master updated.");
+        }
+        if (savePartner) {
+          const id = savePartner.dataset.savePartnerMaster;
+          const field = (name) => document.querySelector(`[data-partner-master="${id}"][data-field="${name}"]`)?.value || "";
+          const row = partners.find((partner) => partner.id === id);
+          await compatUpdate(row, "partners", {
+            restaurantName: field("restaurantName"),
+            station: field("station"),
+            ownerName: field("ownerName"),
+            phone: cleanPhone(field("phone")) || field("phone"),
+            status: field("status")
+          });
+          toast("RK partner master updated.");
+        }
+      });
+
       $("routeTrain").addEventListener("change", renderRoute);
       renderRoute();
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { requests = rows; renderCatalog(); }, "createdAt", "desc", 250);
-      onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); }, "createdAt", "desc", 250);
+      onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); renderMasters(); }, "createdAt", "desc", 250);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { riders = rows; renderRiders(); }, "updatedAt", "desc", 250);
-      onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); }, "name", "asc", 300);
+      onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); renderMasters(); }, "name", "asc", 300);
+      onLive("baseKitchens", (rows) => { kitchens = rows; renderMasters(); }, "name", "asc", 300);
     });
   </script>
 </body>
