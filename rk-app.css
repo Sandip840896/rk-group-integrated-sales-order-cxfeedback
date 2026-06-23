@@ -166,6 +166,39 @@ a {
   object-fit: contain;
 }
 
+.brand-splash-card img.hidden {
+  display: none;
+}
+
+.brand-splash-fallback {
+  display: grid;
+  gap: 12px;
+  place-items: center;
+  min-height: min(620px, calc(100vh - 36px));
+  padding: 34px 22px;
+  text-align: center;
+  color: var(--brand);
+  background:
+    radial-gradient(circle at 80% 15%, rgba(162, 69, 9, 0.18), transparent 28%),
+    linear-gradient(180deg, #fffaf5, #fff);
+}
+
+.brand-splash-card img:not(.hidden) + .brand-splash-fallback {
+  display: none;
+}
+
+.brand-splash-fallback h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.08;
+}
+
+.brand-splash-fallback p {
+  margin: 0;
+  color: #8a3a08;
+  font-weight: 800;
+}
+
 .brand-cover-strip {
   margin: 0 0 14px;
   padding: 18px;

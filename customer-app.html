@@ -7,16 +7,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="rk-app.css">
+  <link rel="stylesheet" href="rk-app.css?v=mow-20260624-2">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js"></script>
+  <script defer src="rk-common.js?v=mow-20260624-2"></script>
 </head>
 <body>
   <div class="brand-splash" id="brandSplash" aria-label="Meals On Wheels opening cover">
     <div class="brand-splash-card">
-      <img src="Branding/App Opening Page Cover Concept.png" alt="Meals On Wheels fresh meals happy journeys">
+      <img src="Branding/App Opening Page Cover Concept.png" alt="Meals On Wheels fresh meals happy journeys" onerror="this.classList.add('hidden')">
+      <div class="brand-splash-fallback">
+        <div class="brand-mark">MEALS <span>ON</span> WHEELS</div>
+        <h1>Fresh Meals,<br>Happy Journeys.</h1>
+        <p>Bharosa Purana, Swaad Naya.</p>
+      </div>
     </div>
   </div>
   <main class="main mobile-main">
