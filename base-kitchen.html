@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RK Base Kitchen Operations</title>
+  <title>Meals On Wheels Base Kitchen Operations</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -61,6 +61,7 @@
           <label class="field"><span>Cost incl. food + packaging</span><input class="input" name="costPrice" type="number" min="0" required></label>
           <label class="field"><span>Opening Qty</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
           <label class="field"><span>Food Type</span><select class="select" name="type"><option>veg</option><option>non-veg</option><option>beverage</option><option>other</option></select></label>
+          <label class="field"><span>Cuisine</span><select class="select" name="cuisine" id="bkCatalogCuisine"></select></label>
           <label class="field"><span>Linked Train</span><input class="input" name="linkedTrain" placeholder="12859 / 12860 / All"></label>
           <label class="field"><span>Product Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
         </div>
@@ -83,7 +84,7 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("RK Base Kitchen Operations", "Indent acceptance, delivery planning and invoice");
+      appHeader("Meals On Wheels Base Kitchen Operations", "Indent acceptance, delivery planning and invoice");
       lucide.createIcons();
       wireTabs("incoming");
       await ensureSeedData();
@@ -97,6 +98,7 @@
       let seenIndents = new Set();
       let seenCustomerOrders = new Set();
       $("bkCatalogCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
+      $("bkCatalogCuisine").innerHTML = cuisineOptions.map((cuisine) => `<option>${cuisine}</option>`).join("");
 
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -374,6 +376,7 @@
           category: data.category,
           mealSlots: [data.category],
           type: data.type,
+          cuisine: data.cuisine,
           sellingPrice: Number(data.sellingPrice || 0),
           costPrice: Number(data.costPrice || 0),
           stockQty: Number(data.stockQty || 0),
@@ -408,7 +411,7 @@
           return `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(row.name || row.id)}</h3>${statusBadge(row.status || "pending")}</div>
-            <p>${escapeHtml(row.category || "")} | Sell ${money(row.sellingPrice)} | Cost ${money(row.costPrice)} | Train ${escapeHtml(row.linkedTrain || "All")}</p>
+            <p>${escapeHtml(row.category || "")} | ${escapeHtml(row.cuisine || "")} | Sell ${money(row.sellingPrice)} | Cost ${money(row.costPrice)} | Train ${escapeHtml(row.linkedTrain || "All")}</p>
             ${row.rejectionReason ? `<p><b>Control Tower Note:</b> ${escapeHtml(row.rejectionReason)}</p>` : ""}
             ${row.reworkRemarks ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Control Tower Rework:</b> ${escapeHtml(row.reworkRemarks)}</div>` : ""}
             ${returned ? `
@@ -417,6 +420,9 @@
                 <label class="field"><span>Selling Rate</span><input class="input" type="number" value="${Number(row.sellingPrice || 0)}" data-bk-request="${row.id}" data-field="sellingPrice"></label>
                 <label class="field"><span>Cost Rate</span><input class="input" type="number" value="${Number(row.costPrice || 0)}" data-bk-request="${row.id}" data-field="costPrice"></label>
                 <label class="field"><span>Opening Qty</span><input class="input" type="number" value="${Number(row.stockQty || 0)}" data-bk-request="${row.id}" data-field="stockQty"></label>
+                <label class="field"><span>Cuisine</span><select class="select" data-bk-request="${row.id}" data-field="cuisine">
+                  ${cuisineOptions.map((cuisine) => `<option value="${escapeHtml(cuisine)}" ${String(row.cuisine || "North Indian") === cuisine ? "selected" : ""}>${escapeHtml(cuisine)}</option>`).join("")}
+                </select></label>
                 <label class="field" style="grid-column:1/-1;"><span>Meal Categories</span><div class="check-grid">
                   ${mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${escapeHtml(slot)}" data-bk-request-meal="${row.id}" ${slots.includes(slot) ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("")}
                 </div></label>
@@ -446,6 +452,7 @@
             sellingPrice: Number(field("sellingPrice") || 0),
             costPrice: Number(field("costPrice") || 0),
             stockQty: Number(field("stockQty") || 0),
+            cuisine: field("cuisine") || "North Indian",
             description: field("description"),
             status: "resubmitted",
             resubmittedAt: FieldValue.serverTimestamp()

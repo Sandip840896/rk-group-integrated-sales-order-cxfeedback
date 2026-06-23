@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RK Rail Passenger Ecosystem - World Class Demo</title>
+  <title>Meals On Wheels Passenger Ecosystem - World Class Demo</title>
   <style>
     :root {
-      --bg: #f4faf7;
+      --bg: #f7f1ea;
       --paper: #ffffff;
       --ink: #12202b;
       --muted: #5a6875;
-      --soft: #e8f5ef;
-      --line: #d8e5df;
-      --green: #087454;
-      --green2: #159477;
-      --blue: #256fe6;
-      --orange: #f4a259;
+      --soft: #f5eadf;
+      --line: #eadccb;
+      --green: #0a5a7a;
+      --green2: #0b7a74;
+      --blue: #082d59;
+      --orange: #9a410d;
       --red: #d83f3f;
       --violet: #6f56d9;
       --black: #101820;
@@ -191,6 +191,47 @@
       overflow: hidden;
     }
 
+    .brand-visual {
+      position: relative;
+      min-height: 430px;
+      border-radius: 22px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      box-shadow: 0 22px 55px rgba(18,32,43,.16);
+      background: #f6efe7;
+    }
+
+    .brand-visual img {
+      width: 100%;
+      height: 100%;
+      min-height: 430px;
+      display: block;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    .brand-pill {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .brand-pill span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.88);
+      color: #082d59;
+      font-size: 11px;
+      font-weight: 950;
+      box-shadow: 0 8px 20px rgba(18,32,43,.12);
+    }
+
     .hero-node {
       position: absolute;
       width: 158px;
@@ -317,11 +358,11 @@
     }
 
     .map-node.wide { width: 230px; }
-    .map-node.customer { left: 42%; top: 18px; }
-    .map-node.order { left: 42%; top: 116px; }
-    .map-node.track { right: 13%; top: 100px; border-top-color: var(--blue); }
-    .map-node.feedback { right: 29%; top: 112px; border-top-color: var(--blue); }
-    .map-node.pantry { left: 16%; top: 118px; border-top-color: #243447; }
+    .map-node.customer { left: 42%; top: 50px; }
+    .map-node.order { left: 42%; top: 148px; }
+    .map-node.track { right: 13%; top: 122px; border-top-color: var(--blue); }
+    .map-node.feedback { right: 29%; top: 134px; border-top-color: var(--blue); }
+    .map-node.pantry { left: 16%; top: 140px; border-top-color: #243447; }
     .map-node.control { left: 28%; top: 252px; border-top-color: var(--violet); }
     .map-node.catalog { left: 8%; top: 252px; border-top-color: var(--orange); }
     .map-node.rack { left: 44%; top: 238px; border-top-color: var(--blue); }
@@ -339,6 +380,306 @@
     .map-node.partner b { background: var(--green2); }
     .map-node.rider b, .map-node.pantry b { background: #243447; }
     .map-node.exception b { background: var(--red); }
+
+    .map-stage-pills {
+      position: absolute;
+      z-index: 4;
+      left: 16px;
+      right: 16px;
+      top: 12px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .map-stage-pills span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.88);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 10px;
+      font-weight: 950;
+      box-shadow: 0 8px 18px rgba(18,32,43,.09);
+    }
+
+    body.dark .map-stage-pills span {
+      background: rgba(18,29,39,.9);
+    }
+
+    .route-packet {
+      filter: drop-shadow(0 4px 8px rgba(18,32,43,.22));
+    }
+
+    .packet-pantry { fill: var(--blue); }
+    .packet-kitchen { fill: var(--orange); }
+    .packet-partner { fill: var(--green2); }
+    .packet-care { fill: var(--red); }
+    .packet-command { fill: var(--violet); }
+
+    .flow-board {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      padding: 20px 22px 18px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 14px;
+    }
+
+    .flow-top {
+      display: grid;
+      grid-template-columns: 1.05fr 1.2fr 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .flow-focus,
+    .flow-mini,
+    .flow-command {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.88);
+      border-radius: 14px;
+      box-shadow: 0 12px 32px rgba(18,32,43,.1);
+      padding: 14px 16px;
+    }
+
+    body.dark .flow-focus,
+    body.dark .flow-mini,
+    body.dark .flow-command {
+      background: rgba(22,33,43,.92);
+    }
+
+    .flow-focus {
+      border-top: 5px solid var(--green);
+    }
+
+    .flow-focus h3,
+    .flow-mini h3,
+    .flow-command h3 {
+      font-size: 17px;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .flow-focus p,
+    .flow-mini p,
+    .flow-command p {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .flow-badge {
+      display: inline-grid;
+      place-items: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: var(--green);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .flow-mini.catalog { border-top: 5px solid var(--orange); }
+    .flow-mini.tracking { border-top: 5px solid var(--blue); }
+
+    .route-stack {
+      display: grid;
+      gap: 10px;
+      align-content: stretch;
+    }
+
+    .route-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 178px 1fr 178px 1fr 154px 1fr 178px;
+      align-items: center;
+      gap: 10px;
+      min-height: 78px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(255,255,255,.7);
+      overflow: hidden;
+    }
+
+    body.dark .route-row {
+      background: rgba(17,29,39,.74);
+    }
+
+    .route-row::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: .08;
+      background: linear-gradient(90deg, var(--route-color), transparent 42%, var(--route-color));
+      pointer-events: none;
+    }
+
+    .route-row.pantry { --route-color: var(--blue); }
+    .route-row.kitchen { --route-color: var(--orange); }
+    .route-row.partner { --route-color: var(--green2); }
+
+    .route-title {
+      position: relative;
+      z-index: 2;
+      font-weight: 950;
+      font-size: 14px;
+      color: var(--route-color);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .flow-card {
+      position: relative;
+      z-index: 2;
+      min-height: 58px;
+      border-radius: 11px;
+      padding: 10px 11px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--route-color);
+      box-shadow: 0 8px 22px rgba(18,32,43,.1);
+    }
+
+    .flow-card h4 {
+      font-size: 14px;
+      margin-bottom: 3px;
+    }
+
+    .flow-card p {
+      font-size: 10px;
+      line-height: 1.22;
+      color: var(--muted);
+    }
+
+    .flow-arrow {
+      position: relative;
+      z-index: 2;
+      height: 6px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, var(--route-color), transparent);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.45);
+    }
+
+    .flow-arrow::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: 50%;
+      width: 0;
+      height: 0;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+      border-left: 11px solid var(--route-color);
+      transform: translateY(-50%);
+    }
+
+    .flow-token {
+      position: absolute;
+      z-index: 3;
+      left: 184px;
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--route-color);
+      box-shadow: 0 0 0 7px color-mix(in srgb, var(--route-color) 18%, transparent);
+      transform: translateY(-50%);
+      animation: routeToken 5.4s linear infinite;
+    }
+
+    .route-row.kitchen .flow-token { animation-delay: 1.2s; }
+    .route-row.partner .flow-token { animation-delay: 2.4s; }
+
+    @keyframes routeToken {
+      0% { left: 182px; opacity: 0; }
+      8% { opacity: 1; }
+      82% { opacity: 1; }
+      100% { left: calc(100% - 202px); opacity: 0; }
+    }
+
+    .exception-strip {
+      display: grid;
+      grid-template-columns: 1fr 34px 1fr 34px 1.15fr;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 15px;
+      border: 1px solid rgba(219,59,59,.32);
+      background: linear-gradient(90deg, rgba(219,59,59,.09), rgba(255,255,255,.75), rgba(111,79,216,.09));
+    }
+
+    body.dark .exception-strip {
+      background: linear-gradient(90deg, rgba(219,59,59,.18), rgba(17,29,39,.7), rgba(111,79,216,.2));
+    }
+
+    .exception-card {
+      border-radius: 11px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      padding: 10px 12px;
+      min-height: 58px;
+      box-shadow: 0 8px 20px rgba(18,32,43,.08);
+    }
+
+    .exception-card h4 {
+      font-size: 14px;
+      margin-bottom: 3px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .exception-card p {
+      color: var(--muted);
+      font-size: 10.5px;
+      line-height: 1.22;
+    }
+
+    .exception-card.no { border-top: 4px solid var(--red); }
+    .exception-card.care { border-top: 4px solid var(--blue); }
+    .exception-card.command { border-top: 4px solid var(--violet); }
+
+    .exception-arrow {
+      position: relative;
+      height: 5px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--red), var(--blue));
+      overflow: visible;
+    }
+
+    .exception-arrow::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: 50%;
+      width: 0;
+      height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 10px solid var(--blue);
+      transform: translateY(-50%);
+    }
+
+    .flow-caption {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+    }
 
     .legend {
       display: flex;
@@ -722,20 +1063,45 @@
       .map-node b { width: 18px; height: 18px; font-size: 9px; }
       .map-node.wide { width: 184px; }
       .map-node.central { min-height: 48px; }
-      .map-node.customer { top: 12px; }
-      .map-node.order { top: 90px; }
-      .map-node.track { top: 82px; }
-      .map-node.feedback { top: 92px; }
-      .map-node.pantry { top: 96px; }
+      .map-node.customer { top: 42px; }
+      .map-node.order { top: 122px; }
+      .map-node.track { top: 108px; }
+      .map-node.feedback { top: 116px; }
+      .map-node.pantry { top: 118px; }
       .map-node.catalog { top: 212px; }
-      .map-node.control { top: 190px; }
+      .map-node.control { top: 204px; }
       .map-node.rack { left: 44%; top: 198px; }
       .map-node.rider { top: 238px; }
       .map-node.care { top: 210px; }
-      .map-node.kitchen { left: 24%; bottom: 86px; }
+      .map-node.kitchen { left: 20%; bottom: 72px; }
       .map-node.partner { left: 56%; bottom: 86px; }
       .map-node.central { bottom: 10px; }
       .map-node.exception { bottom: 72px; }
+      .flow-board { padding: 12px 14px; gap: 9px; }
+      .flow-top { grid-template-columns: .9fr 1.2fr .95fr; gap: 9px; }
+      .flow-focus, .flow-mini, .flow-command { padding: 9px 10px; border-radius: 11px; }
+      .flow-focus h3, .flow-mini h3, .flow-command h3 { font-size: 13px; margin-bottom: 3px; }
+      .flow-focus p, .flow-mini p, .flow-command p { font-size: 9.5px; line-height: 1.2; }
+      .flow-badge { min-width: 19px; height: 19px; font-size: 9px; padding: 0 5px; }
+      .route-stack { gap: 7px; }
+      .route-row { grid-template-columns: 132px 1fr 138px 1fr 128px 1fr 132px; min-height: 62px; padding: 8px; gap: 7px; border-radius: 12px; }
+      .route-title { font-size: 11px; letter-spacing: .03em; }
+      .flow-card { min-height: 46px; padding: 7px 8px; border-radius: 9px; }
+      .flow-card h4 { font-size: 11.5px; margin-bottom: 2px; }
+      .flow-card p { font-size: 8.5px; line-height: 1.12; }
+      .flow-arrow { height: 5px; }
+      .flow-token { left: 140px; width: 14px; height: 14px; }
+      @keyframes routeToken {
+        0% { left: 140px; opacity: 0; }
+        8% { opacity: 1; }
+        82% { opacity: 1; }
+        100% { left: calc(100% - 148px); opacity: 0; }
+      }
+      .exception-strip { grid-template-columns: 1fr 26px 1fr 26px 1.1fr; padding: 8px; gap: 7px; border-radius: 12px; }
+      .exception-card { min-height: 46px; padding: 7px 8px; border-radius: 9px; }
+      .exception-card h4 { font-size: 11.5px; margin-bottom: 2px; }
+      .exception-card p { font-size: 8.5px; line-height: 1.12; }
+      .flow-caption { font-size: 10px; }
       .legend { margin-top: 7px; gap: 6px; font-size: 10px; }
       .legend span { padding: 5px 8px; }
       .legend i { width: 16px; height: 3px; }
@@ -773,6 +1139,10 @@
       .ecosystem-map { min-height: auto; display: grid; gap: 12px; padding: 16px; }
       .map-svg { display: none; }
       .map-node { position: static; width: auto !important; min-height: auto; }
+      .map-stage-pills { position: static; justify-content: flex-start; }
+      .flow-board { display: grid; height: auto; padding: 0; }
+      .flow-top, .route-row, .exception-strip { grid-template-columns: 1fr; }
+      .flow-arrow, .flow-token, .exception-arrow { display: none; }
       .movie { min-height: 540px; }
       .movie-node { width: 132px; }
       .event-panel { min-height: 420px; }
@@ -790,25 +1160,22 @@
       <div class="stage">
         <div class="hero-grid">
           <div>
-            <div class="kicker fade">RK Group railway catering ecosystem</div>
-            <h1 class="fade d1">One connected operating system for passenger food, care and command</h1>
-            <p class="sub fade d2">A management demo designed and developed by Sandip Nandi, showing how customer orders move through Pantry, Base Kitchen and RK Partner paths with Rider, Customer Care, Control Tower and Central Command visibility.</p>
+            <div class="kicker fade">Meals On Wheels railway catering ecosystem</div>
+            <h1 class="fade d1">One connected operating system for fresh meals, happy journeys</h1>
+            <p class="sub fade d2">A management demo designed and developed by Sandip Nandi, showing how Meals On Wheels orders move through Pantry, Base Kitchen and RK Partner paths with Rider, Customer Care, Control Tower and Central Command visibility.</p>
             <div class="row fade d3" style="margin-top:28px;flex-wrap:wrap">
               <a class="button" href="index.html" target="_blank" rel="noopener">Open local app launcher</a>
               <a class="button secondary" href="https://sandip840896.github.io/rk-group-integrated-sales-order-cxfeedback/index.html" target="_blank" rel="noopener">Open live launcher</a>
             </div>
           </div>
-          <div class="hero-visual fade d2">
-            <div class="pulse-line" style="left:30%;top:130px;width:42%;transform:rotate(13deg)"></div>
-            <div class="pulse-line" style="left:19%;top:282px;width:60%;transform:rotate(-8deg);background:linear-gradient(90deg,rgba(37,111,230,.1),var(--blue),rgba(37,111,230,.1))"></div>
-            <div class="pulse-line" style="left:30%;top:370px;width:48%;background:linear-gradient(90deg,rgba(111,86,217,.1),var(--violet),rgba(111,86,217,.1))"></div>
-            <div class="pulse-line" style="left:48%;top:185px;width:35%;transform:rotate(-18deg);background:linear-gradient(90deg,rgba(21,148,119,.1),var(--green2),rgba(21,148,119,.1))"></div>
-            <div class="hero-node customer">Customer App<small>Order, tracking, feedback</small></div>
-            <div class="hero-node rack">Rake Manager<small>Pantry menu operations</small></div>
-            <div class="hero-node kitchen">Base Kitchen<small>Prepare, invoice, dispute</small></div>
-            <div class="hero-node partner">RK Partner App<small>Partner menu fulfilment</small></div>
-            <div class="hero-node rider">Rider App<small>Pickup, OTP, delivered</small></div>
-            <div class="hero-node central">Central Command<small>Orders, margin, complaints, network risk</small></div>
+          <div class="brand-visual fade d2">
+            <img src="Branding/Social%20media%20Cover%20page.png" alt="Meals On Wheels fresh meals happy journeys brand concept">
+            <div class="brand-pill">
+              <span>Hygienic &amp; Safe</span>
+              <span>On-time Delivery</span>
+              <span>Wide Menu</span>
+              <span>Pan India Service</span>
+            </div>
           </div>
         </div>
         <div class="footer"><span>System designer and developer: Sandip Nandi | Flagship HTML deck</span><span>01</span></div>
@@ -821,8 +1188,8 @@
         <h2 class="fade d1">Management confidence comes from seeing the full control loop</h2>
         <p class="sub fade d2">This is not only a customer ordering app. It is a service operating model where every action creates visibility, accountability and measurable business output.</p>
         <div class="grid four fade d3" style="margin-top:30px">
-          <div class="card kpi"><b>01</b><h3>Customer promise</h3><p>Passenger can order, track, complain and rate RK response from one journey screen.</p></div>
-          <div class="card kpi"><b>02</b><h3>Clear order ownership</h3><p>Pantry orders go to Rake Manager; Base Kitchen and RK Partner menu orders go directly to their apps.</p></div>
+          <div class="card kpi"><b>01</b><h3>Customer promise</h3><p>Passenger can order, track, complain and rate Meals On Wheels response from one journey screen.</p></div>
+          <div class="card kpi"><b>02</b><h3>Clear order ownership</h3><p>Pantry orders go to Rack Manager; Base Kitchen and RK Partner menu orders go directly to their apps.</p></div>
           <div class="card kpi"><b>03</b><h3>Network governance</h3><p>Control Tower approves catalog, RK Partner and rider ecosystem before scale.</p></div>
           <div class="card kpi"><b>04</b><h3>Business visibility</h3><p>Central Command sees orders, GMV, margin, complaints, rider and vendor risk.</p></div>
         </div>
@@ -833,50 +1200,49 @@
     <section class="slide">
       <div class="stage">
         <div class="kicker fade">System map</div>
-        <h2 class="fade d1">World-class ecosystem flow inspired by the operating design</h2>
-        <p class="sub fade d2">Animated lines show the four realities of the business: catalog governance, order fulfilment, care/tracking and management visibility.</p>
+        <h2 class="fade d1">Complete Meals On Wheels ecosystem map</h2>
+        <p class="sub fade d2">This version returns to the complete operating-map style, but the animation now moves in clear packets: menu selection, owner app, rider delivery, care loop and Central Command visibility.</p>
         <div class="ecosystem-map fade d3">
+          <div class="map-stage-pills">
+            <span>1. Customer selects menu</span>
+            <span>2. Correct owner app acts</span>
+            <span>3. Rider delivers</span>
+            <span>4. Tracker, feedback and care</span>
+            <span>5. Central Command sees all</span>
+          </div>
           <svg class="map-svg" viewBox="0 0 1200 520" preserveAspectRatio="none" aria-hidden="true">
-            <path class="catalog-line" d="M 180 292 C 270 292, 305 292, 342 292" />
-            <path class="catalog-line" d="M 422 292 C 470 244, 496 198, 540 154" />
-            <path class="order-line" d="M 590 90 C 590 110, 590 122, 590 138" />
-            <path class="order-line" d="M 560 176 C 440 172, 340 162, 250 154" />
-            <path class="order-line" d="M 250 194 C 360 236, 470 252, 590 278" />
-            <path class="order-line" d="M 580 176 C 520 268, 458 344, 392 404" />
-            <path class="order-line" d="M 620 176 C 684 272, 704 344, 736 404" />
-            <path class="order-line" d="M 820 318 C 900 320, 926 318, 960 318" />
-            <path class="order-line" d="M 450 404 C 610 420, 820 360, 960 318" />
-            <path class="order-line" d="M 812 404 C 880 388, 930 350, 960 318" />
-            <path class="care-line" d="M 642 150 C 748 132, 790 132, 820 150" />
-            <path class="care-line" d="M 910 152 C 1000 134, 1036 128, 1048 120" />
-            <path class="care-line" d="M 842 180 C 810 246, 805 302, 804 350" />
-            <path class="care-line" d="M 806 384 C 962 380, 1010 334, 1038 294" />
-            <path class="exception-line" d="M 250 194 C 205 270, 198 350, 214 438" />
-            <path class="exception-line" d="M 590 330 C 552 380, 540 420, 540 456" />
-            <path class="exception-line" d="M 810 346 C 720 426, 640 452, 540 456" />
-            <path class="command-line" d="M 250 154 C 520 110, 780 120, 1048 250" />
-            <path class="command-line" d="M 960 320 C 970 416, 950 468, 844 484" />
-            <path class="command-line" d="M 590 326 C 610 430, 650 462, 732 484" />
+            <path id="catalogRoute" class="catalog-line" d="M 180 292 C 270 292, 305 292, 342 292 C 470 244, 496 198, 540 154" />
+            <path id="pantryRoute" class="order-line" d="M 590 176 C 450 168, 330 160, 250 154 C 360 236, 470 252, 610 262 C 746 282, 860 312, 960 318 C 995 288, 1025 280, 1052 272" />
+            <path id="kitchenRoute" class="catalog-line" d="M 580 176 C 520 270, 455 345, 392 404 C 575 410, 770 360, 960 318 C 996 286, 1026 280, 1052 272" />
+            <path id="partnerRoute" class="order-line" d="M 620 176 C 690 272, 710 344, 736 404 C 820 386, 900 344, 960 318 C 996 286, 1026 280, 1052 272" />
+            <path id="careRoute" class="care-line" d="M 642 150 C 748 132, 790 132, 820 150 C 910 172, 1000 205, 1048 250 C 1020 302, 972 340, 856 372" />
+            <path id="exceptionRoute" class="exception-line" d="M 250 194 C 205 270, 198 350, 214 438 C 350 454, 455 450, 540 456 C 670 448, 750 430, 856 372" />
+            <path id="commandRoute" class="command-line" d="M 250 154 C 520 110, 780 120, 1048 250 C 970 416, 950 468, 844 484 C 710 488, 610 470, 540 456" />
+            <circle class="route-packet packet-pantry" r="9"><animateMotion dur="6s" repeatCount="indefinite" begin="0s"><mpath href="#pantryRoute"/></animateMotion></circle>
+            <circle class="route-packet packet-kitchen" r="9"><animateMotion dur="6s" repeatCount="indefinite" begin="1.2s"><mpath href="#kitchenRoute"/></animateMotion></circle>
+            <circle class="route-packet packet-partner" r="9"><animateMotion dur="6s" repeatCount="indefinite" begin="2.4s"><mpath href="#partnerRoute"/></animateMotion></circle>
+            <circle class="route-packet packet-care" r="8"><animateMotion dur="7s" repeatCount="indefinite" begin="1s"><mpath href="#exceptionRoute"/></animateMotion></circle>
+            <circle class="route-packet packet-command" r="8"><animateMotion dur="8s" repeatCount="indefinite" begin=".5s"><mpath href="#commandRoute"/></animateMotion></circle>
           </svg>
-          <div class="map-node customer"><h3><b>C</b> Customer App</h3><p>Order, tracker, feedback and invoice.</p></div>
+          <div class="map-node customer"><h3><b>C</b> Customer App</h3><p>Meals On Wheels order, tracker, feedback and invoice.</p></div>
           <div class="map-node order"><h3><b>O</b> Order Food</h3><p>Passenger chooses Pantry, Base Kitchen or RK Partner menu.</p></div>
           <div class="map-node track"><h3><b>T</b> Order Tracker</h3><p>Live status and OTP visible to passenger.</p></div>
-          <div class="map-node feedback"><h3><b>F</b> Feedback</h3><p>Complaint or rating enters service loop.</p></div>
-          <div class="map-node pantry"><h3><b>P</b> Train Pantry Catalog</h3><p>Onboard stock when available.</p></div>
-          <div class="map-node catalog"><h3><b>G</b> Catalog Making</h3><p>Rack, kitchen and partner propose items.</p></div>
+          <div class="map-node feedback"><h3><b>F</b> Feedback</h3><p>Complaint or rating enters the service loop.</p></div>
+          <div class="map-node pantry"><h3><b>P</b> Train Pantry Catalog</h3><p>Pantry stock and onboard item availability.</p></div>
+          <div class="map-node catalog"><h3><b>G</b> Catalog Making</h3><p>Rack, kitchen and partner propose menu items.</p></div>
           <div class="map-node control wide"><h3><b>CT</b> Control Tower App</h3><p>Approves catalog, partner, rider and route readiness.</p></div>
-          <div class="map-node rack"><h3><b>RM</b> Rake Manager Command</h3><p>Owns only pantry menu orders and onboard stock.</p></div>
+          <div class="map-node rack"><h3><b>RM</b> Rack Manager App</h3><p>Owns only Pantry menu orders and onboard stock.</p></div>
           <div class="map-node kitchen"><h3><b>BK</b> Base Kitchen App</h3><p>Directly owns Base Kitchen menu orders.</p></div>
           <div class="map-node partner"><h3><b>RP</b> RK Partner App</h3><p>Directly owns RK Partner menu orders.</p></div>
-          <div class="map-node rider"><h3><b>RD</b> Rider App</h3><p>Pickup, COD/OTP, proof, delivered.</p></div>
+          <div class="map-node rider"><h3><b>RD</b> Rider App</h3><p>Pickup, COD/OTP, proof and delivered status.</p></div>
           <div class="map-node care"><h3><b>CC</b> Customer Care App</h3><p>Complaint desk and escalation bridge.</p></div>
-          <div class="map-node exception"><h3><b>N</b> No / exception</h3><p>No stock, delay, COD issue, dispute, unresolved complaint.</p></div>
-          <div class="map-node central"><h3><b>CM</b> Central Command App</h3><p>Management sees all three order paths, GMV, margin, complaints, rider performance, vendor risk and future scale.</p></div>
+          <div class="map-node exception"><h3><b>N</b> No / exception</h3><p>No stock, delay, COD issue, dispute or unresolved complaint.</p></div>
+          <div class="map-node central"><h3><b>CM</b> Central Command App</h3><p>Management sees all order paths, GMV, margin, complaints, rider performance, vendor risk and future scale.</p></div>
         </div>
         <div class="legend fade d3">
           <span><i></i>Order fulfilment</span><span class="blue"><i></i>Tracking and care</span><span class="orange"><i></i>Catalog governance</span><span class="red"><i></i>No / exception</span><span class="violet"><i></i>Central visibility</span>
         </div>
-        <div class="footer"><span>One view that explains the complete ecosystem relationship</span><span>03</span></div>
+        <div class="footer"><span>Moving packets show the active communication routes across every app</span><span>03</span></div>
       </div>
     </section>
 
@@ -884,7 +1250,7 @@
       <div class="stage">
         <div class="kicker fade">Interactive demo movie</div>
         <h2 class="fade d1">Play the order journey like a product video</h2>
-        <p class="sub fade d2">Use Play to show how the customer selected menu decides ownership: Pantry goes to Rake Manager, Base Kitchen goes direct to Base Kitchen, and RK Partner goes direct to Partner App.</p>
+        <p class="sub fade d2">Use Play to show how the customer selected menu decides ownership: Pantry goes to Rack Manager, Base Kitchen goes direct to Base Kitchen, and RK Partner goes direct to Partner App.</p>
         <div class="demo-shell fade d3">
           <div class="movie">
             <div class="movie-map"></div>
@@ -932,7 +1298,7 @@
       <div class="stage">
         <div class="kicker fade">Customer journey</div>
         <h2 class="fade d1">What the passenger experiences</h2>
-        <p class="sub fade d2">The passenger sees one simple service: order, track, invoice, complain and rate RK response. Behind the scenes, the ecosystem does the heavy lifting.</p>
+        <p class="sub fade d2">The passenger sees one simple Meals On Wheels service: order, track, invoice, complain and rate response. Behind the scenes, the ecosystem does the heavy lifting.</p>
         <div class="row fade d3" style="margin-top:22px">
           <div class="phone"><iframe title="Customer app" src="customer-app.html"></iframe></div>
           <div class="grid two" style="flex:1">
@@ -1056,7 +1422,7 @@
     <section class="slide">
       <div class="stage">
         <div class="kicker fade">Revenue model</div>
-        <h2 class="fade d1">Scale target: 200 RK trains to 50 Cr monthly GMV</h2>
+        <h2 class="fade d1">Scale target: 200 trains to 50 Cr monthly GMV</h2>
         <p class="sub fade d2">Business target: cross 5,000 daily orders in 3 months, 20,000 daily orders in 6 months, and build toward 50 Cr monthly business volume in 12 months.</p>
         <table class="fade d3">
           <thead><tr><th>Milestone</th><th>Orders/day</th><th>Orders/train/day</th><th>AOV</th><th>Daily GMV</th><th>Monthly GMV</th><th>Monthly contribution</th></tr></thead>
@@ -1182,8 +1548,8 @@
         steps: [
           ["customer", "Passenger submits complaint", "Feedback/Complaint ticket created from Customer App.", "Complaint submitted", "Ticket generated", "red"],
           ["care", "Customer care opens case", "Care desk checks order and speaks to passenger/vendor.", "Care team checking", "We are reviewing your concern", "blue"],
-          ["rack", "Rake manager responds", "Command Center updates status and resolution note.", "Manager response", "RK response updated", "blue"],
-          ["customer", "Customer rates response", "Passenger can reply and rate RK response.", "Response received", "Rate RK response", "green"],
+          ["rack", "Rack manager responds", "Command Center updates status and resolution note.", "Manager response", "Response updated", "blue"],
+          ["customer", "Customer rates response", "Passenger can reply and rate Meals On Wheels response.", "Response received", "Rate response", "green"],
           ["central", "Central command sees ageing", "Open or unresolved complaints are visible with ageing and risk.", "Dashboard updated", "Complaint risk visible", "red"]
         ]
       }

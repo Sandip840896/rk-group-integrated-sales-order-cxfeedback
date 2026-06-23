@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RK Control Tower</title>
+  <title>Meals On Wheels Control Tower</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -39,12 +39,12 @@
 
     <section class="panel pad stack hidden" data-tab-panel="masters">
       <div class="section-title">
-        <div><h2>Live Master Rectification</h2><p>Edit published catalog, base kitchens and RK partner masters when wrong data is uploaded.</p></div>
+        <div><h2>Live Master Rectification</h2><p>Edit published catalog, base kitchens and partner masters when wrong data is uploaded.</p></div>
       </div>
       <div class="tabs sub-tabs">
         <button class="tab-btn active" type="button" data-master-view="catalogMaster">Catalog</button>
         <button class="tab-btn" type="button" data-master-view="kitchenMaster">Base Kitchen</button>
-        <button class="tab-btn" type="button" data-master-view="partnerMaster">RK Partner</button>
+        <button class="tab-btn" type="button" data-master-view="partnerMaster">Partner</button>
       </div>
       <div id="catalogMaster" class="list"></div>
       <div id="kitchenMaster" class="list hidden"></div>
@@ -76,7 +76,7 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("RK Control Tower", "Quality approval, maker checker and route planning");
+      appHeader("Meals On Wheels Control Tower", "Quality approval, maker checker and route planning");
       lucide.createIcons();
       wireTabs("catalog");
       await ensureSeedData();
@@ -95,6 +95,7 @@
           category: req.category || (req.mealSlots || [])[0] || "Other",
           mealSlots: req.mealSlots?.length ? req.mealSlots : [req.category || "Other"],
           type: req.type || "veg",
+          cuisine: req.cuisine || "North Indian",
           source: req.source || req.sourceType || "base kitchen",
           price: sell,
           sellingPrice: sell,
@@ -129,6 +130,7 @@
           category: slots[0] || "Other",
           mealSlots: slots,
           type: requestValue(req, "type") || req.type || "veg",
+          cuisine: requestValue(req, "cuisine") || req.cuisine || "North Indian",
           sellingPrice: Number(requestValue(req, "sellingPrice") || req.sellingPrice || 0),
           costPrice: Number(requestValue(req, "costPrice") || req.costPrice || 0),
           stockQty: Number(requestValue(req, "stockQty") || req.stockQty || 0),
@@ -179,6 +181,9 @@
                   <label class="field"><span>Food Type</span><select class="select" data-request="${req.id}" data-field="type">
                     ${["veg", "non-veg", "beverage", "other"].map((type) => `<option value="${type}" ${String(req.type || "veg") === type ? "selected" : ""}>${type}</option>`).join("")}
                   </select></label>
+                  <label class="field"><span>Cuisine</span><select class="select" data-request="${req.id}" data-field="cuisine">
+                    ${cuisineOptions.map((cuisine) => `<option value="${escapeHtml(cuisine)}" ${String(req.cuisine || "North Indian") === cuisine ? "selected" : ""}>${escapeHtml(cuisine)}</option>`).join("")}
+                  </select></label>
                   <label class="field" style="grid-column:1/-1;"><span>Meal Categories</span><div class="check-grid">
                     ${mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${escapeHtml(slot)}" data-request-meal="${req.id}" ${selectedSlots.includes(slot) ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("")}
                   </div></label>
@@ -209,6 +214,7 @@
             <div class="grid two">
               <label class="field"><span>Item</span><input class="input" value="${escapeHtml(item.name || "")}" data-menu-master="${item.id}" data-field="name"></label>
               <label class="field"><span>Source</span><input class="input" value="${escapeHtml(item.source || "")}" data-menu-master="${item.id}" data-field="source"></label>
+              <label class="field"><span>Cuisine</span><select class="select" data-menu-master="${item.id}" data-field="cuisine">${cuisineOptions.map((cuisine) => `<option value="${escapeHtml(cuisine)}" ${String(item.cuisine || "North Indian") === cuisine ? "selected" : ""}>${escapeHtml(cuisine)}</option>`).join("")}</select></label>
               <label class="field"><span>Sell</span><input class="input" type="number" value="${Number(item.sellingPrice || item.price || 0)}" data-menu-master="${item.id}" data-field="sellingPrice"></label>
               <label class="field"><span>Cost</span><input class="input" type="number" value="${Number(item.costPrice || 0)}" data-menu-master="${item.id}" data-field="costPrice"></label>
               <label class="field"><span>Stock</span><input class="input" type="number" value="${Number(item.stockQty || 0)}" data-menu-master="${item.id}" data-field="stockQty"></label>
@@ -235,7 +241,7 @@
               <label class="field"><span>Status</span><select class="select" data-partner-master="${partner.id}" data-field="status">${["pending", "approved", "rejected"].map((status) => `<option value="${status}" ${String(partner.status || "pending") === status ? "selected" : ""}>${status}</option>`).join("")}</select></label>
             </div>
             <button class="btn secondary" data-save-partner-master="${partner.id}"><i data-lucide="save"></i> Save Partner</button>
-          </div>`).join("") || `<div class="empty">No RK partner master found.</div>`;
+          </div>`).join("") || `<div class="empty">No partner master found.</div>`;
         lucide.createIcons();
       }
 
@@ -397,6 +403,7 @@
           await db.collection("menuItems").doc(id).update({
             name: field("name"),
             source: field("source"),
+            cuisine: field("cuisine") || "North Indian",
             sellingPrice: Number(field("sellingPrice") || 0),
             price: Number(field("sellingPrice") || 0),
             costPrice: Number(field("costPrice") || 0),
@@ -428,7 +435,7 @@
             phone: cleanPhone(field("phone")) || field("phone"),
             status: field("status")
           });
-          toast("RK partner master updated.");
+          toast("Partner master updated.");
         }
       });
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RK Partner App</title>
+  <title>Meals On Wheels Partner App</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -43,8 +43,9 @@
         <div class="grid two">
           <label class="field"><span>Partner Phone</span><input class="input" name="partnerPhone" required inputmode="tel"></label>
           <label class="field"><span>Item Name</span><input class="input" name="name" required></label>
-          <label class="field"><span>Meal Category</span><select class="select" name="category" id="categorySelect"></select></label>
+          <label class="field"><span>Meal Categories</span><div id="partnerMealSlots" class="check-grid"></div></label>
           <label class="field"><span>Food Type</span><select class="select" name="type"><option>veg</option><option>non-veg</option><option>beverage</option><option>other</option></select></label>
+          <label class="field"><span>Cuisine</span><select class="select" name="cuisine" id="partnerCuisine"></select></label>
           <label class="field"><span>Selling Rate</span><input class="input" name="sellingPrice" type="number" min="0" required></label>
           <label class="field"><span>Cost incl. packaging</span><input class="input" name="costPrice" type="number" min="0" required></label>
           <label class="field"><span>Opening Qty</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
@@ -67,11 +68,13 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("RK Partner App", "Restaurant enlistment and food catalog submission");
+      appHeader("Meals On Wheels Partner App", "Restaurant enlistment and food catalog submission");
       lucide.createIcons();
       wireTabs("enlist");
       await ensureSeedData();
-      $("categorySelect").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
+      $("partnerMealSlots").innerHTML = mealSlots.map((slot, idx) => `<label class="check-pill"><input type="checkbox" name="mealSlots" value="${escapeHtml(slot)}" ${idx === 0 ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("");
+      $("partnerCuisine").innerHTML = cuisineOptions.map((cuisine) => `<option>${cuisine}</option>`).join("");
+      let statusRows = [];
 
       $("partnerForm").addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -79,6 +82,7 @@
         const data = getForm(form);
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
+        setSubmitState(form, "saving", "Submitting...");
         try {
           await compatAdd("partners", "partner", {
             ...data,
@@ -91,9 +95,11 @@
           localStorage.setItem("rkPartnerPhone", phone);
           $("statusPhone").value = phone;
           form.reset();
+          finishSubmitState(form, "Submitted");
           toast("Partner request sent to Control Tower.");
         } catch (error) {
           console.error(error);
+          setSubmitState(form, "idle");
           toast(firebaseAccessMessage("partners", error));
         }
       });
@@ -104,13 +110,17 @@
         const data = getForm(form);
         const phone = cleanPhone(data.partnerPhone);
         if (phone.length !== 10) return toast("Enter partner phone used for enlistment.");
+        const selectedMealSlots = [...form.querySelectorAll("[name='mealSlots']:checked")].map((box) => box.value);
+        if (!selectedMealSlots.length) return toast("Choose at least one meal category.");
+        setSubmitState(form, "saving", "Submitting...");
         try {
           const image = await compressImage(form.itemImageFile.files[0], 520, 0.7);
           await compatAdd("catalogRequests", "catalogRequest", {
             name: data.name,
-            category: data.category,
-            mealSlots: [data.category],
+            category: selectedMealSlots[0],
+            mealSlots: selectedMealSlots,
             type: data.type,
+            cuisine: data.cuisine,
             sellingPrice: Number(data.sellingPrice || 0),
             costPrice: Number(data.costPrice || 0),
             stockQty: Number(data.stockQty || 0),
@@ -127,20 +137,83 @@
           });
           localStorage.setItem("rkPartnerPhone", phone);
           form.reset();
+          document.querySelectorAll("#partnerMealSlots input").forEach((box, idx) => { box.checked = idx === 0; });
+          finishSubmitState(form, "Submitted");
           toast("Catalog request sent for quality approval.");
         } catch (error) {
           console.error(error);
+          setSubmitState(form, "idle");
           toast(firebaseAccessMessage("catalogRequests", error));
         }
       });
 
       function renderStatus(rows) {
-        $("statusList").innerHTML = rows.map((row) => `
+        statusRows = rows;
+        $("statusList").innerHTML = rows.map((row) => {
+          const isCatalog = Boolean(row.name);
+          const returned = ["returned", "rejected"].includes(String(row.status || "").toLowerCase()) && isCatalog;
+          const slots = row.mealSlots?.length ? row.mealSlots : [row.category || "Other"];
+          return `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(row.restaurantName || row.name || row.id)}</h3>${statusBadge(row.status || "pending")}</div>
             <p>${escapeHtml(row.station || row.category || "")} | ${escapeHtml(row.rejectionReason || row.description || "")}</p>
-          </div>`).join("") || `<div class="empty">No request found for this phone number.</div>`;
+            ${row.cuisine ? `<p><b>Cuisine:</b> ${escapeHtml(row.cuisine)}</p>` : ""}
+            ${row.reworkRemarks ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Control Tower Rework:</b> ${escapeHtml(row.reworkRemarks)}</div>` : ""}
+            ${returned ? `
+              <div class="grid two" style="margin-top:10px;">
+                <label class="field"><span>Item</span><input class="input" value="${escapeHtml(row.name || "")}" data-status-edit="${row.id}" data-field="name"></label>
+                <label class="field"><span>Selling Rate</span><input class="input" type="number" value="${Number(row.sellingPrice || 0)}" data-status-edit="${row.id}" data-field="sellingPrice"></label>
+                <label class="field"><span>Cost Rate</span><input class="input" type="number" value="${Number(row.costPrice || 0)}" data-status-edit="${row.id}" data-field="costPrice"></label>
+                <label class="field"><span>Opening Qty</span><input class="input" type="number" value="${Number(row.stockQty || 0)}" data-status-edit="${row.id}" data-field="stockQty"></label>
+                <label class="field"><span>Cuisine</span><select class="select" data-status-edit="${row.id}" data-field="cuisine">
+                  ${cuisineOptions.map((cuisine) => `<option value="${escapeHtml(cuisine)}" ${String(row.cuisine || "North Indian") === cuisine ? "selected" : ""}>${escapeHtml(cuisine)}</option>`).join("")}
+                </select></label>
+                <label class="field" style="grid-column:1/-1;"><span>Meal Categories</span><div class="check-grid">
+                  ${mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${escapeHtml(slot)}" data-status-meal="${row.id}" ${slots.includes(slot) ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("")}
+                </div></label>
+                <label class="field" style="grid-column:1/-1;"><span>Product Detail</span><textarea class="textarea" data-status-edit="${row.id}" data-field="description">${escapeHtml(row.description || "")}</textarea></label>
+              </div>
+              <div class="row wrap" style="margin-top:10px;">
+                <button class="btn" data-resubmit-catalog="${row.id}"><i data-lucide="send"></i> Resend Request</button>
+                <button class="btn danger" data-delete-catalog-request="${row.id}"><i data-lucide="trash-2"></i> Delete Request</button>
+              </div>` : ""}
+          </div>`;
+        }).join("") || `<div class="empty">No request found for this phone number.</div>`;
+        lucide.createIcons();
       }
+
+      $("statusList").addEventListener("click", async (event) => {
+        const resend = event.target.closest("[data-resubmit-catalog]");
+        const del = event.target.closest("[data-delete-catalog-request]");
+        if (resend) {
+          const row = statusRows.find((entry) => entry.id === resend.dataset.resubmitCatalog);
+          const field = (name) => document.querySelector(`[data-status-edit="${row.id}"][data-field="${name}"]`)?.value || "";
+          const slots = [...document.querySelectorAll(`[data-status-meal="${row.id}"]:checked`)].map((box) => box.value);
+          if (!slots.length) return toast("Choose at least one meal category.");
+          await compatUpdate(row, "catalogRequests", {
+            name: field("name"),
+            category: slots[0],
+            mealSlots: slots,
+            sellingPrice: Number(field("sellingPrice") || 0),
+            costPrice: Number(field("costPrice") || 0),
+            stockQty: Number(field("stockQty") || 0),
+            cuisine: field("cuisine") || "North Indian",
+            description: field("description"),
+            status: "resubmitted",
+            resubmittedAt: FieldValue.serverTimestamp()
+          });
+          toast("Catalog request resent to Control Tower.");
+        }
+        if (del) {
+          const row = statusRows.find((entry) => entry.id === del.dataset.deleteCatalogRequest);
+          if (!row || !confirm("Withdraw this catalog request?")) return;
+          await compatUpdate(row, "catalogRequests", {
+            status: "withdrawn",
+            withdrawnAt: FieldValue.serverTimestamp()
+          });
+          toast("Catalog request withdrawn.");
+        }
+      });
 
       $("loadStatusBtn").addEventListener("click", async () => {
         const phone = cleanPhone($("statusPhone").value);

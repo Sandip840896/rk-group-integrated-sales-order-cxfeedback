@@ -14,6 +14,8 @@ const FieldValue = firebase.firestore.FieldValue;
 const SUPPORT_HTML = "System developer and support<br>Sandip Nandi | 858483366<br>sandipnandi2000@gmail.com";
 
 const mealSlots = ["Breakfast", "Lunch", "Snacks", "Dinner", "Beverage", "Other"];
+const cuisineOptions = ["North Indian", "South Indian", "Chinese"];
+const menuPreferenceFilters = ["Veg", "Non-Veg", ...cuisineOptions];
 const complaintNatures = ["Over Charging", "Staff Behavior", "Food Quality", "Food Qty", "Expiry Product", "Hygiene", "Others"];
 const complaintStatuses = ["open", "acknowledged", "investigating", "waiting for vendor", "customer-replied", "resolved", "closed"];
 const orderStatuses = ["new", "accepted", "preparing", "out-for-delivery", "delivered"];
@@ -35,7 +37,7 @@ const seedBaseKitchens = [
 const seedTrainMasters = [
   { trainNumber: "12859", trainName: "Gitanjali Express", yardName: "Mumbai CSMT to Howrah", active: true },
   { trainNumber: "12860", trainName: "Gitanjali Express", yardName: "Howrah to Mumbai CSMT", active: true },
-  { trainNumber: "12345", trainName: "RK Demo Express", yardName: "Howrah Yard", active: true },
+  { trainNumber: "12345", trainName: "Meals On Wheels Demo Express", yardName: "Howrah Yard", active: true },
   { trainNumber: "12001", trainName: "Sample Rajdhani", yardName: "New Delhi Yard", active: true }
 ];
 
@@ -83,11 +85,11 @@ const gitanjaliRouteStops = {
 };
 
 const seedMenuItems = [
-  { name: "Veg Thali", category: "Lunch", price: 120, sellingPrice: 120, costPrice: 82, type: "veg", source: "pantry", available: true, stockQty: 24, itemImage: "" },
-  { name: "Chicken Curry Meal", category: "Dinner", price: 180, sellingPrice: 180, costPrice: 128, type: "non-veg", source: "pantry", available: true, stockQty: 12, itemImage: "" },
-  { name: "Poha", category: "Breakfast", price: 55, sellingPrice: 55, costPrice: 32, type: "veg", source: "pantry", available: true, stockQty: 30, itemImage: "" },
-  { name: "Tea", category: "Beverage", price: 15, sellingPrice: 15, costPrice: 8, type: "veg", source: "pantry", available: true, stockQty: 80, itemImage: "" },
-  { name: "Water Bottle", category: "Beverage", price: 20, sellingPrice: 20, costPrice: 14, type: "veg", source: "pantry", available: true, stockQty: 100, itemImage: "" }
+  { name: "Veg Thali", category: "Lunch", price: 120, sellingPrice: 120, costPrice: 82, type: "veg", cuisine: "North Indian", source: "pantry", available: true, stockQty: 24, itemImage: "" },
+  { name: "Chicken Curry Meal", category: "Dinner", price: 180, sellingPrice: 180, costPrice: 128, type: "non-veg", cuisine: "North Indian", source: "pantry", available: true, stockQty: 12, itemImage: "" },
+  { name: "Poha", category: "Breakfast", price: 55, sellingPrice: 55, costPrice: 32, type: "veg", cuisine: "North Indian", source: "pantry", available: true, stockQty: 30, itemImage: "" },
+  { name: "Tea", category: "Beverage", price: 15, sellingPrice: 15, costPrice: 8, type: "veg", cuisine: "North Indian", source: "pantry", available: true, stockQty: 80, itemImage: "" },
+  { name: "Water Bottle", category: "Beverage", price: 20, sellingPrice: 20, costPrice: 14, type: "veg", cuisine: "North Indian", source: "pantry", available: true, stockQty: 100, itemImage: "" }
 ];
 
 function $(id) {
@@ -114,6 +116,23 @@ function itemMealSlots(item) {
   if (Array.isArray(item?.mealSlots) && item.mealSlots.length) return item.mealSlots;
   if (item?.category) return [item.category];
   return ["Other"];
+}
+
+function itemCuisineTags(item) {
+  const tags = [];
+  const type = String(item?.type || "").toLowerCase();
+  if (type === "veg") tags.push("Veg");
+  if (type === "non-veg" || type === "non veg") tags.push("Non-Veg");
+  if (Array.isArray(item?.cuisines)) tags.push(...item.cuisines);
+  if (item?.cuisine) tags.push(item.cuisine);
+  if (!item?.cuisine && !Array.isArray(item?.cuisines) && type !== "beverage") tags.push("North Indian");
+  return [...new Set(tags.filter(Boolean))];
+}
+
+function matchesMenuPreference(item, preference) {
+  if (!preference || preference === "all") return true;
+  const tags = itemCuisineTags(item).map((tag) => String(tag).toLowerCase());
+  return tags.includes(String(preference).toLowerCase());
 }
 
 function trainLabel(train) {
@@ -197,8 +216,8 @@ function orderPrintableHtml(order) {
   <button onclick="window.print()" style="float:right;padding:10px 14px;margin-bottom:12px;">Print / Save PDF</button>
   <div class="head">
     <div>
-      <h1>RK Group Passenger Food Invoice</h1>
-      <p class="muted">Railway Catering Services</p>
+      <h1>Meals On Wheels Passenger Food Invoice</h1>
+      <p class="muted">Fresh meals, happy journeys</p>
       <p><b>Order No:</b> ${escapeHtml(order.orderNo || "")}</p>
       <p><b>Status:</b> ${escapeHtml(order.status || "")}</p>
     </div>
@@ -226,7 +245,7 @@ function orderPrintableHtml(order) {
       <tr><td colspan="2" class="total">Total</td><td><b>${totalQty}</b></td><td></td><td><b>${money(order.total)}</b></td></tr>
     </tfoot>
   </table>
-  <div class="box">Thank you for giving RK Group the opportunity to serve you. We wish you a comfortable and pleasant journey.</div>
+  <div class="box">Thank you for giving Meals On Wheels the opportunity to serve you. We wish you a comfortable and pleasant journey.</div>
 </body>
 </html>`;
 }
@@ -284,7 +303,7 @@ function invoicePrintableHtml(invoice) {
   <button onclick="window.print()" style="float:right;padding:10px 14px;margin-bottom:12px;">Print / Save PDF</button>
   <div class="head">
     <div>
-      <h1>RK Group Base Kitchen Invoice</h1>
+      <h1>Meals On Wheels Base Kitchen Invoice</h1>
       <p class="muted">Railway Catering Services</p>
       <p><b>Invoice No:</b> ${escapeHtml(invoice.invoiceNo || "")}</p>
       <p><b>Status:</b> ${escapeHtml(invoice.status || "")}</p>
@@ -676,7 +695,7 @@ function appHeader(title, subtitle) {
     <div class="topbar">
       <div class="topbar-inner">
         <a class="brand" href="index.html">
-          <div class="logo">RK</div>
+          <div class="logo">MW</div>
           <div>
             <h1>${escapeHtml(title)}</h1>
             <p>${escapeHtml(subtitle)}</p>

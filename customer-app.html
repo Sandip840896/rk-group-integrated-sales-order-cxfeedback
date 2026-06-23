@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RK Customer Feedback and Order</title>
+  <title>Meals On Wheels Customer App</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -14,27 +14,33 @@
   <script defer src="rk-common.js"></script>
 </head>
 <body>
+  <div class="brand-splash" id="brandSplash" aria-label="Meals On Wheels opening cover">
+    <div class="brand-splash-card">
+      <img src="Branding/App Opening Page Cover Concept.png" alt="Meals On Wheels fresh meals happy journeys">
+    </div>
+  </div>
   <main class="main mobile-main">
+    <section class="brand-cover-strip">
+      <div class="brand-cover-copy">
+        <div class="brand-mark">MEALS <span>ON</span> WHEELS</div>
+        <h2>Meals On Wheels</h2>
+        <p>Bharosa Purana, Swaad Naya. Fresh meals delivered to your seat.</p>
+        <div class="brand-promise-row">
+          <span><i data-lucide="shield-check"></i> Hygienic</span>
+          <span><i data-lucide="timer"></i> On-time</span>
+          <span><i data-lucide="utensils"></i> Wide menu</span>
+        </div>
+      </div>
+    </section>
     <div class="customer-hero">
       <div>
-        <p class="eyebrow">RK Group onboard catering</p>
+        <p class="eyebrow">Meals On Wheels onboard catering</p>
         <h2>Order fresh meals from your seat.</h2>
-        <p>Choose available items, track your order live, and reach RK support from the same screen.</p>
+        <p>Choose available items, track your order live, and reach Meals On Wheels support from the same screen.</p>
         <div class="hero-points">
           <button type="button" data-hero-tab="track"><i data-lucide="clock-3"></i> Live status</button>
           <button type="button" data-hero-tab="order"><i data-lucide="sparkles"></i> Fresh onboard menu</button>
           <button type="button" data-hero-tab="track"><i data-lucide="receipt-text"></i> Invoice ready</button>
-        </div>
-      </div>
-      <div class="hero-visual" aria-hidden="true">
-        <div class="meal-card main-meal">
-          <span class="meal-photo"></span>
-          <b>Hot Meals</b>
-          <small>Breakfast, lunch, dinner</small>
-        </div>
-        <div class="meal-card mini-meal">
-          <i data-lucide="cup-soda"></i>
-          <span>Beverages</span>
         </div>
       </div>
     </div>
@@ -81,7 +87,15 @@
         <button class="active" data-menu-source="all" type="button"><i data-lucide="layout-grid"></i> All</button>
         <button data-menu-source="pantry" type="button"><i data-lucide="train-front"></i> Train Pantry</button>
         <button data-menu-source="base-kitchen" type="button"><i data-lucide="chef-hat"></i> Base Kitchen</button>
-        <button data-menu-source="partner" type="button"><i data-lucide="store"></i> RK Partner</button>
+        <button data-menu-source="partner" type="button"><i data-lucide="store"></i> Partner</button>
+      </div>
+      <div class="preference-segments" id="preferenceSegments">
+        <button class="active" data-menu-preference="all" type="button">All Food</button>
+        <button data-menu-preference="Veg" type="button">Veg</button>
+        <button data-menu-preference="Non-Veg" type="button">Non-Veg</button>
+        <button data-menu-preference="North Indian" type="button">North Indian</button>
+        <button data-menu-preference="South Indian" type="button">South Indian</button>
+        <button data-menu-preference="Chinese" type="button">Chinese</button>
       </div>
       <div id="menuList" class="list"></div>
       <div class="cart-bar">
@@ -137,7 +151,7 @@
       <div class="section-title">
         <div>
           <h2>Feedback or Complaint</h2>
-          <p>Your feedback goes live to the RK command center.</p>
+          <p>Your feedback goes live to the Meals On Wheels command center.</p>
         </div>
       </div>
       <form id="feedbackForm" class="stack">
@@ -188,7 +202,8 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("RK Customer Feedback and Order", "Railway Catering Services");
+      appHeader("Meals On Wheels Customer App", "Fresh meals, happy journeys");
+      setTimeout(() => $("brandSplash")?.classList.add("hidden"), 3000);
       lucide.createIcons();
       wireTabs("order");
       await ensureSeedData();
@@ -216,6 +231,7 @@
       let menuItems = [];
       let trainMasters = [];
       let selectedMenuSource = "all";
+      let selectedPreference = "all";
       let trackedOrders = [];
       let trackedFeedbacks = [];
       let unsubscribeTrack = null;
@@ -364,13 +380,13 @@
 
       function sourceLabel(source) {
         if (source === "base-kitchen") return "Upcoming Base Kitchen";
-        if (source === "partner") return "RK Partner From Upcoming Station";
+        if (source === "partner") return "Partner From Upcoming Station";
         return "Train Pantry";
       }
 
       function sourceNote(source) {
         if (source === "base-kitchen") return "Approved base-kitchen menu with station handover timing.";
-        if (source === "partner") return "Approved RK partner menu near an upcoming station.";
+        if (source === "partner") return "Approved partner menu near an upcoming station.";
         return "Onboard pantry stock available from the train team.";
       }
 
@@ -390,6 +406,7 @@
                 <b class="menu-price">${money(sell)}</b>
               </div>
               <p>${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
+              <div class="menu-tags">${itemCuisineTags(item).map((tag) => `<span class="menu-tag">${escapeHtml(tag)}</span>`).join("")}</div>
               <p>${escapeHtml(item.supplierName || item.baseKitchenName || "")}</p>
               <div class="menu-card-actions">
                 <span class="badge ${soldOut ? "danger" : "ok"}">${soldOut ? "Sold out" : "Available"}</span>
@@ -400,7 +417,7 @@
                     <button class="icon-btn" data-plus="${item.id}" title="Add" ${inCart >= stock ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
                 </div>
               </div>
-              ${soldOut ? `<p class="sold-out-note">Tap bell so RK can plan fresh stock.</p>` : ""}
+              ${soldOut ? `<p class="sold-out-note">Tap bell so Meals On Wheels can plan fresh stock.</p>` : ""}
             </div>
           </div>`;
       }
@@ -409,6 +426,7 @@
         const selectedMeal = $("mealFilter").value;
         const items = menuItems.filter((item) => item.available !== false
           && (selectedMeal === "All" || itemMealSlots(item).includes(selectedMeal))
+          && matchesMenuPreference(item, selectedPreference)
           && (selectedMenuSource === "all" || menuSourceOf(item) === selectedMenuSource));
         const groups = ["pantry", "base-kitchen", "partner"].filter((source) => selectedMenuSource === "all" || selectedMenuSource === source);
         $("menuList").innerHTML = items.length ? groups.map((source) => {
@@ -499,7 +517,7 @@
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
-          toast("We will notify RK team that you want this item.");
+          toast("We will notify the Meals On Wheels team that you want this item.");
           return;
         }
         const current = cart.get(id) || { ...item, qty: 0 };
@@ -525,6 +543,13 @@
         renderDeliveryWindows();
         renderMenu();
       });
+      $("preferenceSegments").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-menu-preference]");
+        if (!btn) return;
+        selectedPreference = btn.dataset.menuPreference;
+        document.querySelectorAll("[data-menu-preference]").forEach((node) => node.classList.toggle("active", node === btn));
+        renderMenu();
+      });
       $("savePassengerBtn").addEventListener("click", () => {
         if (validatePassenger()) toast("Passenger details saved.");
       });
@@ -544,7 +569,7 @@
           ${item.itemImage ? `<img class="product-detail-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : ""}
           <div class="item">
             <div class="row between"><h3>${escapeHtml(item.name || "")}</h3><b>${money(sellingPriceOf(item))}</b></div>
-            <p>${escapeHtml(item.description || "Fresh food item available from RK approved catalog.")}</p>
+            <p>${escapeHtml(item.description || "Fresh food item available from Meals On Wheels approved catalog.")}</p>
             <p><b>Source:</b> ${escapeHtml(sourceLabel(menuSourceOf(item)))} ${item.supplierName || item.baseKitchenName ? `| ${escapeHtml(item.supplierName || item.baseKitchenName)}` : ""}</p>
             <p><b>Type:</b> ${escapeHtml(item.type || "veg")} | <b>Stock:</b> ${Number(item.stockQty || 0)}</p>
           </div>`;
@@ -659,10 +684,10 @@
         cart.clear();
         closeCartReview();
         renderMenu();
-        toast(`Thank you. Order ${orderNo} is received by RK Group. Payment: ${paymentMode}.`);
+        toast(`Thank you. Order ${orderNo} is received by Meals On Wheels. Payment: ${paymentMode}.`);
         showTab("track");
         loadTracking(customer.phone);
-        $("trackList").insertAdjacentHTML("afterbegin", `<div class="ack success">Thank you for giving RK Group the opportunity to serve you. Your order ${escapeHtml(orderNo)} has reached our team.</div>`);
+        $("trackList").insertAdjacentHTML("afterbegin", `<div class="ack success">Thank you for giving Meals On Wheels the opportunity to serve you. Your order ${escapeHtml(orderNo)} has reached our team.</div>`);
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = `<i data-lucide="check"></i> Order Placed`;
         lucide.createIcons();
@@ -703,13 +728,13 @@
             seat: customer.seat,
             status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
             customerNotice: data.submissionType === "complaint"
-              ? "Your complaint has been received by RK Group. Our command center will review it shortly."
-              : "Your feedback has been received by RK Group. Thank you for helping us improve.",
+              ? "Your complaint has been received by Meals On Wheels. Our command center will review it shortly."
+              : "Your feedback has been received by Meals On Wheels. Thank you for helping us improve.",
             statusLog: [{
               status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
               note: data.submissionType === "complaint"
-                ? "Complaint received by RK Group."
-                : "Feedback received by RK Group.",
+                ? "Complaint received by Meals On Wheels."
+                : "Feedback received by Meals On Wheels.",
               at: new Date().toISOString(),
               by: "customer"
             }],
@@ -736,7 +761,7 @@
           showFeedbackAck(
             data.submissionType === "complaint" ? "danger-soft" : "success",
             data.submissionType === "complaint"
-              ? `We are sorry that your experience was not satisfactory. Your complaint ticket <b>${ticketNo}</b> has been received and RK Group will check it with seriousness.`
+              ? `We are sorry that your experience was not satisfactory. Your complaint ticket <b>${ticketNo}</b> has been received and Meals On Wheels will check it with seriousness.`
               : `Thank you for your feedback. Your acknowledgement number is <b>${ticketNo}</b>.`
           );
           loadTracking(customer.phone);
@@ -818,7 +843,7 @@
               ${fb.updatedAt ? `<p><b>Last Update:</b> ${nowLabel(fb.updatedAt)}</p>` : ""}
               <p>${escapeHtml(fb.message || "")}</p>
               <div class="ack ${["resolved", "closed", "acknowledged"].includes(String(fb.status || "").toLowerCase()) ? "success" : "danger-soft"}" style="margin-top:10px;">
-                <b>RK Update:</b> ${escapeHtml(fb.customerNotice || fb.managerResponse || "Your ticket is with RK command center. Please check again shortly.")}
+                <b>Meals On Wheels Update:</b> ${escapeHtml(fb.customerNotice || fb.managerResponse || "Your ticket is with Meals On Wheels command center. Please check again shortly.")}
                 ${fb.lastResponder ? `<br><small>Replied by: ${escapeHtml(fb.lastResponder)}</small>` : ""}
               </div>
               ${fb.customerReply ? `<div class="ack success" style="margin-top:10px;"><b>Your last reply:</b> ${escapeHtml(fb.customerReply)}${fb.customerReplyRating ? `<br><small>Your rating for response: ${escapeHtml(fb.customerReplyRating)} / 5</small>` : ""}</div>` : ""}
@@ -836,9 +861,9 @@
                   </div>
                 </details>` : ""}
               <div class="feedback-reply-box">
-                <label class="field"><span>Your reply to RK</span><textarea class="textarea" rows="2" placeholder="Write your reply or further detail" data-customer-feedback-reply="${fb.id}"></textarea></label>
+                <label class="field"><span>Your reply to Meals On Wheels</span><textarea class="textarea" rows="2" placeholder="Write your reply or further detail" data-customer-feedback-reply="${fb.id}"></textarea></label>
                 <div class="row mobile-stack">
-                  <label class="field grow"><span>Rate RK response</span><select class="select" data-customer-feedback-rating="${fb.id}">
+                  <label class="field grow"><span>Rate Meals On Wheels response</span><select class="select" data-customer-feedback-rating="${fb.id}">
                     <option value="">No rating</option>
                     <option value="5">5 - Excellent</option>
                     <option value="4">4 - Good</option>
@@ -982,14 +1007,14 @@
             status: ["resolved", "closed"].includes(String(ticket?.status || "").toLowerCase()) ? "customer-replied" : (ticket?.status || "open"),
             statusLog: FieldValue.arrayUnion({
               status: "customer-replied",
-              note: text || `Customer rated RK response ${rating}/5`,
+              note: text || `Customer rated Meals On Wheels response ${rating}/5`,
               rating: rating ? Number(rating) : "",
               by: "customer",
               at: new Date().toISOString()
             }),
             updatedAt: FieldValue.serverTimestamp()
           });
-          toast("Your reply has been sent to RK command center.");
+          toast("Your reply has been sent to Meals On Wheels command center.");
         }
       });
 

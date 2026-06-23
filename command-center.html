@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RK Rake Manager Command Center</title>
+  <title>Meals On Wheels Rake Manager Command Center</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -224,9 +224,10 @@
           </div>
           <div class="grid two">
             <label class="field"><span>Type</span><select class="select" name="type"><option>veg</option><option>non-veg</option><option>beverage</option><option>other</option></select></label>
-            <label class="field"><span>Source</span><select class="select" name="source"><option>pantry</option><option>base kitchen</option></select></label>
+            <label class="field"><span>Cuisine</span><select class="select" name="cuisine" id="masterCuisine"></select></label>
           </div>
           <div class="grid two">
+            <label class="field"><span>Source</span><select class="select" name="source"><option>pantry</option><option>base kitchen</option></select></label>
             <label class="field"><span>Available Stock</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
             <label class="field"><span>Product Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
           </div>
@@ -355,7 +356,7 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("RK Rake Manager Command Center", "Live rail catering control room");
+      appHeader("Meals On Wheels Rake Manager Command Center", "Live rail catering control room");
       lucide.createIcons();
       wireTabs("overview");
       await ensureSeedData();
@@ -384,6 +385,7 @@
 
       $("masterCategory").innerHTML = mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${slot}"> ${slot}</label>`).join("");
       document.querySelector("#masterCategory input")?.setAttribute("checked", "checked");
+      $("masterCuisine").innerHTML = cuisineOptions.map((cuisine) => `<option>${cuisine}</option>`).join("");
       $("cashCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
       $("storeCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
 
@@ -707,12 +709,12 @@
         const cleanStatus = String(status || "").toLowerCase();
         const response = String(note || "").trim();
         if (response) return response;
-        if (cleanStatus === "acknowledged") return "RK Group has acknowledged your feedback / complaint and our team is reviewing it.";
-        if (cleanStatus === "investigating") return "RK Group is investigating your complaint and checking the matter with the concerned team.";
-        if (cleanStatus === "waiting for vendor") return "RK Group is checking this matter with the concerned vendor / base kitchen and will update you shortly.";
-        if (cleanStatus === "resolved") return "RK Group has resolved your complaint. Thank you for giving us the chance to correct the issue.";
-        if (cleanStatus === "closed") return "This ticket has been closed by RK Group. Thank you for sharing your concern.";
-        return "Your ticket is open with RK command center. Our team will review it shortly.";
+        if (cleanStatus === "acknowledged") return "Meals On Wheels has acknowledged your feedback / complaint and our team is reviewing it.";
+        if (cleanStatus === "investigating") return "Meals On Wheels is investigating your complaint and checking the matter with the concerned team.";
+        if (cleanStatus === "waiting for vendor") return "Meals On Wheels is checking this matter with the concerned vendor / base kitchen and will update you shortly.";
+        if (cleanStatus === "resolved") return "Meals On Wheels has resolved your complaint. Thank you for giving us the chance to correct the issue.";
+        if (cleanStatus === "closed") return "This ticket has been closed by Meals On Wheels. Thank you for sharing your concern.";
+        return "Your ticket is open with Meals On Wheels command center. Our team will review it shortly.";
       }
 
       $("feedbackList").addEventListener("click", async (event) => {
@@ -1021,6 +1023,7 @@
         form.elements.sellingPrice.value = sellingPriceOf(item);
         form.elements.costPrice.value = costPriceOf(item);
         form.elements.type.value = item.type || "veg";
+        form.elements.cuisine.value = item.cuisine || "North Indian";
         form.elements.source.value = item.source || "pantry";
         form.elements.stockQty.value = Number(item.stockQty || 0);
         form.elements.itemImageFile.value = "";
@@ -1051,6 +1054,7 @@
           category: selectedMealSlots[0],
           mealSlots: selectedMealSlots,
           type: data.type,
+          cuisine: data.cuisine,
           source: data.source,
           price: sellingPrice,
           sellingPrice,
@@ -1102,7 +1106,7 @@
       });
 
       $("downloadTrainSampleBtn").addEventListener("click", () => {
-        const csv = "trainNumber,trainName,yardName,active\n12345,RK Demo Express,Howrah Yard,true\n12001,Sample Rajdhani,New Delhi Yard,true\n";
+        const csv = "trainNumber,trainName,yardName,active\n12345,Meals On Wheels Demo Express,Howrah Yard,true\n12001,Sample Rajdhani,New Delhi Yard,true\n";
         const link = document.createElement("a");
         link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
         link.download = "train-master-sample.csv";
@@ -1234,7 +1238,7 @@
 
       function renderMenuAdmin() {
         const query = menuMasterSearchTerm.toLowerCase().trim();
-        const filtered = menuItems.filter((item) => `${item.name || ""} ${item.category || ""} ${itemMealSlots(item).join(" ")} ${item.type || ""} ${item.source || ""}`.toLowerCase().includes(query));
+        const filtered = menuItems.filter((item) => `${item.name || ""} ${item.category || ""} ${itemMealSlots(item).join(" ")} ${item.type || ""} ${item.cuisine || ""} ${item.source || ""}`.toLowerCase().includes(query));
         $("menuMasterStatus").textContent = menuItems.length
           ? `${menuItems.length} food item records available. Showing ${filtered.length} matching records.`
           : "No food item master yet.";
@@ -1245,7 +1249,7 @@
                 ${item.itemImage ? `<img class="food-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : ""}
                 <div>
                   <h3>${escapeHtml(item.name)}</h3>
-                  <p>${escapeHtml(item.category || "")} | ${escapeHtml(item.source || "")}</p>
+                  <p>${escapeHtml(item.category || "")} | ${escapeHtml(item.cuisine || "")} | ${escapeHtml(item.source || "")}</p>
                   <div class="money-line">Cost ${money(costPriceOf(item))} | Sell ${money(sellingPriceOf(item))}</div>
                 </div>
               </div>
@@ -1293,6 +1297,7 @@
           category: data.category,
           mealSlots: [data.category],
           type: ["Beverage"].includes(data.category) ? "beverage" : "veg",
+          cuisine: "North Indian",
           source,
           price: sellingPrice,
           sellingPrice,
@@ -1564,10 +1569,11 @@
       });
 
       $("downloadFoodMasterBtn").addEventListener("click", () => {
-        downloadCsv(`rk-food-master-${new Date().toISOString().slice(0, 10)}.csv`, ["itemName", "mealCategories", "type", "source", "sellingPrice", "costPrice", "stockQty", "available", "imageLink"], menuItems.map((item) => ({
+        downloadCsv(`meals-on-wheels-food-master-${new Date().toISOString().slice(0, 10)}.csv`, ["itemName", "mealCategories", "type", "cuisine", "source", "sellingPrice", "costPrice", "stockQty", "available", "imageLink"], menuItems.map((item) => ({
           itemName: item.name || "",
           mealCategories: itemMealSlots(item).join(" | "),
           type: item.type || "",
+          cuisine: item.cuisine || "",
           source: item.source || "",
           sellingPrice: sellingPriceOf(item),
           costPrice: costPriceOf(item),
