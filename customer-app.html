@@ -54,9 +54,11 @@
       <button class="tab-btn" data-tab="order"><i data-lucide="utensils"></i> Order Food</button>
       <button class="tab-btn" data-tab="feedback"><i data-lucide="message-square"></i> Feedback</button>
       <button class="tab-btn" data-tab="track"><i data-lucide="map-pin"></i> Track</button>
+      <button class="tab-btn" data-tab="faq"><i data-lucide="circle-help"></i> FAQ</button>
     </div>
 
     <section class="panel pad stack customer-panel" data-tab-panel="order">
+      <div id="journeyContextCard" class="journey-context hidden"></div>
       <div class="passenger-compact">
         <div>
           <h2>Passenger Details</h2>
@@ -203,6 +205,16 @@
       </div>
       <div id="trackList" class="list"></div>
     </section>
+
+    <section class="panel pad stack hidden faq-panel" data-tab-panel="faq">
+      <div class="section-title">
+        <div>
+          <h2>Meals On Wheels FAQ</h2>
+          <p>Quick help for train QR ordering, delivery OTP and support.</p>
+        </div>
+      </div>
+      <div id="faqList" class="faq-list"></div>
+    </section>
   </main>
 
   <script>
@@ -237,6 +249,19 @@
       let trainMasters = [];
       let selectedMenuSource = "all";
       let selectedPreference = "all";
+      const urlParams = new URLSearchParams(location.search);
+      const journeyContext = {
+        qrId: urlParams.get("qrId") || urlParams.get("qr") || "",
+        train: urlParams.get("train") || "",
+        trainName: urlParams.get("trainName") || "",
+        rakeNumber: urlParams.get("rake") || urlParams.get("rakeNumber") || "",
+        rakeManagerName: urlParams.get("rakeManagerName") || "",
+        rakeManagerPhone: cleanPhone(urlParams.get("rakeManagerPhone") || ""),
+        assignedRiderName: urlParams.get("riderName") || "",
+        assignedRiderPhone: cleanPhone(urlParams.get("riderPhone") || ""),
+        source: "train-rake-qr"
+      };
+      const hasJourneyContext = Boolean(journeyContext.qrId || journeyContext.train || journeyContext.rakeNumber);
       let trackedOrders = [];
       let trackedFeedbacks = [];
       let unsubscribeTrack = null;
@@ -245,6 +270,52 @@
       let unsubscribeFeedbackDocTracks = [];
       $("mealFilter").innerHTML = ["All", ...mealSlots].map((m) => `<option>${m}</option>`).join("");
       $("complaintNature").innerHTML = complaintNatures.map((nature) => `<option>${escapeHtml(nature)}</option>`).join("");
+
+      if (hasJourneyContext) {
+        localStorage.setItem("mowJourneyContext", JSON.stringify(journeyContext));
+      }
+
+      function activeJourneyContext() {
+        if (hasJourneyContext) return journeyContext;
+        try {
+          return JSON.parse(localStorage.getItem("mowJourneyContext") || "{}");
+        } catch (error) {
+          return {};
+        }
+      }
+
+      function renderJourneyContext() {
+        const ctx = activeJourneyContext();
+        const hasContext = Boolean(ctx.qrId || ctx.train || ctx.rakeNumber);
+        $("journeyContextCard").classList.toggle("hidden", !hasContext);
+        if (!hasContext) return;
+        $("journeyContextCard").innerHTML = `
+          <div>
+            <b>Journey linked from train QR</b>
+            <p>${escapeHtml(ctx.train || "")}${ctx.trainName ? ` - ${escapeHtml(ctx.trainName)}` : ""}${ctx.rakeNumber ? ` | Rake ${escapeHtml(ctx.rakeNumber)}` : ""}</p>
+          </div>
+          <span class="badge info">${ctx.qrId ? escapeHtml(ctx.qrId) : "QR active"}</span>`;
+      }
+
+      const faqs = [
+        ["How do I order food in train?", "Scan the Meals On Wheels QR in your train or open this app, save passenger details, choose Train Pantry, Base Kitchen or RK Partner items, add food to cart and confirm the order."],
+        ["Why should I scan the train QR code?", "The QR links your train number, rake number, Rake Manager and assigned rider so your order or complaint reaches the correct onboard team."],
+        ["Where will I see my delivery OTP?", "When the rider starts delivery, the OTP appears in Track tab against your order. Share it only after you receive the food."],
+        ["Can I order for multiple passengers?", "Yes. Increase item quantity in the cart based on the number of passengers traveling with you."],
+        ["What if my train is delayed?", "The onboard team and Rake Manager can see the train/rake context. Use Feedback or Need Help from Track tab if timing needs attention."],
+        ["How do I raise a complaint?", "Open Feedback, choose Complaint, select the related order if available, add details and proof if needed. You can track replies in the Track tab."],
+        ["What food options are available?", "Menu can come from Train Pantry, upcoming Base Kitchen and approved RK Partner outlets. Use meal, cuisine and source filters to browse quickly."],
+        ["How do I know the order is complete?", "After OTP verification by the rider, your order status changes to Delivered in the Track tab."]
+      ];
+
+      function renderFaqs() {
+        $("faqList").innerHTML = faqs.map(([question, answer], index) => `
+          <details class="faq-item" ${index === 0 ? "open" : ""}>
+            <summary>${escapeHtml(question)}<i data-lucide="chevron-down"></i></summary>
+            <p>${escapeHtml(answer)}</p>
+          </details>`).join("");
+        lucide.createIcons();
+      }
 
       function deliverySlotsForMeal(meal, source = selectedMenuSource) {
         if (source === "base-kitchen") return ["Upcoming station - 45 to 75 min", "Next major halt - 75 to 120 min"];
@@ -270,6 +341,17 @@
         const train = trainMasters.find((entry) => entry.trainNumber === data.train || entry.id === data.train);
         data.trainName = train?.trainName || "";
         data.yardName = train?.yardName || "";
+        const ctx = activeJourneyContext();
+        if (ctx.train && data.train === ctx.train) {
+          data.trainName = ctx.trainName || data.trainName;
+          data.rakeNumber = ctx.rakeNumber || "";
+          data.qrId = ctx.qrId || "";
+          data.rakeManagerName = ctx.rakeManagerName || "";
+          data.rakeManagerPhone = ctx.rakeManagerPhone || "";
+          data.assignedRiderName = ctx.assignedRiderName || "";
+          data.assignedRiderPhone = ctx.assignedRiderPhone || "";
+          data.journeyContextSource = ctx.source || "train-rake-qr";
+        }
         return data;
       }
 
@@ -290,7 +372,7 @@
       function renderPassengerSummary(data = passenger()) {
         const enough = data.name && data.phone && data.pnr && data.train && data.coach && data.seat;
         $("passengerSummary").textContent = enough
-          ? `${data.name} | ${data.train} | ${data.coach}/${data.seat} | PNR ${data.pnr}`
+          ? `${data.name} | ${data.train}${data.rakeNumber ? ` Rake ${data.rakeNumber}` : ""} | ${data.coach}/${data.seat} | PNR ${data.pnr}`
           : "Add passenger, train and seat details before placing order.";
       }
 
@@ -336,8 +418,25 @@
           trainName: train?.trainName || relatedOrder?.trainName || orderCustomer.trainName || "",
           yardName: train?.yardName || relatedOrder?.yardName || orderCustomer.yardName || "",
           coach: data.customerCoach || relatedOrder?.coach || orderCustomer.coach || "",
-          seat: data.customerSeat || relatedOrder?.seat || orderCustomer.seat || ""
+          seat: data.customerSeat || relatedOrder?.seat || orderCustomer.seat || "",
+          qrId: relatedOrder?.qrId || orderCustomer.qrId || "",
+          rakeNumber: relatedOrder?.rakeNumber || orderCustomer.rakeNumber || "",
+          rakeManagerName: relatedOrder?.rakeManagerName || orderCustomer.rakeManagerName || "",
+          rakeManagerPhone: relatedOrder?.rakeManagerPhone || orderCustomer.rakeManagerPhone || "",
+          assignedRiderName: relatedOrder?.assignedRiderName || orderCustomer.assignedRiderName || "",
+          assignedRiderPhone: relatedOrder?.assignedRiderPhone || orderCustomer.assignedRiderPhone || ""
         };
+        const ctx = activeJourneyContext();
+        if (ctx.train && customer.train === ctx.train) {
+          Object.assign(customer, {
+            qrId: ctx.qrId || "",
+            rakeNumber: ctx.rakeNumber || "",
+            rakeManagerName: ctx.rakeManagerName || "",
+            rakeManagerPhone: ctx.rakeManagerPhone || "",
+            assignedRiderName: ctx.assignedRiderName || "",
+            assignedRiderPhone: ctx.assignedRiderPhone || ""
+          });
+        }
         if (!customer.name.trim()) {
           toast("Please enter passenger name for feedback.");
           field("customerName")?.focus();
@@ -660,6 +759,12 @@
               train: customer.train,
               trainName: customer.trainName,
               yardName: customer.yardName,
+              qrId: customer.qrId || "",
+              rakeNumber: customer.rakeNumber || "",
+              rakeManagerName: customer.rakeManagerName || "",
+              rakeManagerPhone: customer.rakeManagerPhone || "",
+              assignedRiderName: customer.assignedRiderName || "",
+              assignedRiderPhone: customer.assignedRiderPhone || "",
               coach: customer.coach,
               seat: customer.seat,
               mealSlot: $("mealFilter").value === "All" ? "Other" : $("mealFilter").value,
@@ -729,6 +834,12 @@
             train: customer.train,
             trainName: customer.trainName,
             yardName: customer.yardName,
+            qrId: customer.qrId || "",
+            rakeNumber: customer.rakeNumber || "",
+            rakeManagerName: customer.rakeManagerName || "",
+            rakeManagerPhone: customer.rakeManagerPhone || "",
+            assignedRiderName: customer.assignedRiderName || "",
+            assignedRiderPhone: customer.assignedRiderPhone || "",
             coach: customer.coach,
             seat: customer.seat,
             status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
@@ -808,10 +919,12 @@
               ${statusBadge(order.status)}
             </div>
             <p>PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)} | ${nowLabel(order.createdAt)}</p>
+            ${order.rakeNumber || order.qrId ? `<div class="ack success compact-ack"><b>QR linked:</b> Rake ${escapeHtml(order.rakeNumber || "")}${order.rakeManagerName ? ` | Rake Manager ${escapeHtml(order.rakeManagerName)}` : ""}</div>` : ""}
             <p><b>Payment:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")}</p>
             ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
             ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}</p>` : ""}
-            ${order.deliveryOtp && String(order.status || "").toLowerCase() === "out-for-delivery" ? `<div class="ack success" style="margin-top:10px;"><b>Delivery OTP:</b> ${escapeHtml(order.deliveryOtp)}<br><small>Share this numeric OTP only after receiving your food.</small></div>` : ""}
+            ${order.deliveryOtp && String(order.status || "").toLowerCase() === "out-for-delivery" ? `<div class="otp-alert"><span>Delivery OTP</span><b>${escapeHtml(order.deliveryOtp)}</b><small>Share this OTP only after receiving your food.</small></div>` : ""}
+            ${String(order.status || "").toLowerCase() === "delivered" ? `<div class="ack success compact-ack"><b>Delivered:</b> Thank you for choosing Meals On Wheels.</div>` : ""}
             <div class="order-lines">${(order.items || []).map((line) => `
               <div class="order-line">
                 ${line.itemImage ? `<img class="food-img small" src="${line.itemImage}" alt="${escapeHtml(line.name)}">` : ""}
@@ -1044,8 +1157,14 @@
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((train) => train.active !== false);
         renderCustomerTrainSelect();
+        const ctx = activeJourneyContext();
+        if (ctx.train) {
+          $("customerTrainSelect").value = ctx.train;
+        }
         renderPassengerSummary();
       });
+      renderJourneyContext();
+      renderFaqs();
       renderPassengerSummary(saved);
       loadTracking(saved.phone || localStorage.getItem("rkTrackPhone") || "");
     });

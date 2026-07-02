@@ -17,7 +17,10 @@
 body {
   margin: 0;
   color: var(--ink);
-  background: var(--wash);
+  background:
+    linear-gradient(180deg, rgba(245, 247, 251, 0.92), rgba(245, 247, 251, 0.98)),
+    url("Branding/Social media Cover page.png") center top / cover fixed no-repeat,
+    var(--wash);
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -758,6 +761,161 @@ a {
   overflow: hidden;
 }
 
+@media (min-width: 560px) {
+  .customer-menu-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .menu-card h3 {
+    font-size: 13px;
+  }
+
+  .qty-stepper {
+    grid-template-columns: 36px minmax(20px, 1fr) 36px;
+  }
+
+  .qty-stepper .icon-btn {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+  }
+}
+
+.journey-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #eff6ff, #fff7ed);
+}
+
+.journey-context b {
+  color: var(--brand);
+}
+
+.journey-context p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.otp-alert {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fff7ed, #fffbeb);
+  color: var(--brand);
+  box-shadow: 0 12px 28px rgba(162, 69, 9, 0.12);
+}
+
+.otp-alert span {
+  color: #8a3a08;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.otp-alert b {
+  font-size: 32px;
+  letter-spacing: 3px;
+}
+
+.otp-alert small {
+  color: var(--muted);
+}
+
+.compact-ack {
+  margin-top: 10px;
+}
+
+.faq-list {
+  display: grid;
+  gap: 8px;
+}
+
+.faq-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.faq-item summary {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item p {
+  margin: 0;
+  padding: 0 14px 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.qr-preview {
+  display: grid;
+  place-items: center;
+  min-height: 360px;
+}
+
+.qr-card-print {
+  width: min(360px, 100%);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 18px;
+  border: 1px solid #f0d8c8;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 245, 0.96), rgba(255,255,255,0.98)),
+    url("Branding/Food Plate Jacket.png") center / cover no-repeat;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.qr-card-print h3 {
+  margin: 0;
+  color: var(--brand);
+}
+
+.qr-card-print p,
+.qr-card-print small {
+  margin: 0;
+  color: var(--muted);
+}
+
+.qr-card-print small {
+  max-width: 100%;
+  word-break: break-all;
+  font-size: 10px;
+}
+
+.qr-img {
+  width: 260px;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 8px;
+}
+
 .menu-card {
   display: grid;
   gap: 8px;
@@ -1274,7 +1432,7 @@ th {
   .customer-tabs {
     top: 58px;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     padding: 6px 0;
   }
@@ -1283,7 +1441,7 @@ th {
     min-width: 0;
     justify-content: center;
     padding: 8px 4px;
-    font-size: 12px;
+    font-size: 11px;
     gap: 4px;
     white-space: nowrap;
     overflow: hidden;
@@ -1341,9 +1499,14 @@ th {
   }
 
   .customer-menu-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     width: 100%;
+  }
+
+  .journey-context {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .menu-card {
@@ -1353,7 +1516,7 @@ th {
   }
 
   .menu-card h3 {
-    font-size: 15px;
+    font-size: 13px;
     line-height: 1.18;
   }
 
@@ -1376,15 +1539,15 @@ th {
   }
 
   .qty-stepper {
-    grid-template-columns: 38px minmax(22px, 1fr) 38px;
+    grid-template-columns: 34px minmax(18px, 1fr) 34px;
     gap: 5px;
   }
 
   .qty-stepper .icon-btn {
-    width: 38px;
-    min-width: 38px;
-    height: 38px;
-    min-height: 38px;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
   }
 
   .mobile-earnings-grid {

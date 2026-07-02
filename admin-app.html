@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meals On Wheels Admin Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main stack">
+    <section class="customer-hero">
+      <div>
+        <p class="eyebrow">Meals On Wheels access control</p>
+        <h2>Admin console for staff IDs and page rights.</h2>
+        <p>Create Rake Manager, Base Kitchen Manager, Customer Care and control IDs with app access, scope and read-write rights.</p>
+        <div class="hero-points">
+          <span><i data-lucide="user-cog"></i> Staff IDs</span>
+          <span><i data-lucide="key-round"></i> Passwords</span>
+          <span><i data-lucide="shield-check"></i> Rights</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid two">
+      <section class="panel pad stack">
+        <div class="section-title">
+          <div><h2>Create / Edit User</h2><p>These prototype IDs are used by staff apps until Firebase Auth is enabled.</p></div>
+        </div>
+        <form id="adminAccessForm" class="stack">
+          <div class="grid two">
+            <label class="field"><span>Email / Login ID</span><input class="input" name="email" type="email" required placeholder="rake.manager@mealsonwheels.in"></label>
+            <label class="field"><span>Password</span><input class="input" name="password" required placeholder="Temporary password"></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>User Name</span><input class="input" name="name" required placeholder="Staff name"></label>
+            <label class="field"><span>Role</span><select class="select" name="role" id="adminRole">
+              <option value="rake-manager">Rake Manager</option>
+              <option value="base-kitchen">Base Kitchen Manager</option>
+              <option value="customer-care">Customer Care</option>
+              <option value="control-tower">Control Tower</option>
+              <option value="delivery-supervisor">Delivery Supervisor</option>
+              <option value="viewer">Viewer</option>
+              <option value="admin">Admin</option>
+            </select></label>
+          </div>
+          <label class="field"><span>Allowed Apps</span><div class="check-grid" id="allowedApps"></div></label>
+          <div class="grid two">
+            <label class="field"><span>Access Scope</span><select class="select" name="accessScope">
+              <option value="all">All locations</option>
+              <option value="train">Specific train</option>
+              <option value="train-rake">Specific train-rake</option>
+              <option value="yard">Specific yard</option>
+              <option value="baseKitchen">Specific base kitchen</option>
+              <option value="partner">Specific RK Partner</option>
+            </select></label>
+            <label class="field"><span>Scope Value</span><input class="input" name="accessValue" placeholder="Example: 12859-1 or BK-HWH"></label>
+          </div>
+          <label class="field"><span>Permission Level</span><select class="select" name="permissionLevel">
+            <option value="read-write">Read and write</option>
+            <option value="read-only">Read only</option>
+            <option value="approve">Approve / checker</option>
+            <option value="admin">Admin</option>
+          </select></label>
+          <label class="field"><span>Status</span><select class="select" name="active">
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select></label>
+          <button class="btn" type="submit"><i data-lucide="save"></i> Save User ID</button>
+        </form>
+      </section>
+
+      <section class="panel pad stack">
+        <div class="section-title">
+          <div><h2>Role Guide</h2><p>Recommended defaults for the current app suite.</p></div>
+        </div>
+        <div class="list">
+          <div class="item"><h3>Rake Manager</h3><p>Use `command-center.html`, scope by train or train-rake, read-write for orders and complaints.</p></div>
+          <div class="item"><h3>Base Kitchen Manager</h3><p>Use `base-kitchen.html`, scope by base kitchen ID, read-write for kitchen orders and indents.</p></div>
+          <div class="item"><h3>Customer Care</h3><p>Use `customer-care.html`, all or selected train scope, read-write for complaints and resolution notes.</p></div>
+          <div class="item"><h3>Control Tower</h3><p>Use `control-tower.html`, approve/checker rights for catalog, partners, riders and route master.</p></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel pad stack">
+      <div class="section-title">
+        <div><h2>Created User IDs</h2><p>Click edit to load any ID back into the form.</p></div>
+      </div>
+      <div id="adminUserAccessList" class="list"></div>
+    </section>
+  </main>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("Meals On Wheels Admin Console", "Staff ID, password and rights management");
+      lucide.createIcons();
+      await ensureSeedData();
+
+      const appOptions = [
+        ["command-center", "Rake Manager App"],
+        ["base-kitchen", "Base Kitchen App"],
+        ["customer-care", "Customer Care App"],
+        ["control-tower", "Control Tower"],
+        ["delivery-app", "Delivery App"],
+        ["partner-app", "Partner App"],
+        ["central-command", "Central Command"],
+        ["qr-code-app", "QR Creator"]
+      ];
+      const defaultsByRole = {
+        "rake-manager": ["command-center"],
+        "base-kitchen": ["base-kitchen"],
+        "customer-care": ["customer-care"],
+        "control-tower": ["control-tower"],
+        "delivery-supervisor": ["delivery-app", "command-center"],
+        viewer: ["central-command"],
+        admin: appOptions.map(([id]) => id)
+      };
+      let users = [];
+
+      $("allowedApps").innerHTML = appOptions.map(([id, label]) => `<label class="check-pill"><input type="checkbox" value="${id}"> ${label}</label>`).join("");
+
+      function setAllowedApps(values) {
+        const selected = new Set(values || []);
+        document.querySelectorAll("#allowedApps input").forEach((box) => {
+          box.checked = selected.has(box.value);
+        });
+      }
+
+      function applyRoleDefaults() {
+        setAllowedApps(defaultsByRole[$("adminRole").value] || []);
+      }
+
+      function selectedApps() {
+        return [...document.querySelectorAll("#allowedApps input:checked")].map((box) => box.value);
+      }
+
+      function renderUsers() {
+        $("adminUserAccessList").innerHTML = users.map((user) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(user.email || user.id)}</h3>${statusBadge(user.active === false ? "inactive" : "active")}</div>
+            <p>${escapeHtml(user.name || "")} | ${escapeHtml(user.role || "viewer")} | ${escapeHtml(user.permissionLevel || "read-write")}</p>
+            <p>Apps: ${escapeHtml((user.allowedApps || String(user.access || "").split(",")).filter(Boolean).join(", ") || "not set")}</p>
+            <p>Scope: ${escapeHtml(user.accessScope || "all")} ${user.accessValue ? `| ${escapeHtml(user.accessValue)}` : ""}</p>
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn secondary" data-edit-admin-user="${escapeHtml(user.id)}"><i data-lucide="pencil"></i> Edit</button>
+              <button class="btn danger" data-disable-admin-user="${escapeHtml(user.id)}"><i data-lucide="ban"></i> Disable</button>
+            </div>
+          </div>`).join("") || `<div class="empty">No staff ID created yet.</div>`;
+        lucide.createIcons();
+      }
+
+      $("adminRole").addEventListener("change", applyRoleDefaults);
+      applyRoleDefaults();
+
+      $("adminAccessForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const data = getForm(form);
+        const allowedApps = selectedApps();
+        if (!allowedApps.length) return toast("Select at least one allowed app.");
+        const id = firebaseDocId(String(data.email || "").toLowerCase());
+        setSubmitState(form, "saving", "Saving...");
+        await db.collection("adminUsers").doc(id).set({
+          email: String(data.email || "").toLowerCase(),
+          password: data.password || "",
+          name: data.name || "",
+          role: data.role || "viewer",
+          allowedApps,
+          access: allowedApps.join(","),
+          accessScope: data.accessScope || "all",
+          accessValue: data.accessValue || "",
+          permissionLevel: data.permissionLevel || "read-write",
+          canRead: true,
+          canWrite: data.permissionLevel !== "read-only",
+          canApprove: ["approve", "admin"].includes(data.permissionLevel),
+          active: data.active === "true",
+          updatedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        finishSubmitState(form, "User Saved");
+        form.reset();
+        applyRoleDefaults();
+        toast("Staff user ID saved.");
+      });
+
+      $("adminUserAccessList").addEventListener("click", async (event) => {
+        const edit = event.target.closest("[data-edit-admin-user]");
+        const disable = event.target.closest("[data-disable-admin-user]");
+        if (edit) {
+          const user = users.find((row) => row.id === edit.dataset.editAdminUser);
+          if (!user) return;
+          const form = $("adminAccessForm");
+          form.email.value = user.email || "";
+          form.password.value = user.password || "";
+          form.name.value = user.name || "";
+          form.role.value = user.role || "viewer";
+          form.accessScope.value = user.accessScope || "all";
+          form.accessValue.value = user.accessValue || "";
+          form.permissionLevel.value = user.permissionLevel || "read-write";
+          form.active.value = user.active === false ? "false" : "true";
+          setAllowedApps(user.allowedApps || String(user.access || "").split(",").map((value) => value.trim()).filter(Boolean));
+          form.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        if (disable) {
+          await db.collection("adminUsers").doc(disable.dataset.disableAdminUser).update({
+            active: false,
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("User disabled.");
+        }
+      });
+
+      onLive("adminUsers", (rows) => { users = rows; renderUsers(); }, "email", "asc", 300);
+    });
+  </script>
+</body>
+</html>

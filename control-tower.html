@@ -27,7 +27,7 @@
       <button class="tab-btn" data-tab="masters"><i data-lucide="database"></i> Master Rectification</button>
       <button class="tab-btn" data-tab="partners"><i data-lucide="store"></i> Partner Onboarding</button>
       <button class="tab-btn" data-tab="riders"><i data-lucide="bike"></i> Rider Approval</button>
-      <button class="tab-btn" data-tab="route"><i data-lucide="rail-symbol"></i> Gitanjali Route</button>
+      <button class="tab-btn" data-tab="route"><i data-lucide="rail-symbol"></i> Train Route</button>
     </div>
 
     <section class="panel pad stack" data-tab-panel="catalog">
@@ -67,9 +67,21 @@
 
     <section class="panel pad stack hidden" data-tab-panel="route">
       <div class="section-title">
-        <div><h2>Gitanjali Express Pilot Route</h2><p>Version 2 planning base for next-station delivery and one-hour preparation rules.</p></div>
+        <div><h2>Train Route Master</h2><p>Search any train master and maintain the full station route for planning, QR and handover logic.</p></div>
       </div>
-      <label class="field"><span>Train</span><select class="select" id="routeTrain"><option value="12860">12860 HWH to CSMT</option><option value="12859">12859 CSMT to HWH</option></select></label>
+      <div class="grid two">
+        <label class="field"><span>Search Train</span><input class="input" id="routeTrainSearch" placeholder="Train number, name or yard"></label>
+        <label class="field"><span>Train</span><select class="select" id="routeTrain"></select></label>
+      </div>
+      <div class="row wrap">
+        <a class="btn secondary" id="officialRouteLink" href="https://enquiry.indianrail.gov.in/ntes/" target="_blank" rel="noopener"><i data-lucide="external-link"></i> Verify on Indian Railways NTES</a>
+        <button class="btn secondary" id="routeImportToggle" type="button"><i data-lucide="file-spreadsheet"></i> Import / Edit Route</button>
+      </div>
+      <div class="panel pad stack hidden" id="routeImportPanel">
+        <div class="section-title"><div><h2>Route Import</h2><p>Paste CSV rows: seq,station,code,day,arrival,departure,haltMinutes,km</p></div></div>
+        <textarea class="textarea" id="routeCsvInput" rows="8" placeholder="1,Howrah Jn,HWH,1,,13:40,0,0"></textarea>
+        <button class="btn" id="saveRouteCsvBtn" type="button"><i data-lucide="save"></i> Save Route Master</button>
+      </div>
       <div id="routeList" class="table-wrap"></div>
     </section>
   </main>
@@ -86,6 +98,8 @@
       let riders = [];
       let menuItems = [];
       let kitchens = [];
+      let trainMasters = [];
+      let trainRoutes = [];
 
       function requestPayload(req) {
         const sell = Number(req.sellingPrice || req.price || 0);
@@ -288,9 +302,93 @@
         renderMetrics();
       }
 
+      function routeTrainRows() {
+        const query = String($("routeTrainSearch").value || "").toLowerCase().trim();
+        return trainMasters
+          .filter((train) => !query || `${train.trainNumber || train.id || ""} ${train.trainName || ""} ${train.yardName || ""}`.toLowerCase().includes(query))
+          .slice(0, 120);
+      }
+
+      function renderRouteTrainSelect() {
+        const current = $("routeTrain").value;
+        const rows = routeTrainRows();
+        $("routeTrain").innerHTML = rows.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No matching train</option>`;
+        if (rows.some((train) => (train.trainNumber || train.id) === current)) $("routeTrain").value = current;
+        renderRoute();
+      }
+
+      function selectedRouteTrain() {
+        return trainMasters.find((train) => train.trainNumber === $("routeTrain").value || train.id === $("routeTrain").value);
+      }
+
+      function routeDocForTrain(trainNo) {
+        return trainRoutes.find((row) => row.trainNumber === trainNo || row.id === trainNo);
+      }
+
+      async function ensureRouteSeed() {
+        const batch = db.batch();
+        Object.entries(gitanjaliRouteStops).forEach(([trainNumber, stops]) => {
+          const train = seedTrainMasters.find((row) => row.trainNumber === trainNumber) || {};
+          batch.set(db.collection("trainRoutes").doc(trainNumber), {
+            trainNumber,
+            trainName: train.trainName || "Gitanjali Express",
+            yardName: train.yardName || "",
+            stops,
+            source: "Meals On Wheels seed route",
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
+        await batch.commit();
+      }
+
+      function parseRouteCsv(text) {
+        return String(text || "").split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line, index) => {
+            const [seq, station, code, day, arrival, departure, haltMinutes, km] = line.split(",").map((value) => value.trim());
+            return {
+              seq: Number(seq || index + 1),
+              station: station || "",
+              code: code || "",
+              day: Number(day || 1),
+              arrival: arrival || "",
+              departure: departure || "",
+              haltMinutes: Number(haltMinutes || 0),
+              km: Number(km || 0)
+            };
+          })
+          .filter((row) => row.station && row.code);
+      }
+
       function renderRoute() {
-        const stops = gitanjaliRouteStops[$("routeTrain").value] || [];
+        const trainNo = $("routeTrain").value;
+        const train = selectedRouteTrain();
+        const route = routeDocForTrain(trainNo);
+        const stops = route?.stops || gitanjaliRouteStops[trainNo] || [];
+        $("officialRouteLink").href = `https://enquiry.indianrail.gov.in/ntes/`;
+        $("routeCsvInput").value = stops.map((stop, idx) => [
+          stop.seq || idx + 1,
+          stop.station || "",
+          stop.code || "",
+          stop.day || 1,
+          stop.arrival || "",
+          stop.departure || "",
+          stop.haltMinutes || 0,
+          stop.km || 0
+        ].join(",")).join("\n");
+        if (!stops.length) {
+          $("routeList").innerHTML = `<div class="empty danger-soft">
+            <b>No route master saved for ${escapeHtml(trainLabel(train) || trainNo)}.</b><br>
+            Verify route on Indian Railways NTES, then paste route rows in Import / Edit Route.
+          </div>`;
+          return;
+        }
         $("routeList").innerHTML = `
+          <div class="ack success" style="margin-bottom:10px;">
+            <b>${escapeHtml(trainLabel(train) || route?.trainName || trainNo)}</b>
+            ${route?.source ? `<br><small>Route source: ${escapeHtml(route.source)}</small>` : ""}
+          </div>
           <table>
             <thead><tr><th>Seq</th><th>Station</th><th>Code</th><th>Day</th><th>Arrival</th><th>Departure</th><th>Halt</th><th>KM</th><th>Base Kitchen Logic</th></tr></thead>
             <tbody>${stops.map((stop, idx) => `
@@ -440,12 +538,30 @@
       });
 
       $("routeTrain").addEventListener("change", renderRoute);
-      renderRoute();
+      $("routeTrainSearch").addEventListener("input", renderRouteTrainSelect);
+      $("routeImportToggle").addEventListener("click", () => $("routeImportPanel").classList.toggle("hidden"));
+      $("saveRouteCsvBtn").addEventListener("click", async () => {
+        const train = selectedRouteTrain();
+        const stops = parseRouteCsv($("routeCsvInput").value);
+        if (!train || !stops.length) return toast("Select train and paste valid route rows first.");
+        await db.collection("trainRoutes").doc(train.trainNumber || train.id).set({
+          trainNumber: train.trainNumber || train.id,
+          trainName: train.trainName || "",
+          yardName: train.yardName || "",
+          stops,
+          source: "Control Tower route import",
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        toast("Train route master saved.");
+      });
+      await ensureRouteSeed();
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { requests = rows; renderCatalog(); }, "createdAt", "desc", 250);
       onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); renderMasters(); }, "createdAt", "desc", 250);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { riders = rows; renderRiders(); }, "updatedAt", "desc", 250);
       onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); renderMasters(); }, "name", "asc", 300);
       onLive("baseKitchens", (rows) => { kitchens = rows; renderMasters(); }, "name", "asc", 300);
+      onLive("trainMasters", (rows) => { trainMasters = rows.filter((train) => train.active !== false); renderRouteTrainSelect(); }, "trainNumber", "asc", 300);
+      onLive("trainRoutes", (rows) => { trainRoutes = rows; renderRoute(); }, "updatedAt", "desc", 300);
     });
   </script>
 </body>

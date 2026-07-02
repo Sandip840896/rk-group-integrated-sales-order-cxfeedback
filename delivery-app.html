@@ -31,6 +31,13 @@
           <label class="field"><span>Mode</span><select class="select" name="vehicleType"><option>Bike</option><option>Van</option><option>By Foot</option><option>Train Pantry Staff</option></select></label>
           <label class="field"><span>Vehicle No</span><input class="input" name="vehicleNo" placeholder="Optional for foot/train"></label>
           <label class="field"><span>Base Station / Kitchen</span><input class="input" name="baseLocation" required></label>
+          <label class="field"><span>Rider Mapping</span><select class="select" name="assignmentType" id="assignmentType" required>
+            <option value="train">Train Vendor / Train Rider</option>
+            <option value="base-kitchen">Base Kitchen Rider</option>
+            <option value="partner">RK Partner Rider</option>
+          </select></label>
+          <label class="field"><span>Mapped Location</span><select class="select" name="assignmentId" id="assignmentId" required></select></label>
+          <label class="field"><span>Rake Number for Train Vendor</span><input class="input" name="rakeNumber" id="riderRakeNumber" placeholder="Example: 1"></label>
           <label class="field"><span>Photo</span><input class="input" name="photoFile" type="file" accept="image/*"></label>
           <label class="field"><span>KYC Image</span><input class="input" name="kycFile" type="file" accept="image/*"></label>
         </div>
@@ -80,6 +87,9 @@
 
       let profiles = [];
       let orders = [];
+      let trainMasters = [];
+      let baseKitchens = [];
+      let partners = [];
       const DELIVERY_RATE = 30;
 
       function otp() {
@@ -92,6 +102,68 @@
 
       function selectedProfile() {
         return profiles.find((p) => cleanPhone(p.phone) === cleanPhone($("deliveryPhone").value || localStorage.getItem("rkDeliveryPhone")));
+      }
+
+      function currentAssignmentOptions() {
+        const type = $("assignmentType").value;
+        if (type === "base-kitchen") return baseKitchens.map((kitchen) => ({ id: kitchen.id, name: kitchen.name || kitchen.id }));
+        if (type === "partner") return partners.map((partner) => ({ id: partner.id || cleanPhone(partner.phone) || partner.name, name: `${partner.restaurantName || partner.name || partner.id} ${partner.nearestStation ? `- ${partner.nearestStation}` : ""}` }));
+        return trainMasters.map((train) => ({ id: train.trainNumber || train.id, name: trainLabel(train) }));
+      }
+
+      function renderAssignmentOptions() {
+        const rows = currentAssignmentOptions();
+        $("assignmentId").innerHTML = rows.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join("") || `<option value="">No approved master found</option>`;
+        const isTrain = $("assignmentType").value === "train";
+        $("riderRakeNumber").closest(".field").classList.toggle("hidden", !isTrain);
+      }
+
+      function assignmentFromForm(data) {
+        const type = data.assignmentType || "train";
+        const selectedId = data.assignmentId || "";
+        const source = type === "base-kitchen"
+          ? baseKitchens.find((row) => row.id === selectedId)
+          : type === "partner"
+            ? partners.find((row) => String(row.id || cleanPhone(row.phone) || row.name) === selectedId)
+            : trainMasters.find((row) => row.trainNumber === selectedId || row.id === selectedId);
+        const name = type === "base-kitchen"
+          ? (source?.name || selectedId)
+          : type === "partner"
+            ? (source?.restaurantName || source?.name || selectedId)
+            : (source?.trainName || selectedId);
+        return {
+          assignmentType: type,
+          assignmentId: selectedId,
+          assignmentName: name,
+          assignmentLabel: type === "train" ? trainLabel(source) : name,
+          train: type === "train" ? selectedId : "",
+          trainName: type === "train" ? (source?.trainName || "") : "",
+          yardName: type === "train" ? (source?.yardName || "") : "",
+          rakeNumber: type === "train" ? String(data.rakeNumber || "").trim() : "",
+          baseKitchenId: type === "base-kitchen" ? selectedId : "",
+          baseKitchenName: type === "base-kitchen" ? name : "",
+          partnerId: type === "partner" ? selectedId : "",
+          partnerName: type === "partner" ? name : "",
+          roleLabel: type === "train" ? "Train Vendor" : type === "base-kitchen" ? "Base Kitchen Rider" : "RK Partner Rider"
+        };
+      }
+
+      function orderMatchesProfile(order, profile) {
+        if (!profile) return false;
+        if (cleanPhone(order.assignedRiderPhone || order.deliveryPersonPhone) === cleanPhone(profile.phone)) return true;
+        const type = String(profile.assignmentType || "").toLowerCase();
+        if (type === "train") {
+          const sameTrain = String(order.train || "") === String(profile.train || profile.assignmentId || "");
+          const orderRake = String(order.rakeNumber || order.qrRakeNumber || "");
+          return sameTrain && (!profile.rakeNumber || !orderRake || orderRake === String(profile.rakeNumber));
+        }
+        if (type === "base-kitchen") return String(order.baseKitchenId || "") === String(profile.baseKitchenId || profile.assignmentId || "");
+        if (type === "partner") {
+          const partnerId = String(profile.partnerId || profile.assignmentId || "");
+          return (order.items || []).some((line) => String(line.supplierId || line.partnerId || "") === partnerId)
+            || String(order.partnerId || order.supplierId || "") === partnerId;
+        }
+        return false;
       }
 
       function dateValue(value) {
@@ -117,10 +189,11 @@
             <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
             <p><b>Passenger:</b> ${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
             <p><b>Train:</b> ${escapeHtml(order.train || "")} ${order.trainName ? `- ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+            ${order.rakeNumber || order.qrId ? `<p><b>QR Context:</b> Rake ${escapeHtml(order.rakeNumber || "")} ${order.qrId ? `| ${escapeHtml(order.qrId)}` : ""}</p>` : ""}
             <p><b>Pickup:</b> ${escapeHtml(order.supplierName || order.source || "Pantry / kitchen as assigned")} | Slot ${escapeHtml(order.deliveryWindow || "")}</p>
             <p><b>Payment:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")} | ${money(order.total)}</p>
             <p>${lines}</p>
-            ${order.deliveryOtp ? `<div class="ack success" style="margin-top:10px;"><b>Customer OTP:</b> Passenger can see OTP in customer app after delivery starts.</div>` : ""}
+            ${order.deliveryOtp ? `<div class="ack success" style="margin-top:10px;"><b>Customer OTP active:</b> Ask passenger after handing over food.</div>` : ""}
             <div class="row wrap" style="margin-top:10px;">${controls}</div>
           </div>`;
       }
@@ -131,7 +204,7 @@
           $("openOrders").innerHTML = `<div class="empty danger-soft">Your rider profile must be approved before taking open orders.</div>`;
           return;
         }
-        const rows = orders.filter((order) => ["new", "accepted", "preparing"].includes(String(order.status || "").toLowerCase()) && !order.deliveryPersonPhone);
+        const rows = orders.filter((order) => ["new", "accepted", "preparing"].includes(String(order.status || "").toLowerCase()) && !order.deliveryPersonPhone && orderMatchesProfile(order, active));
         $("openOrders").innerHTML = rows.map((order) => orderCard(order, `<button class="btn" data-take-order="${order.id}"><i data-lucide="hand"></i> Take Order</button>`)).join("") || `<div class="empty">No open order for delivery pickup.</div>`;
         lucide.createIcons();
       }
@@ -145,7 +218,8 @@
                 <div>
                   <h3>${escapeHtml(profile.name || profile.phone)}</h3>
                   <p>${escapeHtml(profile.phone || "")} | ${escapeHtml(profile.vehicleType || "")}${profile.vehicleNo ? ` | ${escapeHtml(profile.vehicleNo)}` : ""}</p>
-                  <p>${escapeHtml(profile.baseLocation || "")} | Delivered ${Number(profile.deliveredCount || 0)} order(s)</p>
+                  <p>${escapeHtml(profile.baseLocation || "")} | ${escapeHtml(profile.roleLabel || profile.assignmentType || "Rider")} ${profile.assignmentLabel ? `| ${escapeHtml(profile.assignmentLabel)}` : ""}${profile.rakeNumber ? ` | Rake ${escapeHtml(profile.rakeNumber)}` : ""}</p>
+                  <p>Delivered ${Number(profile.deliveredCount || 0)} order(s)</p>
                 </div>
               </div>
               ${statusBadge(profile.status || "pending")}
@@ -174,7 +248,8 @@
 
       function renderMine() {
         const phone = cleanPhone($("deliveryPhone").value);
-        const rows = orders.filter((order) => cleanPhone(order.deliveryPersonPhone) === phone);
+        const active = selectedProfile();
+        const rows = orders.filter((order) => cleanPhone(order.deliveryPersonPhone) === phone || orderMatchesProfile(order, active));
         $("myOrders").innerHTML = rows.map((order) => orderCard(order, `
           ${order.status !== "out-for-delivery" && order.status !== "delivered" ? `<button class="btn" data-start-order="${order.id}"><i data-lucide="bike"></i> Start Delivery</button>` : ""}
           ${order.status !== "delivered" ? `<button class="btn secondary" data-deliver-order="${order.id}"><i data-lucide="check"></i> Mark Delivered</button>` : ""}
@@ -193,6 +268,7 @@
           const photo = await compressImage(form.photoFile.files[0], 520, 0.7);
           const kyc = await compressImage(form.kycFile.files[0], 760, 0.7);
           const profilePayload = {
+            ...assignmentFromForm(data),
             name: data.name || "",
             phone,
             vehicleType: data.vehicleType || "",
@@ -229,6 +305,8 @@
         await db.collection("customerOrders").doc(order.id).update({
           deliveryPersonName: profile.name,
           deliveryPersonPhone: phone,
+          assignedRiderPhone: phone,
+          assignedRiderName: profile.name || "",
           deliveryPersonPhoto: profile.photo || "",
           deliveryVehicleType: profile.vehicleType || "",
           deliveryVanNo: profile.vehicleNo || "",
@@ -258,9 +336,14 @@
         }
         if (start) {
           const order = orders.find((row) => row.id === start.dataset.startOrder);
+          const active = selectedProfile();
           await db.collection("customerOrders").doc(order.id).update({
             status: "out-for-delivery",
+            deliveryPersonName: order.deliveryPersonName || active?.name || "",
+            deliveryPersonPhone: order.deliveryPersonPhone || cleanPhone($("deliveryPhone").value || localStorage.getItem("rkDeliveryPhone")),
+            assignedRiderPhone: order.assignedRiderPhone || cleanPhone($("deliveryPhone").value || localStorage.getItem("rkDeliveryPhone")),
             deliveryOtp: order.deliveryOtp || otp(),
+            deliveryOtpStatus: "active",
             deliveryStartedAt: FieldValue.serverTimestamp(),
             statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: "Delivery initiated and OTP released to passenger." }),
             updatedAt: FieldValue.serverTimestamp()
@@ -274,7 +357,9 @@
           await db.collection("customerOrders").doc(order.id).update({
             status: "delivered",
             deliveredAt: FieldValue.serverTimestamp(),
-          statusLog: FieldValue.arrayUnion({ status: "delivered", at: new Date().toISOString(), note: "Delivered after OTP verification." }),
+            deliveryOtpStatus: "verified",
+            otpVerifiedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "delivered", at: new Date().toISOString(), note: "Delivered after OTP verification." }),
             updatedAt: FieldValue.serverTimestamp()
           });
           const phone = cleanPhone(order.deliveryPersonPhone);
@@ -286,12 +371,16 @@
 
       $("loadMyOrders").addEventListener("click", renderMine);
       $("applyEarningsBtn").addEventListener("click", renderEarnings);
+      $("assignmentType").addEventListener("change", renderAssignmentOptions);
       const today = new Date().toISOString().slice(0, 10);
       $("earnFrom").value = today;
       $("earnTo").value = today;
       $("deliveryPhone").value = localStorage.getItem("rkDeliveryPhone") || "";
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { profiles = rows; renderProfiles(); renderOpen(); }, "updatedAt", "desc", 250);
       onLive("customerOrders", (rows) => { orders = rows; renderOpen(); renderMine(); renderEarnings(); }, "createdAt", "desc", 250);
+      onLive("trainMasters", (rows) => { trainMasters = rows.filter((row) => row.active !== false); renderAssignmentOptions(); }, "trainNumber", "asc", 250);
+      onLive("baseKitchens", (rows) => { baseKitchens = rows.filter((row) => row.active !== false); renderAssignmentOptions(); }, "name", "asc", 250);
+      onLiveCompat("partners", "partner", (rows) => { partners = rows.filter((row) => row.active !== false && String(row.status || row.approvalStatus || "approved").toLowerCase() !== "rejected"); renderAssignmentOptions(); }, "updatedAt", "desc", 250);
     });
   </script>
 </body>

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meals On Wheels Train QR Creator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body>
+  <main class="main stack">
+    <section class="customer-hero">
+      <div>
+        <p class="eyebrow">Meals On Wheels QR control</p>
+        <h2>Create train and rake specific QR codes.</h2>
+        <p>Each QR opens the customer app with train, rake, Rake Manager and rider context already linked.</p>
+        <div class="hero-points">
+          <span><i data-lucide="qr-code"></i> Train QR</span>
+          <span><i data-lucide="train-front"></i> Rake mapping</span>
+          <span><i data-lucide="bike"></i> Rider handover</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid two">
+      <section class="panel pad stack">
+        <div class="section-title">
+          <div><h2>QR Setup</h2><p>Select the operating train, rake, Rake Manager and approved rider.</p></div>
+        </div>
+        <form id="qrForm" class="stack">
+          <label class="field"><span>Train</span><select class="select" name="train" id="qrTrain" required></select></label>
+          <div class="grid two">
+            <label class="field"><span>Train Name</span><input class="input" name="trainName" id="qrTrainName" required placeholder="Gitanjali Express"></label>
+            <label class="field"><span>Rake Number</span><input class="input" name="rakeNumber" required placeholder="1"></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Rake Manager</span><select class="select" name="rakeManager" id="qrRakeManager"></select></label>
+            <label class="field"><span>Train Vendor / Rider</span><select class="select" name="rider" id="qrRider"></select></label>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Rake Manager Phone</span><input class="input" name="rakeManagerPhone" id="qrRakeManagerPhone" inputmode="tel"></label>
+            <label class="field"><span>Rider Phone</span><input class="input" name="riderPhone" id="qrRiderPhone" inputmode="tel"></label>
+          </div>
+          <button class="btn" type="submit"><i data-lucide="qr-code"></i> Generate QR</button>
+        </form>
+      </section>
+
+      <section class="panel pad stack">
+        <div class="section-title">
+          <div><h2>Generated QR</h2><p>Print this code and place it inside the selected train rake.</p></div>
+        </div>
+        <div id="qrPreview" class="qr-preview empty">Create a QR code to preview it here.</div>
+        <div class="row mobile-stack">
+          <button class="btn secondary" id="copyQrUrlBtn" type="button"><i data-lucide="copy"></i> Copy Link</button>
+          <a class="btn" id="openQrLink" href="#" target="_blank" rel="noopener"><i data-lucide="external-link"></i> Open Customer App</a>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel pad stack">
+      <div class="section-title">
+        <div><h2>Active Train QR Codes</h2><p>Saved mappings from Firebase for current rakes.</p></div>
+      </div>
+      <div id="qrList" class="list"></div>
+    </section>
+  </main>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      appHeader("Meals On Wheels Train QR Creator", "Train and rake QR mapping for passenger ordering");
+      lucide.createIcons();
+      await ensureSeedData();
+
+      let trains = [];
+      let riders = [];
+      let managers = [];
+      let qrRows = [];
+      let lastUrl = "";
+
+      function managerRows() {
+        return managers.filter((user) => ["manager", "admin", "super-admin"].includes(String(user.role || "").toLowerCase()) || String(user.accessScope || "").toLowerCase() === "train");
+      }
+
+      function renderSelects() {
+        $("qrTrain").innerHTML = trains.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No train master found</option>`;
+        $("qrRakeManager").innerHTML = `<option value="">Manual phone entry</option>${managerRows().map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name || user.email)}${user.accessValue ? ` - ${escapeHtml(user.accessValue)}` : ""}</option>`).join("")}`;
+        $("qrRider").innerHTML = `<option value="">Select later</option>${riders.map((rider) => `<option value="${escapeHtml(rider.id || cleanPhone(rider.phone))}">${escapeHtml(rider.name || rider.phone)}${rider.assignmentLabel ? ` - ${escapeHtml(rider.assignmentLabel)}` : ""}${rider.rakeNumber ? ` Rake ${escapeHtml(rider.rakeNumber)}` : ""}</option>`).join("")}`;
+        fillTrainName();
+      }
+
+      function fillTrainName() {
+        const train = trains.find((row) => row.trainNumber === $("qrTrain").value || row.id === $("qrTrain").value);
+        $("qrTrainName").value = train?.trainName || $("qrTrainName").value || "";
+      }
+
+      function selectedManager() {
+        return managers.find((row) => row.id === $("qrRakeManager").value);
+      }
+
+      function selectedRider() {
+        return riders.find((row) => (row.id || cleanPhone(row.phone)) === $("qrRider").value);
+      }
+
+      function customerUrl(payload) {
+        const base = new URL("customer-app.html", location.href);
+        Object.entries({
+          qrId: payload.qrId,
+          train: payload.train,
+          trainName: payload.trainName,
+          rake: payload.rakeNumber,
+          rakeManagerName: payload.rakeManagerName,
+          rakeManagerPhone: payload.rakeManagerPhone,
+          riderName: payload.assignedRiderName,
+          riderPhone: payload.assignedRiderPhone
+        }).forEach(([key, value]) => {
+          if (value) base.searchParams.set(key, value);
+        });
+        return base.href;
+      }
+
+      function renderQr(payload) {
+        const url = customerUrl(payload);
+        lastUrl = url;
+        const qrImage = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=${encodeURIComponent(url)}`;
+        $("openQrLink").href = url;
+        $("qrPreview").classList.remove("empty");
+        $("qrPreview").innerHTML = `
+          <div class="qr-card-print">
+            <div class="brand-mark">MEALS <span>ON</span> WHEELS</div>
+            <h3>${escapeHtml(payload.trainName)} (${escapeHtml(payload.train)})</h3>
+            <p>Rake ${escapeHtml(payload.rakeNumber)} | Scan to order from your seat</p>
+            <img class="qr-img" src="${qrImage}" alt="Meals On Wheels train QR">
+            <small>${escapeHtml(url)}</small>
+          </div>`;
+      }
+
+      function renderQrList() {
+        $("qrList").innerHTML = qrRows.map((row) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(row.qrId || row.id)}</h3>${statusBadge(row.status || "active")}</div>
+            <p>${escapeHtml(row.trainName || "")} | Train ${escapeHtml(row.train || "")} | Rake ${escapeHtml(row.rakeNumber || "")}</p>
+            <p>Rake Manager: ${escapeHtml(row.rakeManagerName || "")} ${row.rakeManagerPhone ? `| ${escapeHtml(row.rakeManagerPhone)}` : ""}</p>
+            <p>Rider: ${escapeHtml(row.assignedRiderName || "")} ${row.assignedRiderPhone ? `| ${escapeHtml(row.assignedRiderPhone)}` : ""}</p>
+            <button class="btn secondary" data-preview-qr="${escapeHtml(row.id)}"><i data-lucide="eye"></i> Preview</button>
+          </div>`).join("") || `<div class="empty">No QR mapping saved yet.</div>`;
+        lucide.createIcons();
+      }
+
+      $("qrTrain").addEventListener("change", fillTrainName);
+      $("qrRakeManager").addEventListener("change", () => {
+        const manager = selectedManager();
+        if (!manager) return;
+        $("qrRakeManagerPhone").value = cleanPhone(manager.phone || manager.mobile || manager.contact || "");
+      });
+      $("qrRider").addEventListener("change", () => {
+        const rider = selectedRider();
+        if (!rider) return;
+        $("qrRiderPhone").value = cleanPhone(rider.phone || "");
+      });
+
+      $("qrForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const data = getForm(form);
+        const train = trains.find((row) => row.trainNumber === data.train || row.id === data.train);
+        const manager = selectedManager();
+        const rider = selectedRider();
+        const qrId = `QR-${firebaseDocId(data.train)}-${firebaseDocId(data.rakeNumber)}`;
+        const payload = {
+          qrId,
+          train: data.train,
+          trainName: data.trainName || train?.trainName || "",
+          yardName: train?.yardName || "",
+          rakeNumber: String(data.rakeNumber || "").trim(),
+          rakeManagerId: manager?.id || "",
+          rakeManagerName: manager?.name || manager?.email || "",
+          rakeManagerPhone: cleanPhone(data.rakeManagerPhone || manager?.phone || ""),
+          assignedRiderId: rider?.id || "",
+          assignedRiderName: rider?.name || "",
+          assignedRiderPhone: cleanPhone(data.riderPhone || rider?.phone || ""),
+          brand: "Meals On Wheels",
+          status: "active",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        };
+        payload.customerUrl = customerUrl(payload);
+        setSubmitState(form, "saving", "Generating...");
+        try {
+          await compatSet("trainRakeQRCodes", "trainRakeQRCode", qrId, payload);
+          finishSubmitState(form, "QR Saved");
+          renderQr(payload);
+          toast("Train rake QR saved.");
+        } catch (error) {
+          console.error(error);
+          setSubmitState(form, "idle");
+          toast(firebaseAccessMessage("trainRakeQRCodes", error));
+        }
+      });
+
+      $("copyQrUrlBtn").addEventListener("click", async () => {
+        if (!lastUrl) return toast("Generate a QR first.");
+        await navigator.clipboard.writeText(lastUrl);
+        toast("Customer app QR link copied.");
+      });
+
+      $("qrList").addEventListener("click", (event) => {
+        const preview = event.target.closest("[data-preview-qr]");
+        if (!preview) return;
+        const row = qrRows.find((entry) => entry.id === preview.dataset.previewQr);
+        if (row) renderQr(row);
+      });
+
+      onLive("trainMasters", (rows) => { trains = rows.filter((row) => row.active !== false); renderSelects(); }, "trainNumber", "asc", 300);
+      onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { riders = rows.filter((row) => String(row.status || "").toLowerCase() === "approved" && String(row.assignmentType || "").toLowerCase() === "train"); renderSelects(); }, "updatedAt", "desc", 300);
+      onLive("adminUsers", (rows) => { managers = rows; renderSelects(); }, "email", "asc", 300);
+      onLiveCompat("trainRakeQRCodes", "trainRakeQRCode", (rows) => { qrRows = rows; renderQrList(); }, "updatedAt", "desc", 200);
+    });
+  </script>
+</body>
+</html>

@@ -309,6 +309,7 @@
             <label class="field"><span>Access Scope</span><select class="select" name="accessScope">
               <option value="all">All locations</option>
               <option value="train">Specific train</option>
+              <option value="train-rake">Specific train-rake</option>
               <option value="yard">Specific yard</option>
               <option value="baseKitchen">Specific base kitchen</option>
             </select></label>
@@ -405,9 +406,14 @@
         if (email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD) {
           currentUser = { email, name: "Sandip Nandi", role: "super-admin", access: "all", accessScope: "all", accessValue: "" };
         } else {
-          const found = adminUsers.find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password);
+          const found = adminUsers.find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && user.active !== false);
           if (!found) {
             toast("Login failed. Please check ID and password.");
+            return;
+          }
+          const allowedApps = Array.isArray(found.allowedApps) ? found.allowedApps : String(found.access || "").split(",").map((value) => value.trim()).filter(Boolean);
+          if (!allowedApps.includes("all") && !allowedApps.includes("command-center") && !allowedApps.includes("central-command")) {
+            toast("This ID does not have access to Rake Manager Command Center.");
             return;
           }
           currentUser = {
@@ -415,6 +421,8 @@
             name: found.name || found.email,
             role: found.role || "viewer",
             access: found.access || "",
+            allowedApps,
+            permissionLevel: found.permissionLevel || "read-write",
             accessScope: found.accessScope || (String(found.access || "").toLowerCase() === "all" ? "all" : ""),
             accessValue: found.accessValue || ""
           };
@@ -464,6 +472,14 @@
         return false;
       }
 
+      function canAccessOrderContext(order) {
+        if (hasAllAccess()) return true;
+        const scope = userScope();
+        const value = userScopeValue();
+        if (scope === "train-rake") return normalizeText(`${order.train || ""}-${order.rakeNumber || ""}`) === value;
+        return canAccessTrain(order.train, order.yardName);
+      }
+
       function canAccessKitchen(baseKitchenId = "", baseKitchenName = "") {
         if (hasAllAccess()) return true;
         const scope = userScope();
@@ -474,7 +490,7 @@
       }
 
       function visibleOrdersForAccess() {
-        return orders.filter((order) => canAccessTrain(order.train, order.yardName));
+        return orders.filter(canAccessOrderContext);
       }
 
       function visibleFeedbacksForAccess() {
@@ -598,6 +614,7 @@
         return `<div class="item">
           <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
           <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+          ${order.rakeNumber || order.qrId ? `<p><b>QR Context:</b> Rake ${escapeHtml(order.rakeNumber || "")}${order.qrId ? ` | ${escapeHtml(order.qrId)}` : ""}${order.rakeManagerPhone ? ` | Manager ${escapeHtml(order.rakeManagerPhone)}` : ""}</p>` : ""}
           ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
           ${orderStatus === "new" ? `<div class="ack danger-soft" style="margin:8px 0;">Accept within 10 minutes: ${escapeHtml(slaText(order.createdAt, 10))}</div>` : ""}
           <p><b>Payment:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")}</p>
@@ -639,16 +656,21 @@
           toast("Order status updated.");
         }
         if (initDelivery) {
+          const order = orders.find((entry) => entry.id === initDelivery.dataset.initDelivery);
           const name = prompt("Delivery person name");
           if (!name) return;
-          const phone = cleanPhone(prompt("Delivery person mobile number") || "");
+          const phone = cleanPhone(prompt("Delivery person mobile number", order?.assignedRiderPhone || order?.deliveryPersonPhone || "") || "");
+          const deliveryOtp = order?.deliveryOtp || String(Math.floor(100000 + Math.random() * 900000));
           await db.collection("customerOrders").doc(initDelivery.dataset.initDelivery).update({
             status: "out-for-delivery",
             deliveryPersonName: name,
             deliveryPersonPhone: phone,
+            assignedRiderPhone: phone,
+            deliveryOtp,
+            deliveryOtpStatus: "active",
             deliveryStartedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
-            statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: `Delivery by ${name}` })
+            statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: `Delivery by ${name}. OTP released to customer app.` })
           });
           toast("Delivery initiated and visible to customer.");
         }
