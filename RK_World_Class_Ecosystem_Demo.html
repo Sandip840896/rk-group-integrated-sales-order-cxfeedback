@@ -206,7 +206,7 @@
       height: 100%;
       min-height: 430px;
       display: block;
-      object-fit: cover;
+      object-fit: contain;
       object-position: center;
     }
 
@@ -1186,14 +1186,33 @@
       <div class="stage">
         <div class="kicker fade">Executive story</div>
         <h2 class="fade d1">Management confidence comes from seeing the full control loop</h2>
-        <p class="sub fade d2">This is not only a customer ordering app. It is a service operating model where every action creates visibility, accountability and measurable business output.</p>
+        <p class="sub fade d2">This is not only a customer ordering app. The current suite now covers passenger ordering, QR launch, app-wise staff rights, pantry command, kitchen supply, partner onboarding, rider delivery, customer care, control tower and central command.</p>
         <div class="grid four fade d3" style="margin-top:30px">
-          <div class="card kpi"><b>01</b><h3>Customer promise</h3><p>Passenger can order, track, complain and rate Meals On Wheels response from one journey screen.</p></div>
-          <div class="card kpi"><b>02</b><h3>Clear order ownership</h3><p>Pantry orders go to Rack Manager; Base Kitchen and RK Partner menu orders go directly to their apps.</p></div>
-          <div class="card kpi"><b>03</b><h3>Network governance</h3><p>Control Tower approves catalog, RK Partner and rider ecosystem before scale.</p></div>
-          <div class="card kpi"><b>04</b><h3>Business visibility</h3><p>Central Command sees orders, GMV, margin, complaints, rider and vendor risk.</p></div>
+          <div class="card kpi"><b>01</b><h3>Customer promise</h3><p>Passenger scans train QR, enters journey details, orders, tracks, complains and rates from one branded screen.</p></div>
+          <div class="card kpi"><b>02</b><h3>Clear ownership</h3><p>Pantry goes to Rack Manager; Base Kitchen and RK Partner menu orders go directly to their apps.</p></div>
+          <div class="card kpi"><b>03</b><h3>Controlled scale</h3><p>Control Tower checks catalog, partners, riders, live masters and train routes before network expansion.</p></div>
+          <div class="card kpi"><b>04</b><h3>Management cockpit</h3><p>Central Command and admin controls expose orders, GMV, margin, complaints, users, network risk and next actions.</p></div>
         </div>
         <div class="footer"><span>From passenger convenience to board-level control</span><span>02</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="stage">
+        <div class="kicker fade">Latest built feature set</div>
+        <h2 class="fade d1">Every current app is now part of the demonstration</h2>
+        <p class="sub fade d2">The deck now reflects the updated application suite as of the latest local files: customer QR journey, staff access control, operations registers, delivery earnings and governance workflows.</p>
+        <div class="grid four fade d3" style="margin-top:26px">
+          <div class="card"><h3>Customer App</h3><p>Brand splash, passenger modal, train search, menu source filters, food preferences, cart review, COD pilot, tracking, FAQ and complaint proof upload.</p></div>
+          <div class="card"><h3>QR Creator</h3><p>Train and rake-specific QR links prefill customer context with train, rake, Rack Manager and rider mapping.</p></div>
+          <div class="card"><h3>Rack Manager</h3><p>Login, customer orders, sold-out interest, base kitchen indents, invoices, disputes, cash purchases, store inward and staff sales.</p></div>
+          <div class="card"><h3>Base Kitchen</h3><p>Kitchen selection, customer order acceptance, ready handover, catalog approval request, invoice PDF and dispute settlement.</p></div>
+          <div class="card"><h3>Control Tower</h3><p>Maker-checker catalog approval, live master rectification, partner/rider approvals, route master and CSV route import.</p></div>
+          <div class="card"><h3>Delivery App</h3><p>Rider enlistment, KYC/photo capture, train/base/partner mapping, open jobs, assigned jobs, OTP handover and earnings at Rs 30 per delivery.</p></div>
+          <div class="card"><h3>Admin Console</h3><p>Create and edit staff IDs, app access, role defaults, scope, read/write/approve/admin permissions and active/inactive status.</p></div>
+          <div class="card"><h3>Central + Super Admin</h3><p>Management dashboards, risk/action views, collection health, issue desk, source viewer, JSON data editor, backup, import/export and control signals.</p></div>
+        </div>
+        <div class="footer"><span>Latest application features are now visible in the management story</span><span>03</span></div>
       </div>
     </section>
 
@@ -1204,11 +1223,11 @@
         <p class="sub fade d2">This version returns to the complete operating-map style, but the animation now moves in clear packets: menu selection, owner app, rider delivery, care loop and Central Command visibility.</p>
         <div class="ecosystem-map fade d3">
           <div class="map-stage-pills">
-            <span>1. Customer selects menu</span>
-            <span>2. Correct owner app acts</span>
-            <span>3. Rider delivers</span>
-            <span>4. Tracker, feedback and care</span>
-            <span>5. Central Command sees all</span>
+            <span>1. QR opens journey</span>
+            <span>2. Customer selects menu</span>
+            <span>3. Correct owner app acts</span>
+            <span>4. Rider delivers + OTP</span>
+            <span>5. Care, admin and command see all</span>
           </div>
           <svg class="map-svg" viewBox="0 0 1200 520" preserveAspectRatio="none" aria-hidden="true">
             <path id="catalogRoute" class="catalog-line" d="M 180 292 C 270 292, 305 292, 342 292 C 470 244, 496 198, 540 154" />
@@ -1224,25 +1243,25 @@
             <circle class="route-packet packet-care" r="8"><animateMotion dur="7s" repeatCount="indefinite" begin="1s"><mpath href="#exceptionRoute"/></animateMotion></circle>
             <circle class="route-packet packet-command" r="8"><animateMotion dur="8s" repeatCount="indefinite" begin=".5s"><mpath href="#commandRoute"/></animateMotion></circle>
           </svg>
-          <div class="map-node customer"><h3><b>C</b> Customer App</h3><p>Meals On Wheels order, tracker, feedback and invoice.</p></div>
+          <div class="map-node customer"><h3><b>C</b> Customer App</h3><p>QR journey, order, cart, tracker, FAQ, feedback and invoice.</p></div>
           <div class="map-node order"><h3><b>O</b> Order Food</h3><p>Passenger chooses Pantry, Base Kitchen or RK Partner menu.</p></div>
           <div class="map-node track"><h3><b>T</b> Order Tracker</h3><p>Live status and OTP visible to passenger.</p></div>
           <div class="map-node feedback"><h3><b>F</b> Feedback</h3><p>Complaint or rating enters the service loop.</p></div>
           <div class="map-node pantry"><h3><b>P</b> Train Pantry Catalog</h3><p>Pantry stock and onboard item availability.</p></div>
           <div class="map-node catalog"><h3><b>G</b> Catalog Making</h3><p>Rack, kitchen and partner propose menu items.</p></div>
-          <div class="map-node control wide"><h3><b>CT</b> Control Tower App</h3><p>Approves catalog, partner, rider and route readiness.</p></div>
+          <div class="map-node control wide"><h3><b>CT</b> Control Tower App</h3><p>Approves catalog, partner, rider, route and live master corrections.</p></div>
           <div class="map-node rack"><h3><b>RM</b> Rack Manager App</h3><p>Owns only Pantry menu orders and onboard stock.</p></div>
           <div class="map-node kitchen"><h3><b>BK</b> Base Kitchen App</h3><p>Directly owns Base Kitchen menu orders.</p></div>
           <div class="map-node partner"><h3><b>RP</b> RK Partner App</h3><p>Directly owns RK Partner menu orders.</p></div>
-          <div class="map-node rider"><h3><b>RD</b> Rider App</h3><p>Pickup, COD/OTP, proof and delivered status.</p></div>
+          <div class="map-node rider"><h3><b>RD</b> Rider App</h3><p>Enlistment, mapped jobs, OTP, proof and earnings.</p></div>
           <div class="map-node care"><h3><b>CC</b> Customer Care App</h3><p>Complaint desk and escalation bridge.</p></div>
           <div class="map-node exception"><h3><b>N</b> No / exception</h3><p>No stock, delay, COD issue, dispute or unresolved complaint.</p></div>
-          <div class="map-node central"><h3><b>CM</b> Central Command App</h3><p>Management sees all order paths, GMV, margin, complaints, rider performance, vendor risk and future scale.</p></div>
+          <div class="map-node central"><h3><b>CM</b> Central Command App</h3><p>Management sees all order paths, GMV, margin, complaints, riders, users, vendor risk and future scale.</p></div>
         </div>
         <div class="legend fade d3">
           <span><i></i>Order fulfilment</span><span class="blue"><i></i>Tracking and care</span><span class="orange"><i></i>Catalog governance</span><span class="red"><i></i>No / exception</span><span class="violet"><i></i>Central visibility</span>
         </div>
-        <div class="footer"><span>Moving packets show the active communication routes across every app</span><span>03</span></div>
+        <div class="footer"><span>Moving packets show the active communication routes across every app</span><span>04</span></div>
       </div>
     </section>
 
@@ -1255,8 +1274,8 @@
           <div class="movie">
             <div class="movie-map"></div>
             <div class="movie-node" data-node="customer" style="left:42%;top:24px"><h3>Customer App</h3><p>Passenger places order and later tracks status.</p></div>
-            <div class="movie-node" data-node="rack" style="left:42%;top:148px"><h3>Rake Manager</h3><p>Owns pantry menu orders only.</p></div>
-            <div class="movie-node" data-node="pantry" style="left:12%;top:146px"><h3>Train Pantry Menu</h3><p>Managed through Rake Manager App.</p></div>
+            <div class="movie-node" data-node="rack" style="left:42%;top:148px"><h3>Rack Manager</h3><p>Owns pantry menu orders only.</p></div>
+            <div class="movie-node" data-node="pantry" style="left:12%;top:146px"><h3>Train Pantry Menu</h3><p>Managed through Rack Manager App.</p></div>
             <div class="movie-node" data-node="kitchen" style="left:28%;top:270px"><h3>Base Kitchen Menu</h3><p>Managed directly by Base Kitchen App.</p></div>
             <div class="movie-node" data-node="partner" style="left:56%;top:270px"><h3>RK Partner Menu</h3><p>Managed directly by RK Partner App.</p></div>
             <div class="movie-node" data-node="rider" style="right:12%;top:270px"><h3>Rider App</h3><p>Pickup, OTP, COD, delivered.</p></div>
@@ -1274,7 +1293,7 @@
           <div class="event-panel">
             <div>
               <h3 id="eventTitle">Scenario: Pantry menu order</h3>
-              <p id="eventText">Passenger selects Pantry menu, so the order is handled by Rake Manager Command Center.</p>
+              <p id="eventText">Passenger selects Pantry menu, so the order is handled by Rack Manager Command Center.</p>
             </div>
             <div class="scenario-row">
               <button class="active" data-scenario="pantry">Pantry menu</button>
@@ -1290,7 +1309,7 @@
             </div>
           </div>
         </div>
-        <div class="footer"><span>Video-style demo built inside the HTML deck</span><span>04</span></div>
+        <div class="footer"><span>Video-style demo built inside the HTML deck</span><span>05</span></div>
       </div>
     </section>
 
@@ -1298,35 +1317,35 @@
       <div class="stage">
         <div class="kicker fade">Customer journey</div>
         <h2 class="fade d1">What the passenger experiences</h2>
-        <p class="sub fade d2">The passenger sees one simple Meals On Wheels service: order, track, invoice, complain and rate response. Behind the scenes, the ecosystem does the heavy lifting.</p>
+        <p class="sub fade d2">The passenger sees one simple Meals On Wheels service: branded opening screen, QR journey context, passenger details, menu selection, cart review, COD order, tracking, FAQ, complaint and rating.</p>
         <div class="row fade d3" style="margin-top:22px">
           <div class="phone"><iframe title="Customer app" src="customer-app.html"></iframe></div>
           <div class="grid two" style="flex:1">
-            <div class="card"><h3>1. Scan QR / open link</h3><p>Passenger enters name, phone, train, coach and berth.</p></div>
-            <div class="card"><h3>2. Choose menu</h3><p>Passenger selects Pantry menu, Base Kitchen menu or RK Partner menu.</p></div>
-            <div class="card"><h3>3. Track status</h3><p>Accepted, preparing, out-for-delivery, OTP and delivered become visible.</p></div>
-            <div class="card"><h3>4. Raise concern</h3><p>Feedback or complaint creates a ticket visible to command and care teams.</p></div>
+            <div class="card"><h3>1. Train QR opens context</h3><p>QR link can carry train, rake, Rack Manager and rider details into the Customer App.</p></div>
+            <div class="card"><h3>2. Passenger and menu filters</h3><p>Passenger saves train/seat details, then filters by source, meal slot and food preference.</p></div>
+            <div class="card"><h3>3. Cart and COD pilot</h3><p>Customer reviews quantity, total payable and COD mode before confirming order.</p></div>
+            <div class="card"><h3>4. Track, FAQ and complaint proof</h3><p>Tracking by phone, FAQ support, feedback ticket and proof image/audio/video upload are available.</p></div>
           </div>
         </div>
-        <div class="footer"><span>Customer app is simple because the operating complexity is behind it</span><span>05</span></div>
+        <div class="footer"><span>Customer app is simple because the operating complexity is behind it</span><span>06</span></div>
       </div>
     </section>
 
     <section class="slide">
       <div class="stage">
-        <div class="kicker fade">Rake manager command</div>
-        <h2 class="fade d1">Rake Manager controls Pantry menu orders</h2>
-        <p class="sub fade d2">Rake Manager Command Center manages only the Train Pantry menu path: onboard stock, preparation, delivery initiation, pantry disputes and customer response.</p>
+        <div class="kicker fade">Rack manager command</div>
+        <h2 class="fade d1">Rack Manager controls Pantry menu orders</h2>
+        <p class="sub fade d2">Rack Manager Command Center manages the Train Pantry path plus the operational registers needed for onboard business control: indents, invoices, purchases, store inward, staff sales, masters and admin access.</p>
         <div class="row fade d3" style="margin-top:22px">
-          <div class="browser" style="flex:1"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><iframe title="Rake manager command center" src="command-center.html"></iframe></div>
+          <div class="browser" style="flex:1"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><iframe title="Rack manager command center" src="command-center.html"></iframe></div>
           <div class="grid" style="width:min(360px,100%)">
-            <div class="card"><h3>Accept or hold</h3><p>Checks pantry item, train, coach, berth and onboard availability.</p></div>
-            <div class="card"><h3>Pantry ownership</h3><p>Base Kitchen and RK Partner menu orders do not need Rake Manager approval.</p></div>
-            <div class="card"><h3>Initiate delivery</h3><p>Assigns delivery person, sends status to rider and customer tracker.</p></div>
-            <div class="card"><h3>Close loop</h3><p>Handles invoice, delivery dispute, cancellation and complaint response.</p></div>
+            <div class="card"><h3>Live order desk</h3><p>Accepts pantry orders, handles sold-out interest and updates passenger tracker.</p></div>
+            <div class="card"><h3>Indent and invoice control</h3><p>Sends base kitchen indents, receives invoices and raises photo-supported delivery disputes.</p></div>
+            <div class="card"><h3>Purchase and stock registers</h3><p>Records cash purchases, store/warehouse inward and item-level sales/profit visibility.</p></div>
+            <div class="card"><h3>Staff sales and masters</h3><p>Captures onboard salesperson returns and maintains food, train, kitchen and admin user masters.</p></div>
           </div>
         </div>
-        <div class="footer"><span>Rake Manager remains powerful, but only for the pantry order path</span><span>06</span></div>
+        <div class="footer"><span>Rack Manager remains the onboard operating desk for pantry and train-side controls</span><span>07</span></div>
       </div>
     </section>
 
@@ -1336,15 +1355,15 @@
         <h2 class="fade d1">Three customer menus, three direct operating owners</h2>
         <p class="sub fade d2">Customer selection decides the responsible app immediately. Governance happens before publishing menu items, not after every order.</p>
         <div class="grid three fade d3" style="margin-top:28px">
-          <div class="card"><h3>Train Pantry Menu</h3><p>Managed by Rake Manager App for onboard stock and pantry fulfilment.</p></div>
-          <div class="card"><h3>Base Kitchen Menu</h3><p>Managed directly by Base Kitchen App: accept, prepare, ready, invoice and dispute.</p></div>
-          <div class="card"><h3>RK Partner Menu</h3><p>Managed directly by RK Partner App for approved partner supply and status.</p></div>
+          <div class="card"><h3>Train Pantry Menu</h3><p>Managed by Rack Manager App for onboard stock and pantry fulfilment.</p></div>
+          <div class="card"><h3>Base Kitchen Menu</h3><p>Managed directly by Base Kitchen App: customer order acceptance, ready handover, catalog request, invoice PDF and dispute settlement.</p></div>
+          <div class="card"><h3>RK Partner Menu</h3><p>Managed directly by RK Partner App: vendor enlistment and partner food catalog before Control Tower approval.</p></div>
         </div>
         <div class="row fade d3" style="margin-top:18px">
           <div class="browser"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><iframe title="Base kitchen" src="base-kitchen.html"></iframe></div>
           <div class="browser"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><iframe title="Partner app" src="partner-app.html"></iframe></div>
         </div>
-        <div class="footer"><span>Supply scale works only when catalog is governed</span><span>07</span></div>
+        <div class="footer"><span>Supply scale works only when catalog is governed</span><span>08</span></div>
       </div>
     </section>
 
@@ -1352,17 +1371,17 @@
       <div class="stage">
         <div class="kicker fade">Rider and customer care</div>
         <h2 class="fade d1">Delivery and care protect trust after acceptance</h2>
-        <p class="sub fade d2">Once an order is accepted, customer confidence depends on rider execution and customer care resolution.</p>
+        <p class="sub fade d2">Once an order is accepted, customer confidence depends on mapped rider execution, OTP/proof capture, payout visibility and customer care resolution.</p>
         <div class="row fade d3" style="margin-top:22px">
           <div class="phone"><iframe title="Delivery app" src="delivery-app.html"></iframe></div>
           <div class="browser" style="flex:1"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><iframe title="Customer care" src="customer-care.html"></iframe></div>
           <div class="grid" style="width:min(330px,100%)">
-            <div class="card"><h3>Rider app</h3><p>Pickup task, route, OTP, COD, delivery proof and delivered status.</p></div>
+            <div class="card"><h3>Rider app</h3><p>Profile/KYC, train/base/partner mapping, open jobs, assigned jobs, OTP handover and delivered status.</p></div>
             <div class="card"><h3>Customer care</h3><p>Complaint desk checks order, speaks to passenger/vendor and records resolution.</p></div>
-            <div class="card"><h3>Escalation</h3><p>Unresolved issues move to rake manager and central command with ageing.</p></div>
+            <div class="card"><h3>Rider earnings</h3><p>Delivered order count and income are visible with date filter at Rs 30 per delivered order.</p></div>
           </div>
         </div>
-        <div class="footer"><span>Passenger trust is preserved through delivery proof and complaint closure</span><span>08</span></div>
+        <div class="footer"><span>Passenger trust is preserved through delivery proof, payout control and complaint closure</span><span>09</span></div>
       </div>
     </section>
 
@@ -1370,17 +1389,17 @@
       <div class="stage">
         <div class="kicker fade">Control tower</div>
         <h2 class="fade d1">Control Tower is the safety gate before scale</h2>
-        <p class="sub fade d2">It prevents uncontrolled catalog growth and makes partner/rider onboarding management-ready.</p>
+        <p class="sub fade d2">It prevents uncontrolled catalog growth and makes catalog, partner, rider, route and master-data correction management-ready.</p>
         <div class="row fade d3" style="margin-top:22px">
           <div class="browser" style="flex:1"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><iframe title="Control tower" src="control-tower.html"></iframe></div>
           <div class="grid" style="width:min(390px,100%)">
-            <div class="card"><h3>Catalog approval</h3><p>Rack, base kitchen and partner item requests are checked before customer visibility.</p></div>
-            <div class="card"><h3>Partner approval</h3><p>Restaurant/vendor onboarding is reviewed before order assignment.</p></div>
-            <div class="card"><h3>Rider approval</h3><p>Rider profile and readiness become part of operational control.</p></div>
-            <div class="card"><h3>Route readiness</h3><p>Future route logic can decide which supply source can serve which train and station.</p></div>
+            <div class="card"><h3>Maker-checker catalog</h3><p>Price, cost, image, source, supplier and linked train are checked before publishing.</p></div>
+            <div class="card"><h3>Live master rectification</h3><p>Published catalog, base kitchen and partner master errors can be corrected centrally.</p></div>
+            <div class="card"><h3>Partner and rider approval</h3><p>Vendor and delivery profiles wait in approval queues before they can serve orders.</p></div>
+            <div class="card"><h3>Route master and import</h3><p>Train route can be maintained or imported by CSV and verified against NTES.</p></div>
           </div>
         </div>
-        <div class="footer"><span>Governance is what makes 200-train scale credible</span><span>09</span></div>
+        <div class="footer"><span>Governance is what makes 200-train scale credible</span><span>10</span></div>
       </div>
     </section>
 
@@ -1388,17 +1407,17 @@
       <div class="stage">
         <div class="kicker fade">Central command</div>
         <h2 class="fade d1">Central Command turns operations into management confidence</h2>
-        <p class="sub fade d2">The central layer reads every important signal: orders, sales, gross margin, fill rate, complaints, partner network and rider readiness.</p>
+        <p class="sub fade d2">The central layer reads every important signal: order funnel, top products, payment mix, base kitchen network, train network, partner network, complaints, catalog risk and COD/online readiness.</p>
         <div class="row fade d3" style="margin-top:22px">
           <div class="browser" style="flex:1"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><iframe title="Central command" src="central-command.html"></iframe></div>
           <div class="grid two" style="width:min(440px,100%)">
             <div class="card kpi"><b>GMV</b><p>Daily and train-wise business volume.</p></div>
             <div class="card kpi"><b>Margin</b><p>Item cost and selling price visibility.</p></div>
             <div class="card kpi"><b>CX</b><p>Complaint ageing and service response.</p></div>
-            <div class="card kpi"><b>Risk</b><p>Pending catalog, partner, rider and delivery issues.</p></div>
+            <div class="card kpi"><b>Risk</b><p>Pending catalog, partner, rider, route, delivery and open complaint issues.</p></div>
           </div>
         </div>
-        <div class="footer"><span>Central Command is the management cockpit</span><span>10</span></div>
+        <div class="footer"><span>Central Command is the management cockpit</span><span>11</span></div>
       </div>
     </section>
 
@@ -1408,14 +1427,14 @@
         <h2 class="fade d1">What happens when any point says No?</h2>
         <p class="sub fade d2">A strong system is not only the happy path. It should show management exactly how failure is controlled.</p>
         <div class="grid three fade d3" style="margin-top:28px">
-          <div class="card"><h3>No stock in pantry</h3><p>Rake manager can offer alternate pantry item or cancel with customer notice. Base Kitchen and Partner menus remain separate paths.</p></div>
-          <div class="card"><h3>Base kitchen direct issue</h3><p>Base Kitchen handles partial quantity, delay, ready status, invoice and dispute directly in its app.</p></div>
+          <div class="card"><h3>No stock in pantry</h3><p>Rack Manager can offer alternate pantry item or cancel with customer notice. Base Kitchen and Partner menus remain separate paths.</p></div>
+          <div class="card"><h3>Base kitchen direct issue</h3><p>Base Kitchen handles partial quantity, delay, ready status, invoice PDF and dispute settlement directly in its app.</p></div>
           <div class="card"><h3>Rider delay or COD issue</h3><p>Rider status is visible; rake manager and customer care can intervene before complaint becomes serious.</p></div>
           <div class="card"><h3>Catalog rejected</h3><p>Control Tower rejects with note. Item stays hidden from passenger app until corrected.</p></div>
           <div class="card"><h3>Partner direct issue</h3><p>RK Partner App handles partner order availability and fulfilment status; unresolved issues go to care/central visibility.</p></div>
-          <div class="card"><h3>Management escalation</h3><p>Central Command uses risk dashboard for train, vendor, rider and route-wise corrective action.</p></div>
+          <div class="card"><h3>Admin / access issue</h3><p>Admin Console can disable IDs, adjust app rights and restrict staff by role, scope and permission level.</p></div>
         </div>
-        <div class="footer"><span>No path is hidden; every failure becomes a controlled workflow</span><span>11</span></div>
+        <div class="footer"><span>No path is hidden; every failure becomes a controlled workflow</span><span>12</span></div>
       </div>
     </section>
 
@@ -1434,7 +1453,7 @@
           </tbody>
         </table>
         <p class="sub fade d3" style="font-size:15px;max-width:1120px">Calculation basis: monthly GMV = orders/day x AOV x 30 days. Month 12 target is a planning ambition requiring multi-menu conversion across Pantry, Base Kitchen and RK Partner paths. Contribution uses assumed net margin.</p>
-        <div class="footer"><span>Planning scenario, not committed forecast</span><span>12</span></div>
+        <div class="footer"><span>Planning scenario, not committed forecast</span><span>13</span></div>
       </div>
     </section>
 
@@ -1445,22 +1464,22 @@
         <p class="sub fade d2">The demonstration should lead management to one practical conclusion: run a controlled pilot, measure it properly and then prepare CAPEX/OPEX with evidence.</p>
         <div class="grid four fade d3" style="margin-top:30px">
           <div class="card"><h3>1. Pilot route</h3><p>Select trains, stations, supply points and rider coverage.</p></div>
-          <div class="card"><h3>2. Master readiness</h3><p>Clean catalog, train, kitchen, partner and user access masters.</p></div>
-          <div class="card"><h3>3. Live measurement</h3><p>Track order conversion, delivery success, complaint ageing and margin.</p></div>
-          <div class="card"><h3>4. Version 2 plan</h3><p>Auth, security, backend API, storage, payments, WhatsApp/SMS and BI.</p></div>
+          <div class="card"><h3>2. Master readiness</h3><p>Clean catalog, train, route, kitchen, partner, rider, QR and user access masters.</p></div>
+          <div class="card"><h3>3. Live measurement</h3><p>Track conversion, fill rate, delivery success, rider earnings, complaint ageing, GMV and margin.</p></div>
+          <div class="card"><h3>4. Version 2 plan</h3><p>Production auth, Firebase Storage, payments, WhatsApp/SMS, BI, API layer and stronger security rules.</p></div>
         </div>
         <div class="card fade d3" style="margin-top:22px;background:linear-gradient(135deg,rgba(8,116,84,.12),rgba(244,162,89,.12))">
           <h3>Ambition</h3>
           <p>With suggestions and required support, Step 1 can grow into a leading Indian rail passenger service app: ordering, service assurance, delivery proof, complaint resolution and management command in one ecosystem.</p>
         </div>
-        <div class="footer"><span>End with pilot confidence and next-step clarity</span><span>13</span></div>
+        <div class="footer"><span>End with pilot confidence and next-step clarity</span><span>14</span></div>
       </div>
     </section>
   </main>
 
   <div class="controls">
     <button class="secondary" id="prev">Prev</button>
-    <div class="counter" id="counter">1 / 13</div>
+    <div class="counter" id="counter">1 / 14</div>
     <button id="next">Next</button>
   </div>
   <button class="mode" id="mode">Dark mode</button>
@@ -1510,11 +1529,11 @@
     const scenarios = {
       pantry: {
         title: "Scenario: Pantry menu order",
-        text: "Passenger selects Pantry menu, so the order is handled by Rake Manager Command Center.",
+        text: "Passenger selects Pantry menu, so the order is handled by Rack Manager Command Center.",
         steps: [
           ["customer", "Passenger chooses Pantry menu", "Customer App creates pantry-menu order with train, coach, berth and item.", "Pantry menu", "Order submitted", "green"],
-          ["pantry", "Pantry catalog item selected", "Item belongs to Train Pantry Catalog managed by Rake Manager.", "Pantry item", "Checking onboard stock", "green"],
-          ["rack", "Rake manager accepts", "Rake Manager Command Center accepts, prepares or marks unavailable.", "Order accepted", "Rake manager preparing", "green"],
+          ["pantry", "Pantry catalog item selected", "Item belongs to Train Pantry Catalog managed by Rack Manager.", "Pantry item", "Checking onboard stock", "green"],
+          ["rack", "Rack manager accepts", "Rack Manager Command Center accepts, prepares or marks unavailable.", "Order accepted", "Rack manager preparing", "green"],
           ["rider", "Rider delivers", "Rider app receives pickup task, OTP/COD and delivered status.", "Out for delivery", "Share OTP after receiving food", "blue"],
           ["customer", "Passenger receives", "Customer tracker shows delivered and invoice/feedback options.", "Delivered", "Thank you for ordering", "green"],
           ["central", "Central command updates", "Pantry sales, margin, delivery status and service result update live.", "Dashboard updated", "Pantry GMV visible", "green"]
@@ -1522,7 +1541,7 @@
       },
       kitchen: {
         title: "Scenario: Base Kitchen menu order",
-        text: "Passenger selects Base Kitchen menu, so the order goes directly to Base Kitchen App without Rake Manager approval.",
+        text: "Passenger selects Base Kitchen menu, so the order goes directly to Base Kitchen App without Rack Manager approval.",
         steps: [
           ["customer", "Passenger chooses Base Kitchen menu", "Customer App creates a base-kitchen order for the mapped kitchen/source.", "Base kitchen menu", "Order submitted", "green"],
           ["kitchen", "Base kitchen accepts directly", "Base Kitchen App receives the order, accepts within time and starts preparation.", "Kitchen accepted", "Food being prepared", "green"],
