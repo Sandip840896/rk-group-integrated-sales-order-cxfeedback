@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="rk-app.css?v=mow-20260624-2">
+  <link rel="stylesheet" href="rk-app.css?v=mow-20260702-mobile-cards">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -509,9 +509,8 @@
                 <h3>${escapeHtml(item.name)}</h3>
                 <b class="menu-price">${money(sell)}</b>
               </div>
-              <p>${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
-              <div class="menu-tags">${itemCuisineTags(item).map((tag) => `<span class="menu-tag">${escapeHtml(tag)}</span>`).join("")}</div>
-              <p>${escapeHtml(item.supplierName || item.baseKitchenName || "")}</p>
+              <p class="menu-meta">${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
+              <div class="menu-tags">${itemCuisineTags(item).slice(0, 2).map((tag) => `<span class="menu-tag">${escapeHtml(tag)}</span>`).join("")}</div>
               <div class="menu-card-actions">
                 <span class="badge ${soldOut ? "danger" : "ok"}">${soldOut ? "Sold out" : "Available"}</span>
                 <div class="qty-stepper">
