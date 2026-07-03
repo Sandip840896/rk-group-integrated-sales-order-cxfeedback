@@ -7,11 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="rk-app.css?v=mow-20260702-mobile-cards">
+  <link rel="stylesheet" href="rk-app.css?v=mow-20260703-management">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=mow-20260624-2"></script>
+  <script defer src="rk-common.js?v=mow-20260703-management"></script>
 </head>
 <body>
   <div class="brand-splash" id="brandSplash" aria-label="Meals On Wheels opening cover">
@@ -24,12 +24,21 @@
       </div>
     </div>
   </div>
+  <div class="customer-utility-dock" id="customerUtilityDock">
+    <label><i data-lucide="languages"></i><select id="languageSelect" aria-label="Language">
+      <option value="en">English</option>
+      <option value="hi">Hindi</option>
+      <option value="bn">Bengali</option>
+    </select></label>
+    <a id="callRakeLink" href="tel:858483366"><i data-lucide="phone-call"></i> Call</a>
+  </div>
   <main class="main mobile-main">
     <section class="brand-cover-strip">
       <div class="brand-cover-copy">
         <div class="brand-mark">MEALS <span>ON</span> WHEELS</div>
         <h2>Meals On Wheels</h2>
         <p>Bharosa Purana, Swaad Naya. Fresh meals delivered to your seat.</p>
+        <p id="bannerInsight" class="banner-insight">Welcome aboard. Scan your train QR and order fresh food from your seat.</p>
         <div class="brand-promise-row">
           <span><i data-lucide="shield-check"></i> Hygienic</span>
           <span><i data-lucide="timer"></i> On-time</span>
@@ -73,7 +82,7 @@
             <button class="icon-btn" id="closePassengerBtn" type="button" title="Close"><i data-lucide="x"></i></button>
           </div>
           <form id="customerForm" class="grid two">
-            <label class="field"><span>Name</span><input class="input" name="name" required placeholder="Passenger name"></label>
+            <label class="field"><span>Name optional</span><input class="input" name="name" placeholder="Passenger name"></label>
             <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
             <label class="field"><span>Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
             <label class="field"><span>PNR Number</span><input class="input" name="pnr" required inputmode="numeric" maxlength="10" placeholder="10 digit PNR, e.g. 1234567890"></label>
@@ -81,6 +90,10 @@
             <label class="field"><span>Train Number</span><select class="select" name="train" id="customerTrainSelect" required></select></label>
             <label class="field"><span>Coach</span><input class="input" name="coach" required placeholder="B2"></label>
             <label class="field"><span>Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
+            <label class="field"><span>Delivery Option</span><select class="select" name="deliveryMode" id="deliveryMode">
+              <option value="seat">Deliver to my seat</option>
+              <option value="pantry-pickup">I will collect from pantry</option>
+            </select></label>
           </form>
           <button class="btn" id="savePassengerModalBtn" type="button"><i data-lucide="save"></i> Save Passenger</button>
         </div>
@@ -133,9 +146,11 @@
           </div>
           <label class="field"><span>Payment Mode</span><select class="select" id="paymentMode">
             <option value="COD">COD - Cash on Delivery</option>
-            <option value="Online" disabled>Online - Coming soon</option>
+            <option value="UPI">UPI on Delivery</option>
+            <option value="QR">Scan QR Code on Delivery</option>
+            <option value="Card">Debit / Credit Card on Delivery</option>
           </select></label>
-          <div class="ack success">For this pilot, COD is active. Online payment option is kept for next version.</div>
+          <div class="ack success">Payment choice is saved with the order. Gateway collection will be connected in the payment-provider phase.</div>
         </div>
         <div class="row mobile-stack">
           <button class="btn secondary grow" id="continueShoppingBtn"><i data-lucide="utensils"></i> Add More Items</button>
@@ -163,7 +178,7 @@
       </div>
       <form id="feedbackForm" class="stack">
         <div class="grid two">
-          <label class="field"><span>Name</span><input class="input" name="customerName" required placeholder="Passenger name"></label>
+          <label class="field"><span>Name optional</span><input class="input" name="customerName" placeholder="Passenger name"></label>
           <label class="field"><span>Phone</span><input class="input" name="customerPhone" required inputmode="tel" placeholder="10 digit phone number"></label>
           <label class="field"><span>PNR optional</span><input class="input" name="customerPnr" inputmode="numeric" maxlength="10" placeholder="If available"></label>
           <label class="field"><span>Train optional</span><input class="input" name="customerTrain" placeholder="Train number if known"></label>
@@ -257,6 +272,7 @@
         rakeNumber: urlParams.get("rake") || urlParams.get("rakeNumber") || "",
         rakeManagerName: urlParams.get("rakeManagerName") || "",
         rakeManagerPhone: cleanPhone(urlParams.get("rakeManagerPhone") || ""),
+        assistantRakeManagerPhone: cleanPhone(urlParams.get("assistantRakeManagerPhone") || ""),
         assignedRiderName: urlParams.get("riderName") || "",
         assignedRiderPhone: cleanPhone(urlParams.get("riderPhone") || ""),
         source: "train-rake-qr"
@@ -274,6 +290,13 @@
       if (hasJourneyContext) {
         localStorage.setItem("mowJourneyContext", JSON.stringify(journeyContext));
       }
+
+      const languageLabels = {
+        en: "Welcome aboard. Scan your train QR and order fresh food from your seat.",
+        hi: "Meals On Wheels mein swagat hai. Apni seat par fresh meal order karein.",
+        bn: "Meals On Wheels e swagat. Nijer seat theke fresh meal order korun."
+      };
+      $("languageSelect").value = localStorage.getItem("mowLanguage") || "en";
 
       function activeJourneyContext() {
         if (hasJourneyContext) return journeyContext;
@@ -295,6 +318,24 @@
             <p>${escapeHtml(ctx.train || "")}${ctx.trainName ? ` - ${escapeHtml(ctx.trainName)}` : ""}${ctx.rakeNumber ? ` | Rake ${escapeHtml(ctx.rakeNumber)}` : ""}</p>
           </div>
           <span class="badge info">${ctx.qrId ? escapeHtml(ctx.qrId) : "QR active"}</span>`;
+        const callPhone = cleanPhone(ctx.rakeManagerPhone || ctx.assistantRakeManagerPhone || "");
+        $("callRakeLink").href = `tel:${callPhone || "858483366"}`;
+      }
+
+      function renderBannerInsight() {
+        const savedOrderCount = Number(localStorage.getItem("mowOrderCount") || 0);
+        const ctx = activeJourneyContext();
+        const lines = [
+          languageLabels[$("languageSelect").value] || languageLabels.en,
+          ctx.train ? `Journey linked: ${ctx.train}${ctx.rakeNumber ? `, Rake ${ctx.rakeNumber}` : ""}. Orders and help will route to this onboard team.` : "Scan the train QR to auto-fill train and rake details.",
+          savedOrderCount ? `Welcome back. You have placed ${savedOrderCount} Meals On Wheels order${savedOrderCount === 1 ? "" : "s"} from this device.` : "New passenger offer: browse pantry, base kitchen and partner menus in one place."
+        ];
+        let idx = 0;
+        $("bannerInsight").textContent = lines[idx];
+        setInterval(() => {
+          idx = (idx + 1) % lines.length;
+          $("bannerInsight").textContent = lines[idx];
+        }, 4200);
       }
 
       const faqs = [
@@ -315,6 +356,57 @@
             <p>${escapeHtml(answer)}</p>
           </details>`).join("");
         lucide.createIcons();
+      }
+
+      function menuDeliveryEstimate(item) {
+        const source = menuSourceOf(item);
+        if (source === "base-kitchen") return "45-75 min at upcoming station";
+        if (source === "partner") return "30-60 min from upcoming station";
+        return "15-30 min from train pantry";
+      }
+
+      function maxQtyForItem(item) {
+        const stock = Number(item?.stockQty || 0);
+        const configured = Number(item?.maxOrderQty || item?.maxQty || stock);
+        return Math.max(0, Math.min(stock, configured || stock));
+      }
+
+      function orderDate(order, field = "createdAt") {
+        return dateFromAny(order?.[field]);
+      }
+
+      function cancelCountdownText(order) {
+        const until = dateFromAny(order?.customerCancelUntil);
+        const created = orderDate(order);
+        const deadline = until || (created ? new Date(created.getTime() + 2 * 60 * 1000) : null);
+        if (!deadline) return "";
+        const left = Math.max(0, deadline.getTime() - Date.now());
+        if (!left) return "";
+        const mins = Math.floor(left / 60000);
+        const secs = Math.floor((left % 60000) / 1000);
+        return `Cancel Order (${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")})`;
+      }
+
+      function orderEtaText(order) {
+        const status = String(order?.status || "").toLowerCase();
+        if (status === "delivered") return "Delivered";
+        if (order?.requestedEta) return order.requestedEta;
+        if (order?.deliveryWindow) return `Promised slot: ${String(order.deliveryWindow).replace("-", " to ")}`;
+        if (["accepted", "preparing", "out-for-delivery"].includes(status)) return "ETA live after dispatch";
+        return "ETA after order acceptance";
+      }
+
+      function deliveredAgeMs(order) {
+        const delivered = orderDate(order, "deliveredAt");
+        return delivered ? Date.now() - delivered.getTime() : 0;
+      }
+
+      function canSubmitForOrder(type, order) {
+        if (!order) return true;
+        const status = String(order.status || "").toLowerCase();
+        if (type === "complaint" && status === "delivered" && deliveredAgeMs(order) > 60 * 60 * 1000) return false;
+        if (type === "feedback" && status === "delivered" && deliveredAgeMs(order) > 2 * 60 * 60 * 1000) return false;
+        return true;
       }
 
       function deliverySlotsForMeal(meal, source = selectedMenuSource) {
@@ -348,6 +440,7 @@
           data.qrId = ctx.qrId || "";
           data.rakeManagerName = ctx.rakeManagerName || "";
           data.rakeManagerPhone = ctx.rakeManagerPhone || "";
+          data.assistantRakeManagerPhone = ctx.assistantRakeManagerPhone || "";
           data.assignedRiderName = ctx.assignedRiderName || "";
           data.assignedRiderPhone = ctx.assignedRiderPhone || "";
           data.journeyContextSource = ctx.source || "train-rake-qr";
@@ -370,9 +463,10 @@
       }
 
       function renderPassengerSummary(data = passenger()) {
-        const enough = data.name && data.phone && data.pnr && data.train && data.coach && data.seat;
+        const enough = data.phone && data.pnr && data.train && data.coach && data.seat;
+        const displayName = data.name || "Passenger";
         $("passengerSummary").textContent = enough
-          ? `${data.name} | ${data.train}${data.rakeNumber ? ` Rake ${data.rakeNumber}` : ""} | ${data.coach}/${data.seat} | PNR ${data.pnr}`
+          ? `${displayName} | ${data.train}${data.rakeNumber ? ` Rake ${data.rakeNumber}` : ""} | ${data.coach}/${data.seat} | PNR ${data.pnr}`
           : "Add passenger, train and seat details before placing order.";
       }
 
@@ -410,7 +504,7 @@
         const orderCustomer = relatedOrder?.customer || {};
         const train = trainMasters.find((entry) => entry.trainNumber === data.customerTrain || entry.id === data.customerTrain);
         const customer = {
-          name: data.customerName || orderCustomer.name || "",
+          name: data.customerName || orderCustomer.name || "Passenger",
           phone: cleanPhone(data.customerPhone || orderCustomer.phone || ""),
           email: orderCustomer.email || "",
           pnr: cleanPnr(data.customerPnr || relatedOrder?.pnr || orderCustomer.pnr || ""),
@@ -423,6 +517,7 @@
           rakeNumber: relatedOrder?.rakeNumber || orderCustomer.rakeNumber || "",
           rakeManagerName: relatedOrder?.rakeManagerName || orderCustomer.rakeManagerName || "",
           rakeManagerPhone: relatedOrder?.rakeManagerPhone || orderCustomer.rakeManagerPhone || "",
+          assistantRakeManagerPhone: relatedOrder?.assistantRakeManagerPhone || orderCustomer.assistantRakeManagerPhone || "",
           assignedRiderName: relatedOrder?.assignedRiderName || orderCustomer.assignedRiderName || "",
           assignedRiderPhone: relatedOrder?.assignedRiderPhone || orderCustomer.assignedRiderPhone || ""
         };
@@ -433,14 +528,10 @@
             rakeNumber: ctx.rakeNumber || "",
             rakeManagerName: ctx.rakeManagerName || "",
             rakeManagerPhone: ctx.rakeManagerPhone || "",
+            assistantRakeManagerPhone: ctx.assistantRakeManagerPhone || "",
             assignedRiderName: ctx.assignedRiderName || "",
             assignedRiderPhone: ctx.assignedRiderPhone || ""
           });
-        }
-        if (!customer.name.trim()) {
-          toast("Please enter passenger name for feedback.");
-          field("customerName")?.focus();
-          return null;
         }
         if (customer.phone.length !== 10) {
           toast("Please enter a valid 10 digit phone number for feedback.");
@@ -462,13 +553,14 @@
         [...cart.entries()].forEach(([id, line]) => {
           const live = menuItems.find((item) => item.id === id);
           const stock = Number(live?.stockQty || 0);
+          const maxQty = maxQtyForItem(live);
           if (!live || live.available === false || stock <= 0) {
             cart.delete(id);
             changed = true;
             return;
           }
-          if (Number(line.qty || 0) > stock) {
-            cart.set(id, { ...line, ...live, qty: stock });
+          if (Number(line.qty || 0) > maxQty) {
+            cart.set(id, { ...line, ...live, qty: maxQty });
             changed = true;
           }
         });
@@ -498,6 +590,7 @@
         const inCart = cart.get(item.id)?.qty || 0;
         const sell = sellingPriceOf(item);
         const stock = Number(item.stockQty || 0);
+        const maxQty = maxQtyForItem(item);
         const soldOut = stock <= 0;
         return `
           <div class="item menu-card">
@@ -510,6 +603,7 @@
                 <b class="menu-price">${money(sell)}</b>
               </div>
               <p class="menu-meta">${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
+              <p class="menu-meta"><b>Delivery:</b> ${escapeHtml(menuDeliveryEstimate(item))}</p>
               <div class="menu-tags">${itemCuisineTags(item).slice(0, 2).map((tag) => `<span class="menu-tag">${escapeHtml(tag)}</span>`).join("")}</div>
               <div class="menu-card-actions">
                 <span class="badge ${soldOut ? "danger" : "ok"}">${soldOut ? "Sold out" : "Available"}</span>
@@ -517,9 +611,10 @@
                   ${soldOut ? `<button class="btn secondary compact-btn" data-notify-item="${item.id}" title="Notify"><i data-lucide="bell"></i></button>` : `
                     <button class="icon-btn" data-minus="${item.id}" title="Reduce"><i data-lucide="minus"></i></button>
                     <b>${inCart}</b>
-                    <button class="icon-btn" data-plus="${item.id}" title="Add" ${inCart >= stock ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
+                    <button class="icon-btn" data-plus="${item.id}" title="Add" ${inCart >= maxQty ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
                 </div>
               </div>
+              ${!soldOut && maxQty < stock ? `<p class="sold-out-note">Max ${maxQty} unit(s) allowed per order.</p>` : ""}
               ${soldOut ? `<p class="sold-out-note">Tap bell so Meals On Wheels can plan fresh stock.</p>` : ""}
             </div>
           </div>`;
@@ -624,9 +719,9 @@
           return;
         }
         const current = cart.get(id) || { ...item, qty: 0 };
-        const stock = Number(item.stockQty || 0);
-        if (plus && current.qty >= stock) {
-          toast("Only available stock can be ordered right now.");
+        const maxQty = maxQtyForItem(item);
+        if (plus && current.qty >= maxQty) {
+          toast(`Maximum ${maxQty} unit(s) available for this item.`);
           return;
         }
         current.qty += plus ? 1 : -1;
@@ -689,9 +784,9 @@
         const item = menuItems.find((entry) => entry.id === id);
         const current = cart.get(id);
         if (!item || !current) return;
-        const stock = Number(item.stockQty || 0);
-        if (plus && Number(current.qty || 0) >= stock) {
-          toast("Only available stock can be ordered right now.");
+        const maxQty = maxQtyForItem(item);
+        if (plus && Number(current.qty || 0) >= maxQty) {
+          toast(`Maximum ${maxQty} unit(s) available for this item.`);
           return;
         }
         current.qty += plus ? 1 : -1;
@@ -742,7 +837,9 @@
             snaps.forEach((snap, idx) => {
               if (!snap.exists) throw new Error(`${items[idx].name} is no longer available.`);
               const stock = Number(snap.data().stockQty || 0);
+              const maxAllowed = Math.min(stock, Number(snap.data().maxOrderQty || snap.data().maxQty || stock));
               if (stock < items[idx].qty) throw new Error(`${items[idx].name} has only ${stock} left.`);
+              if (items[idx].qty > maxAllowed) throw new Error(`${items[idx].name} can be ordered up to ${maxAllowed} unit(s).`);
             });
             refs.forEach((ref, idx) => {
               const remaining = Number(snaps[idx].data().stockQty || 0) - items[idx].qty;
@@ -762,10 +859,13 @@
               rakeNumber: customer.rakeNumber || "",
               rakeManagerName: customer.rakeManagerName || "",
               rakeManagerPhone: customer.rakeManagerPhone || "",
+              assistantRakeManagerPhone: customer.assistantRakeManagerPhone || "",
               assignedRiderName: customer.assignedRiderName || "",
               assignedRiderPhone: customer.assignedRiderPhone || "",
+              customerId: customer.email || customer.phone,
               coach: customer.coach,
               seat: customer.seat,
+              deliveryMode: customer.deliveryMode || "seat",
               mealSlot: $("mealFilter").value === "All" ? "Other" : $("mealFilter").value,
               deliveryWindow: $("deliveryWindow").value,
               fulfillmentSource: orderSources.length === 1 ? orderSources[0] : "mixed",
@@ -774,10 +874,11 @@
               baseKitchenName: items.find((line) => line.fulfillmentSource === "base-kitchen")?.baseKitchenName || "",
               supplierName: items.find((line) => line.supplierName)?.supplierName || "",
               paymentMode,
-              paymentStatus: paymentMode === "COD" ? "cash-on-delivery" : "pending",
+              paymentStatus: paymentMode === "COD" ? "cash-on-delivery" : "collection-pending",
               items,
               total,
               status: "new",
+              customerCancelUntil: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
               statusLog: [{ status: "new", at: new Date().toISOString(), note: "Order placed by passenger" }],
               createdAt: FieldValue.serverTimestamp(),
               updatedAt: FieldValue.serverTimestamp()
@@ -791,6 +892,7 @@
           return;
         }
         cart.clear();
+        localStorage.setItem("mowOrderCount", String(Number(localStorage.getItem("mowOrderCount") || 0) + 1));
         closeCartReview();
         renderMenu();
         toast(`Thank you. Order ${orderNo} is received by Meals On Wheels. Payment: ${paymentMode}.`);
@@ -807,6 +909,12 @@
         const form = event.currentTarget;
         const data = getForm(form);
         const relatedOrder = trackedOrders.find((order) => order.id === data.orderId);
+        if (!canSubmitForOrder(data.submissionType, relatedOrder)) {
+          toast(data.submissionType === "complaint"
+            ? "Complaint window for this delivered order is closed after 1 hour."
+            : "Feedback window for this delivered order is closed after 2 hours.");
+          return;
+        }
         const customer = feedbackCustomer(form, relatedOrder);
         if (!customer) return;
         const submitBtn = form.querySelector("button[type='submit']");
@@ -837,6 +945,7 @@
             rakeNumber: customer.rakeNumber || "",
             rakeManagerName: customer.rakeManagerName || "",
             rakeManagerPhone: customer.rakeManagerPhone || "",
+            assistantRakeManagerPhone: customer.assistantRakeManagerPhone || "",
             assignedRiderName: customer.assignedRiderName || "",
             assignedRiderPhone: customer.assignedRiderPhone || "",
             coach: customer.coach,
@@ -897,6 +1006,19 @@
         $("feedbackOrderSelect").innerHTML = `<option value="">General feedback / no order</option>${options}`;
       }
 
+      function populateFeedbackFromOrder(orderId) {
+        const order = trackedOrders.find((entry) => entry.id === orderId);
+        if (!order) return;
+        const customer = order.customer || {};
+        const form = $("feedbackForm");
+        form.elements.customerName.value = customer.name || "";
+        form.elements.customerPhone.value = customer.phone || order.customerPhone || "";
+        form.elements.customerPnr.value = customer.pnr || order.pnr || "";
+        form.elements.customerTrain.value = customer.train || order.train || "";
+        form.elements.customerCoach.value = customer.coach || order.coach || "";
+        form.elements.customerSeat.value = customer.seat || order.seat || "";
+      }
+
       function mergeTrackedFeedbacks(...groups) {
         const merged = new Map();
         groups.flat().filter(Boolean).forEach((row) => merged.set(row.id, row));
@@ -921,6 +1043,7 @@
             ${order.rakeNumber || order.qrId ? `<div class="ack success compact-ack"><b>QR linked:</b> Rake ${escapeHtml(order.rakeNumber || "")}${order.rakeManagerName ? ` | Rake Manager ${escapeHtml(order.rakeManagerName)}` : ""}</div>` : ""}
             <p><b>Payment:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")}</p>
             ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
+            <div class="eta-chip"><i data-lucide="timer"></i> ${escapeHtml(orderEtaText(order))}</div>
             ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}</p>` : ""}
             ${order.deliveryOtp && String(order.status || "").toLowerCase() === "out-for-delivery" ? `<div class="otp-alert"><span>Delivery OTP</span><b>${escapeHtml(order.deliveryOtp)}</b><small>Share this OTP only after receiving your food.</small></div>` : ""}
             ${String(order.status || "").toLowerCase() === "delivered" ? `<div class="ack success compact-ack"><b>Delivered:</b> Thank you for choosing Meals On Wheels.</div>` : ""}
@@ -946,9 +1069,10 @@
               ${order.status !== "cancelled" ? `<button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>` : ""}
               ${canCustomerChangeOrder(order) ? `
                 <button class="btn secondary" data-edit-order="${order.id}"><i data-lucide="pencil"></i> Edit Order</button>
-                <button class="btn danger" data-cancel-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>
+                <button class="btn danger" data-cancel-order="${order.id}"><i data-lucide="x"></i> ${escapeHtml(cancelCountdownText(order) || "Cancel Order")}</button>
               ` : ""}
               <button class="btn secondary" data-help-order="${order.id}"><i data-lucide="message-square-warning"></i> Need Help</button>
+              ${!["out-for-delivery", "delivered", "cancelled"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-modify-slot="${order.id}"><i data-lucide="calendar-clock"></i> Modify Delivery</button>` : ""}
             </div>
           </div>`).join("") : `<div class="empty">No order found for this phone number.</div>`;
         const feedbackHtml = trackedFeedbacks.length ? `
@@ -1067,6 +1191,7 @@
         const edit = event.target.closest("[data-edit-order]");
         const reply = event.target.closest("[data-reply-feedback]");
         const help = event.target.closest("[data-help-order]");
+        const modifySlot = event.target.closest("[data-modify-slot]");
         if (print) {
           const order = trackedOrders.find((entry) => entry.id === print.dataset.printOrder);
           if (String(order?.status || "").toLowerCase() === "cancelled") {
@@ -1078,9 +1203,10 @@
         if (cancel) {
           const order = trackedOrders.find((entry) => entry.id === cancel.dataset.cancelOrder);
           if (!order || !canCustomerChangeOrder(order)) {
-            toast("Order cannot be cancelled after processing starts.");
+            toast("Cancel window is closed for this order.");
             return;
           }
+          if (!confirm("Are you sure you want to cancel this order?")) return;
           cancelCustomerOrder(order, "Cancelled by passenger before processing.", "customer").then(() => {
             toast("Order cancelled. Stock has been released.");
           });
@@ -1088,9 +1214,10 @@
         if (edit) {
           const order = trackedOrders.find((entry) => entry.id === edit.dataset.editOrder);
           if (!order || !canCustomerChangeOrder(order)) {
-            toast("Order cannot be edited after processing starts.");
+            toast("Edit window is closed for this order.");
             return;
           }
+          if (!confirm("Editing will cancel this order and load the items back into cart. Continue?")) return;
           cancelCustomerOrder(order, "Cancelled by passenger for editing before processing.", "customer").then(() => {
             cart.clear();
             (order.items || []).forEach((line) => cart.set(line.itemId, { ...line, id: line.itemId, qty: Number(line.qty || 0) }));
@@ -1105,8 +1232,30 @@
           $("submissionType").value = "complaint";
           $("submissionType").dispatchEvent(new Event("change"));
           $("feedbackOrderSelect").value = order?.id || "";
+          populateFeedbackFromOrder(order?.id || "");
           $("feedbackForm").elements.message.value = order ? `Need help for order ${order.orderNo || order.id}: ` : "";
           $("feedbackForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        if (modifySlot) {
+          const order = trackedOrders.find((entry) => entry.id === modifySlot.dataset.modifySlot);
+          if (!order || ["out-for-delivery", "delivered", "cancelled"].includes(String(order.status || "").toLowerCase())) {
+            toast("Delivery slot cannot be modified after dispatch.");
+            return;
+          }
+          const nextSlot = prompt("Enter requested delivery slot / earlier delivery request", order.deliveryWindow || "");
+          if (!nextSlot) return;
+          await db.collection("customerOrders").doc(order.id).update({
+            requestedEta: nextSlot,
+            deliveryWindow: nextSlot,
+            updatedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({
+              status: "delivery-slot-requested",
+              note: `Customer requested delivery timing: ${nextSlot}`,
+              by: "customer",
+              at: new Date().toISOString()
+            })
+          });
+          toast("Delivery timing request sent.");
         }
         if (reply) {
           const id = reply.dataset.replyFeedback;
@@ -1138,6 +1287,11 @@
       $("submissionType").addEventListener("change", () => {
         $("complaintFields").classList.toggle("hidden", $("submissionType").value !== "complaint");
       });
+      $("feedbackOrderSelect").addEventListener("change", () => populateFeedbackFromOrder($("feedbackOrderSelect").value));
+      $("languageSelect").addEventListener("change", () => {
+        localStorage.setItem("mowLanguage", $("languageSelect").value);
+        $("bannerInsight").textContent = languageLabels[$("languageSelect").value] || languageLabels.en;
+      });
       $("submissionType").dispatchEvent(new Event("change"));
       document.querySelectorAll("[data-hero-tab]").forEach((btn) => {
         btn.addEventListener("click", () => showTab(btn.dataset.heroTab));
@@ -1163,9 +1317,13 @@
         renderPassengerSummary();
       });
       renderJourneyContext();
+      renderBannerInsight();
       renderFaqs();
       renderPassengerSummary(saved);
       loadTracking(saved.phone || localStorage.getItem("rkTrackPhone") || "");
+      setInterval(() => {
+        if (trackedOrders.length) renderTracking();
+      }, 15000);
     });
   </script>
 </body>

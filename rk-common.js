@@ -395,6 +395,12 @@ function nowLabel(value) {
   return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
 
+function dateFromAny(value) {
+  if (!value) return null;
+  const date = value.toDate ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function shortId(prefix) {
   const date = new Date();
   const stamp = date.toISOString().slice(2, 10).replace(/-/g, "");
@@ -432,7 +438,13 @@ function statusBadge(status) {
 }
 
 function canCustomerChangeOrder(order) {
-  return ["new", "accepted"].includes(String(order?.status || "").toLowerCase());
+  const status = String(order?.status || "").toLowerCase();
+  if (!["new", "accepted"].includes(status)) return false;
+  const explicitUntil = dateFromAny(order?.customerCancelUntil);
+  if (explicitUntil) return Date.now() <= explicitUntil.getTime();
+  const created = dateFromAny(order?.createdAt);
+  if (!created) return false;
+  return Date.now() - created.getTime() <= 2 * 60 * 1000;
 }
 
 function canCommandCancelCustomerOrder(order) {

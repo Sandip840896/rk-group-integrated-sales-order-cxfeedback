@@ -45,6 +45,7 @@
           </div>
           <div class="grid two">
             <label class="field"><span>Rake Manager Phone</span><input class="input" name="rakeManagerPhone" id="qrRakeManagerPhone" inputmode="tel"></label>
+            <label class="field"><span>Assistant Rake Manager Phone</span><input class="input" name="assistantRakeManagerPhone" id="qrAssistantRakeManagerPhone" inputmode="tel"></label>
             <label class="field"><span>Rider Phone</span><input class="input" name="riderPhone" id="qrRiderPhone" inputmode="tel"></label>
           </div>
           <button class="btn" type="submit"><i data-lucide="qr-code"></i> Generate QR</button>
@@ -116,6 +117,7 @@
           rake: payload.rakeNumber,
           rakeManagerName: payload.rakeManagerName,
           rakeManagerPhone: payload.rakeManagerPhone,
+          assistantRakeManagerPhone: payload.assistantRakeManagerPhone,
           riderName: payload.assignedRiderName,
           riderPhone: payload.assignedRiderPhone
         }).forEach(([key, value]) => {
@@ -181,6 +183,7 @@
           rakeManagerId: manager?.id || "",
           rakeManagerName: manager?.name || manager?.email || "",
           rakeManagerPhone: cleanPhone(data.rakeManagerPhone || manager?.phone || ""),
+          assistantRakeManagerPhone: cleanPhone(data.assistantRakeManagerPhone || ""),
           assignedRiderId: rider?.id || "",
           assignedRiderName: rider?.name || "",
           assignedRiderPhone: cleanPhone(data.riderPhone || rider?.phone || ""),
