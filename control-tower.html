@@ -75,6 +75,7 @@
       </div>
       <div class="row wrap">
         <a class="btn secondary" id="officialRouteLink" href="https://enquiry.indianrail.gov.in/ntes/" target="_blank" rel="noopener"><i data-lucide="external-link"></i> Verify on Indian Railways NTES</a>
+        <button class="btn secondary" id="downloadRouteBtn" type="button"><i data-lucide="download"></i> Download Excel</button>
         <button class="btn secondary" id="routeImportToggle" type="button"><i data-lucide="file-spreadsheet"></i> Import / Edit Route</button>
       </div>
       <div class="panel pad stack hidden" id="routeImportPanel">
@@ -100,6 +101,42 @@
       let kitchens = [];
       let trainMasters = [];
       let trainRoutes = [];
+
+      const seedRouteCatalogue = {
+        ...gitanjaliRouteStops,
+        "12345": [
+          { code: "HWH", station: "Howrah Jn", day: 1, arrival: "", departure: "08:00", haltMinutes: 0, km: 0 },
+          { code: "BWN", station: "Barddhaman Jn", day: 1, arrival: "09:05", departure: "09:10", haltMinutes: 5, km: 95 },
+          { code: "DGR", station: "Durgapur", day: 1, arrival: "10:08", departure: "10:10", haltMinutes: 2, km: 158 },
+          { code: "ASN", station: "Asansol Jn", day: 1, arrival: "10:45", departure: "10:50", haltMinutes: 5, km: 200 },
+          { code: "DHN", station: "Dhanbad Jn", day: 1, arrival: "11:55", departure: "12:00", haltMinutes: 5, km: 259 },
+          { code: "GAYA", station: "Gaya Jn", day: 1, arrival: "14:10", departure: "14:15", haltMinutes: 5, km: 458 },
+          { code: "DDU", station: "Pt DD Upadhyaya Jn", day: 1, arrival: "17:00", departure: "17:10", haltMinutes: 10, km: 661 },
+          { code: "CNB", station: "Kanpur Central", day: 1, arrival: "22:35", departure: "22:40", haltMinutes: 5, km: 1007 },
+          { code: "NDLS", station: "New Delhi", day: 2, arrival: "05:10", departure: "", haltMinutes: 0, km: 1446 }
+        ],
+        "12001": [
+          { code: "NDLS", station: "New Delhi", day: 1, arrival: "", departure: "16:55", haltMinutes: 0, km: 0 },
+          { code: "CNB", station: "Kanpur Central", day: 1, arrival: "21:40", departure: "21:45", haltMinutes: 5, km: 440 },
+          { code: "PRYJ", station: "Prayagraj Jn", day: 1, arrival: "23:45", departure: "23:50", haltMinutes: 5, km: 635 },
+          { code: "DDU", station: "Pt DD Upadhyaya Jn", day: 2, arrival: "02:05", departure: "02:15", haltMinutes: 10, km: 787 },
+          { code: "GAYA", station: "Gaya Jn", day: 2, arrival: "04:35", departure: "04:40", haltMinutes: 5, km: 990 },
+          { code: "DHN", station: "Dhanbad Jn", day: 2, arrival: "07:20", departure: "07:25", haltMinutes: 5, km: 1189 },
+          { code: "ASN", station: "Asansol Jn", day: 2, arrival: "08:20", departure: "08:25", haltMinutes: 5, km: 1248 },
+          { code: "HWH", station: "Howrah Jn", day: 2, arrival: "11:20", departure: "", haltMinutes: 0, km: 1448 }
+        ]
+      };
+
+      function activeTrainMasters() {
+        const merged = new Map();
+        seedTrainMasters.forEach((train) => merged.set(String(train.trainNumber || train.id), train));
+        trainMasters.filter((train) => train.active !== false).forEach((train) => merged.set(String(train.trainNumber || train.id), train));
+        trainRoutes.forEach((route) => {
+          const key = String(route.trainNumber || route.id || "");
+          if (key && !merged.has(key)) merged.set(key, { trainNumber: key, trainName: route.trainName || "Train Route Master", yardName: route.yardName || "", active: true });
+        });
+        return [...merged.values()].sort((a, b) => String(a.trainNumber || a.id).localeCompare(String(b.trainNumber || b.id)));
+      }
 
       function requestPayload(req) {
         const sell = Number(req.sellingPrice || req.price || 0);
@@ -223,6 +260,11 @@
       }
 
       function renderMasters() {
+        if (!menuItems.length && !kitchens.length && !partners.length) {
+          $("catalogMaster").innerHTML = `<div class="empty">Loading live catalog master. If this remains blank, Firebase rules are blocking menuItems.</div>`;
+          $("kitchenMaster").innerHTML = `<div class="empty">Loading base kitchen master. If this remains blank, Firebase rules are blocking baseKitchens.</div>`;
+          $("partnerMaster").innerHTML = `<div class="empty">Loading partner master. If this remains blank, Firebase rules are blocking partners.</div>`;
+        }
         $("catalogMaster").innerHTML = menuItems.map((item) => `
           <div class="item">
             <div class="grid two">
@@ -235,7 +277,7 @@
               <label class="field"><span>Available</span><select class="select" data-menu-master="${item.id}" data-field="available"><option value="true" ${item.available === false ? "" : "selected"}>true</option><option value="false" ${item.available === false ? "selected" : ""}>false</option></select></label>
             </div>
             <button class="btn secondary" data-save-menu-master="${item.id}"><i data-lucide="save"></i> Save Catalog</button>
-          </div>`).join("") || `<div class="empty">No catalog master found.</div>`;
+          </div>`).join("") || `<div class="empty">No catalog master found in Firebase. Seed menu is available in the system, but live published items have not synced here yet.</div>`;
         $("kitchenMaster").innerHTML = kitchens.map((kitchen) => `
           <div class="item">
             <div class="grid two">
@@ -244,6 +286,10 @@
               <label class="field"><span>Active</span><select class="select" data-kitchen-master="${kitchen.id}" data-field="active"><option value="true" ${kitchen.active === false ? "" : "selected"}>true</option><option value="false" ${kitchen.active === false ? "selected" : ""}>false</option></select></label>
             </div>
             <button class="btn secondary" data-save-kitchen-master="${kitchen.id}"><i data-lucide="save"></i> Save Kitchen</button>
+          </div>`).join("") || seedBaseKitchens.map((kitchen) => `
+          <div class="item">
+            <div class="row between"><div><h3>${escapeHtml(kitchen.name)}</h3><p>${escapeHtml(kitchen.city)} | Seed fallback</p></div>${statusBadge("active")}</div>
+            <p class="muted">This is the built-in seed master. Once Firebase sync returns, live records will appear with edit/save controls.</p>
           </div>`).join("") || `<div class="empty">No base kitchen master found.</div>`;
         $("partnerMaster").innerHTML = partners.map((partner) => `
           <div class="item">
@@ -255,7 +301,7 @@
               <label class="field"><span>Status</span><select class="select" data-partner-master="${partner.id}" data-field="status">${["pending", "approved", "rejected"].map((status) => `<option value="${status}" ${String(partner.status || "pending") === status ? "selected" : ""}>${status}</option>`).join("")}</select></label>
             </div>
             <button class="btn secondary" data-save-partner-master="${partner.id}"><i data-lucide="save"></i> Save Partner</button>
-          </div>`).join("") || `<div class="empty">No partner master found.</div>`;
+          </div>`).join("") || `<div class="empty">No partner master found. New RK Partner registrations will appear here after approval/sync.</div>`;
         lucide.createIcons();
       }
 
@@ -304,7 +350,7 @@
 
       function routeTrainRows() {
         const query = String($("routeTrainSearch").value || "").toLowerCase().trim();
-        return trainMasters
+        return activeTrainMasters()
           .filter((train) => !query || `${train.trainNumber || train.id || ""} ${train.trainName || ""} ${train.yardName || ""}`.toLowerCase().includes(query))
           .slice(0, 120);
       }
@@ -318,7 +364,7 @@
       }
 
       function selectedRouteTrain() {
-        return trainMasters.find((train) => train.trainNumber === $("routeTrain").value || train.id === $("routeTrain").value);
+        return activeTrainMasters().find((train) => train.trainNumber === $("routeTrain").value || train.id === $("routeTrain").value);
       }
 
       function routeDocForTrain(trainNo) {
@@ -327,7 +373,7 @@
 
       async function ensureRouteSeed() {
         const batch = db.batch();
-        Object.entries(gitanjaliRouteStops).forEach(([trainNumber, stops]) => {
+        Object.entries(seedRouteCatalogue).forEach(([trainNumber, stops]) => {
           const train = seedTrainMasters.find((row) => row.trainNumber === trainNumber) || {};
           batch.set(db.collection("trainRoutes").doc(trainNumber), {
             trainNumber,
@@ -365,8 +411,8 @@
         const trainNo = $("routeTrain").value;
         const train = selectedRouteTrain();
         const route = routeDocForTrain(trainNo);
-        const stops = route?.stops || gitanjaliRouteStops[trainNo] || [];
-        $("officialRouteLink").href = `https://enquiry.indianrail.gov.in/ntes/`;
+        const stops = route?.stops || seedRouteCatalogue[trainNo] || [];
+        $("officialRouteLink").href = trainNo ? `https://enquiry.indianrail.gov.in/ntes/` : `https://enquiry.indianrail.gov.in/ntes/`;
         $("routeCsvInput").value = stops.map((stop, idx) => [
           stop.seq || idx + 1,
           stop.station || "",
@@ -380,7 +426,7 @@
         if (!stops.length) {
           $("routeList").innerHTML = `<div class="empty danger-soft">
             <b>No route master saved for ${escapeHtml(trainLabel(train) || trainNo)}.</b><br>
-            Verify route on Indian Railways NTES, then paste route rows in Import / Edit Route.
+            Verify route on Indian Railways NTES, then paste route rows in Import / Edit Route. After saving, this train will behave like Gitanjali with the full route table.
           </div>`;
           return;
         }
@@ -398,6 +444,41 @@
                 <td>${stop.haltMinutes >= 5 ? "Candidate stop; enforce prep buffer before assigning." : "Short halt; avoid base-kitchen handover."}</td>
               </tr>`).join("")}</tbody>
           </table>`;
+      }
+
+      function downloadCurrentRouteExcel() {
+        const trainNo = $("routeTrain").value;
+        const train = selectedRouteTrain();
+        const route = routeDocForTrain(trainNo);
+        const stops = route?.stops || seedRouteCatalogue[trainNo] || [];
+        if (!stops.length) return toast("No route rows available to download.");
+        const safeName = String(trainLabel(train) || trainNo || "train-route").replace(/[\\/:*?"<>|]+/g, "-");
+        const rows = [
+          ["Seq", "Station", "Code", "Day", "Arrival", "Departure", "Halt Minutes", "KM", "Base Kitchen Logic"],
+          ...stops.map((stop, idx) => [
+            stop.seq || idx + 1,
+            stop.station || "",
+            stop.code || "",
+            stop.day || 1,
+            stop.arrival || "",
+            stop.departure || "",
+            stop.haltMinutes || 0,
+            stop.km || 0,
+            Number(stop.haltMinutes || 0) >= 5 ? "Candidate stop; enforce prep buffer before assigning." : "Short halt; avoid base-kitchen handover."
+          ])
+        ];
+        const html = `<!doctype html><html><head><meta charset="utf-8"></head><body>
+          <h2>${escapeHtml(trainLabel(train) || trainNo)} Route Master</h2>
+          <table border="1">${rows.map((row, rowIndex) => `<tr>${row.map((cell) => rowIndex === 0 ? `<th>${escapeHtml(cell)}</th>` : `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table>
+        </body></html>`;
+        const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${safeName}-route-master.xls`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 500);
       }
 
       $("catalogQueue").addEventListener("click", async (event) => {
@@ -540,6 +621,7 @@
       $("routeTrain").addEventListener("change", renderRoute);
       $("routeTrainSearch").addEventListener("input", renderRouteTrainSelect);
       $("routeImportToggle").addEventListener("click", () => $("routeImportPanel").classList.toggle("hidden"));
+      $("downloadRouteBtn").addEventListener("click", downloadCurrentRouteExcel);
       $("saveRouteCsvBtn").addEventListener("click", async () => {
         const train = selectedRouteTrain();
         const stops = parseRouteCsv($("routeCsvInput").value);
@@ -558,6 +640,8 @@
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { requests = rows; renderCatalog(); }, "createdAt", "desc", 250);
       onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); renderMasters(); }, "createdAt", "desc", 250);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { riders = rows; renderRiders(); }, "updatedAt", "desc", 250);
+      renderMasters();
+      renderRouteTrainSelect();
       onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); renderMasters(); }, "name", "asc", 300);
       onLive("baseKitchens", (rows) => { kitchens = rows; renderMasters(); }, "name", "asc", 300);
       onLive("trainMasters", (rows) => { trainMasters = rows.filter((train) => train.active !== false); renderRouteTrainSelect(); }, "trainNumber", "asc", 300);
