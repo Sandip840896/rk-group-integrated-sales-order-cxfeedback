@@ -30,84 +30,116 @@
       <option value="hi">Hindi</option>
       <option value="bn">Bengali</option>
     </select></label>
-    <a id="callRakeLink" href="tel:858483366"><i data-lucide="phone-call"></i> Call</a>
+    <a id="callRakeLink" href="tel:858483366"><i data-lucide="phone-call"></i> <span data-i18n="call">Call</span></a>
   </div>
   <main class="main mobile-main">
     <section class="brand-cover-strip">
       <div class="brand-cover-copy">
         <div class="brand-mark">MEALS <span>ON</span> WHEELS</div>
         <h2>Meals On Wheels</h2>
-        <p>Bharosa Purana, Swaad Naya. Fresh meals delivered to your seat.</p>
+        <p data-i18n="brand_subtitle">Bharosa Purana, Swaad Naya. Fresh meals delivered to your seat.</p>
         <p id="bannerInsight" class="banner-insight">Welcome aboard. Scan your train QR and order fresh food from your seat.</p>
         <div class="brand-promise-row">
-          <span><i data-lucide="shield-check"></i> Hygienic</span>
-          <span><i data-lucide="timer"></i> On-time</span>
-          <span><i data-lucide="utensils"></i> Wide menu</span>
+          <span><i data-lucide="shield-check"></i> <span data-i18n="promise_hygienic">Hygienic</span></span>
+          <span><i data-lucide="timer"></i> <span data-i18n="promise_ontime">On-time</span></span>
+          <span><i data-lucide="utensils"></i> <span data-i18n="promise_menu">Wide menu</span></span>
         </div>
       </div>
     </section>
-    <div class="customer-hero">
-      <div>
-        <p class="eyebrow">Meals On Wheels onboard catering</p>
-        <h2>Order fresh meals from your seat.</h2>
-        <p>Choose available items, track your order live, and reach Meals On Wheels support from the same screen.</p>
-        <div class="hero-points">
-          <button type="button" data-hero-tab="track"><i data-lucide="clock-3"></i> Live status</button>
-          <button type="button" data-hero-tab="order"><i data-lucide="sparkles"></i> Fresh onboard menu</button>
-          <button type="button" data-hero-tab="track"><i data-lucide="receipt-text"></i> Invoice ready</button>
-        </div>
+    <section class="customer-promo-carousel" id="customerPromoCarousel" aria-label="Meals On Wheels offers">
+      <div class="promo-track" id="promoTrack">
+        <article class="promo-slide promo-welcome" data-promo-tab="order">
+          <span class="promo-tag" data-i18n="promo_tag_welcome">ONBOARD ORDERING</span>
+          <p class="eyebrow" data-i18n="hero_eyebrow">Meals On Wheels onboard catering</p>
+          <h2 data-i18n="hero_title">Order fresh meals from your seat.</h2>
+          <p data-i18n="hero_body">Choose available items, track your order live, and reach Meals On Wheels support from the same screen.</p>
+          <div class="hero-points">
+            <button type="button" data-hero-tab="track"><i data-lucide="clock-3"></i> <span data-i18n="hero_live">Live status</span></button>
+            <button type="button" data-hero-tab="order"><i data-lucide="sparkles"></i> <span data-i18n="hero_menu">Fresh onboard menu</span></button>
+            <button type="button" data-hero-tab="track"><i data-lucide="receipt-text"></i> <span data-i18n="hero_invoice">Invoice ready</span></button>
+          </div>
+        </article>
+        <article class="promo-slide promo-offer" data-promo-tab="order">
+          <span class="promo-tag" data-i18n="promo_tag_today">TODAY SPECIAL</span>
+          <p class="eyebrow" data-i18n="promo_combo_eyebrow">Passenger combo</p>
+          <h2 data-i18n="promo_combo_title">Meal combos for families and groups.</h2>
+          <p data-i18n="promo_combo_body">Add multiple portions in one cart and keep the delivery linked to the same coach and berth.</p>
+          <button class="promo-cta" type="button" data-hero-tab="order" data-i18n="promo_combo_cta">Browse menu</button>
+        </article>
+        <article class="promo-slide promo-kitchen" data-promo-tab="order" data-promo-source="base-kitchen">
+          <span class="promo-tag" data-i18n="promo_tag_kitchen">BASE KITCHEN</span>
+          <p class="eyebrow" data-i18n="promo_kitchen_eyebrow">Fresh at upcoming station</p>
+          <h2 data-i18n="promo_kitchen_title">Base kitchen meals can route directly to your train.</h2>
+          <p data-i18n="promo_kitchen_body">Use the Base Kitchen filter to see items prepared near the next service point.</p>
+          <button class="promo-cta saffron" type="button" data-hero-tab="order" data-promo-source="base-kitchen" data-i18n="promo_kitchen_cta">See base kitchen menu</button>
+        </article>
+        <article class="promo-slide promo-help" data-promo-tab="feedback">
+          <span class="promo-tag" data-i18n="promo_tag_help">CUSTOMER CARE</span>
+          <p class="eyebrow" data-i18n="promo_help_eyebrow">Support in the same app</p>
+          <h2 data-i18n="promo_help_title">Raise feedback or complaint without searching for another number.</h2>
+          <p data-i18n="promo_help_body">Your ticket reaches the command center with train, coach and order context.</p>
+          <button class="promo-cta" type="button" data-hero-tab="feedback" data-i18n="promo_help_cta">Open feedback</button>
+        </article>
       </div>
-    </div>
+      <button class="promo-arrow prev" id="promoPrevBtn" type="button" aria-label="Previous banner"><i data-lucide="chevron-left"></i></button>
+      <button class="promo-arrow next" id="promoNextBtn" type="button" aria-label="Next banner"><i data-lucide="chevron-right"></i></button>
+      <div class="promo-dots" id="promoDots">
+        <button class="active" type="button" data-promo-dot="0" aria-label="Banner 1"></button>
+        <button type="button" data-promo-dot="1" aria-label="Banner 2"></button>
+        <button type="button" data-promo-dot="2" aria-label="Banner 3"></button>
+        <button type="button" data-promo-dot="3" aria-label="Banner 4"></button>
+      </div>
+    </section>
 
     <div class="tabs customer-tabs">
-      <button class="tab-btn" data-tab="order"><i data-lucide="utensils"></i> Order Food</button>
-      <button class="tab-btn" data-tab="feedback"><i data-lucide="message-square"></i> Feedback</button>
-      <button class="tab-btn" data-tab="track"><i data-lucide="map-pin"></i> Track</button>
-      <button class="tab-btn" data-tab="faq"><i data-lucide="circle-help"></i> FAQ</button>
+      <button class="tab-btn" data-tab="order"><i data-lucide="utensils"></i> <span data-i18n="tab_order">Order Food</span></button>
+      <button class="tab-btn" data-tab="feedback"><i data-lucide="message-square"></i> <span data-i18n="tab_feedback">Feedback</span></button>
+      <button class="tab-btn" data-tab="track"><i data-lucide="map-pin"></i> <span data-i18n="tab_track">Track</span></button>
+      <button class="tab-btn" data-tab="faq"><i data-lucide="circle-help"></i> <span data-i18n="tab_faq">FAQ</span></button>
     </div>
 
     <section class="panel pad stack customer-panel" data-tab-panel="order">
       <div id="journeyContextCard" class="journey-context hidden"></div>
       <div class="passenger-compact">
         <div>
-          <h2>Passenger Details</h2>
+          <h2 data-i18n="passenger_title">Passenger Details</h2>
           <p id="passengerSummary">Add passenger, train and seat details before placing order.</p>
         </div>
-        <button class="btn secondary" id="openPassengerBtn" type="button"><i data-lucide="user-round"></i> Passenger Details</button>
+        <button class="btn secondary" id="openPassengerBtn" type="button"><i data-lucide="user-round"></i> <span data-i18n="passenger_title">Passenger Details</span></button>
       </div>
       <div class="modal-backdrop hidden" id="passengerModal">
         <div class="modal stack">
           <div class="section-title">
-            <div><h2>Passenger Details</h2><p>Required for order, invoice and tracking.</p></div>
+            <div><h2 data-i18n="passenger_title">Passenger Details</h2><p data-i18n="passenger_modal_hint">Required for order, invoice and tracking.</p></div>
             <button class="icon-btn" id="closePassengerBtn" type="button" title="Close"><i data-lucide="x"></i></button>
           </div>
           <form id="customerForm" class="grid two">
-            <label class="field"><span>Name optional</span><input class="input" name="name" placeholder="Passenger name"></label>
-            <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
-            <label class="field"><span>Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
-            <label class="field"><span>PNR Number</span><input class="input" name="pnr" required inputmode="numeric" maxlength="10" placeholder="10 digit PNR, e.g. 1234567890"></label>
-            <label class="field"><span>Search Train</span><input class="input" id="customerTrainSearch" placeholder="Type train number, name or yard"></label>
-            <label class="field"><span>Train Number</span><select class="select" name="train" id="customerTrainSelect" required></select></label>
-            <label class="field"><span>Coach</span><input class="input" name="coach" required placeholder="B2"></label>
-            <label class="field"><span>Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
-            <label class="field"><span>Delivery Option</span><select class="select" name="deliveryMode" id="deliveryMode">
+            <label class="field"><span data-i18n="field_name_optional">Name optional</span><input class="input" name="name" placeholder="Passenger name"></label>
+            <label class="field"><span data-i18n="field_phone">Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
+            <label class="field"><span data-i18n="field_email_optional">Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
+            <label class="field"><span data-i18n="field_pnr">PNR Number</span><input class="input" name="pnr" required inputmode="numeric" maxlength="10" placeholder="10 digit PNR, e.g. 1234567890"></label>
+            <label class="field"><span data-i18n="field_search_train">Search Train</span><input class="input" id="customerTrainSearch" placeholder="Type train number, name or yard"></label>
+            <label class="field"><span data-i18n="field_train_number">Train Number</span><select class="select" name="train" id="customerTrainSelect" required></select></label>
+            <label class="field"><span data-i18n="field_coach">Coach</span><input class="input" name="coach" required placeholder="B2"></label>
+            <label class="field"><span data-i18n="field_seat">Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
+            <label class="field"><span data-i18n="field_delivery_option">Delivery Option</span><select class="select" name="deliveryMode" id="deliveryMode">
               <option value="seat">Deliver to my seat</option>
               <option value="pantry-pickup">I will collect from pantry</option>
             </select></label>
           </form>
-          <button class="btn" id="savePassengerModalBtn" type="button"><i data-lucide="save"></i> Save Passenger</button>
+          <button class="btn" id="savePassengerModalBtn" type="button"><i data-lucide="save"></i> <span data-i18n="save_passenger">Save Passenger</span></button>
         </div>
       </div>
       <div class="meal-filter-bar">
-        <label class="field grow"><span>Meal</span><select id="mealFilter" class="select"></select></label>
-        <label class="field grow"><span>Preferred Delivery Slot</span><select id="deliveryWindow" class="select"></select></label>
-        <button class="btn secondary" id="savePassengerBtn"><i data-lucide="save"></i> Save</button>
+        <label class="field grow"><span data-i18n="field_meal">Meal</span><select id="mealFilter" class="select"></select></label>
+        <label class="field grow"><span data-i18n="field_delivery_slot">Preferred Delivery Slot</span><select id="deliveryWindow" class="select"></select></label>
+        <button class="btn secondary" id="savePassengerBtn"><i data-lucide="save"></i> <span data-i18n="save">Save</span></button>
       </div>
       <div class="source-segments" id="sourceSegments">
-        <button class="active" data-menu-source="all" type="button"><i data-lucide="layout-grid"></i> All</button>
-        <button data-menu-source="pantry" type="button"><i data-lucide="train-front"></i> Train Pantry</button>
-        <button data-menu-source="base-kitchen" type="button"><i data-lucide="chef-hat"></i> Base Kitchen</button>
-        <button data-menu-source="partner" type="button"><i data-lucide="store"></i> Partner</button>
+        <button class="active" data-menu-source="all" type="button"><i data-lucide="layout-grid"></i> <span data-i18n="source_all">All</span></button>
+        <button data-menu-source="pantry" type="button"><i data-lucide="train-front"></i> <span data-i18n="source_pantry">Train Pantry</span></button>
+        <button data-menu-source="base-kitchen" type="button"><i data-lucide="chef-hat"></i> <span data-i18n="source_base">Base Kitchen</span></button>
+        <button data-menu-source="partner" type="button"><i data-lucide="store"></i> <span data-i18n="source_partner">Partner</span></button>
       </div>
       <div class="preference-segments" id="preferenceSegments">
         <button class="active" data-menu-preference="all" type="button">All Food</button>
@@ -124,7 +156,7 @@
             <b id="cartCount">0 item</b>
             <p id="cartTotal" style="margin:2px 0 0;color:var(--muted);font-size:12px;">Rs 0</p>
           </div>
-          <button class="btn" id="placeOrderBtn"><i data-lucide="shopping-cart"></i> View Cart</button>
+        <button class="btn" id="placeOrderBtn"><i data-lucide="shopping-cart"></i> <span data-i18n="view_cart">View Cart</span></button>
         </div>
       </div>
     </section>
@@ -133,28 +165,28 @@
       <div class="modal stack">
         <div class="section-title">
           <div>
-            <h2>Review Cart</h2>
-            <p>Check items, quantity, value and payment mode before placing order.</p>
+            <h2 data-i18n="review_cart">Review Cart</h2>
+            <p data-i18n="review_cart_hint">Check items, quantity, value and payment mode before placing order.</p>
           </div>
           <button class="icon-btn" id="closeCartReviewBtn" title="Close"><i data-lucide="x"></i></button>
         </div>
         <div id="cartReviewList" class="list"></div>
         <div class="panel pad stack">
           <div class="row between">
-            <b>Total Payable</b>
+            <b data-i18n="total_payable">Total Payable</b>
             <b id="cartReviewTotal">Rs 0</b>
           </div>
-          <label class="field"><span>Payment Mode</span><select class="select" id="paymentMode">
-            <option value="COD">COD - Cash on Delivery</option>
-            <option value="UPI">UPI on Delivery</option>
-            <option value="QR">Scan QR Code on Delivery</option>
-            <option value="Card">Debit / Credit Card on Delivery</option>
+          <label class="field"><span data-i18n="payment_mode">Payment Mode</span><select class="select" id="paymentMode">
+            <option value="COD" data-i18n="pay_cod">COD - Cash on Delivery</option>
+            <option value="UPI" data-i18n="pay_upi">UPI on Delivery</option>
+            <option value="QR" data-i18n="pay_qr">Scan QR Code on Delivery</option>
+            <option value="Card" data-i18n="pay_card">Debit / Credit Card on Delivery</option>
           </select></label>
-          <div class="ack success">Payment choice is saved with the order. Gateway collection will be connected in the payment-provider phase.</div>
+          <div class="ack success" data-i18n="payment_hint">Payment choice is saved with the order. Gateway collection will be connected in the payment-provider phase.</div>
         </div>
         <div class="row mobile-stack">
-          <button class="btn secondary grow" id="continueShoppingBtn"><i data-lucide="utensils"></i> Add More Items</button>
-          <button class="btn grow" id="confirmOrderBtn"><i data-lucide="send"></i> Confirm Order</button>
+          <button class="btn secondary grow" id="continueShoppingBtn"><i data-lucide="utensils"></i> <span data-i18n="add_more_items">Add More Items</span></button>
+          <button class="btn grow" id="confirmOrderBtn"><i data-lucide="send"></i> <span data-i18n="confirm_order">Confirm Order</span></button>
         </div>
       </div>
     </div>
@@ -172,36 +204,36 @@
     <section class="panel pad stack hidden" data-tab-panel="feedback">
       <div class="section-title">
         <div>
-          <h2>Feedback or Complaint</h2>
-          <p>Your feedback goes live to the Meals On Wheels command center.</p>
+          <h2 data-i18n="feedback_title">Feedback or Complaint</h2>
+          <p data-i18n="feedback_hint">Your feedback goes live to the Meals On Wheels command center.</p>
         </div>
       </div>
       <form id="feedbackForm" class="stack">
         <div class="grid two">
-          <label class="field"><span>Name optional</span><input class="input" name="customerName" placeholder="Passenger name"></label>
-          <label class="field"><span>Phone</span><input class="input" name="customerPhone" required inputmode="tel" placeholder="10 digit phone number"></label>
-          <label class="field"><span>PNR optional</span><input class="input" name="customerPnr" inputmode="numeric" maxlength="10" placeholder="If available"></label>
-          <label class="field"><span>Train optional</span><input class="input" name="customerTrain" placeholder="Train number if known"></label>
-          <label class="field"><span>Coach optional</span><input class="input" name="customerCoach" placeholder="B2"></label>
-          <label class="field"><span>Seat optional</span><input class="input" name="customerSeat" placeholder="41"></label>
+          <label class="field"><span data-i18n="field_name_optional">Name optional</span><input class="input" name="customerName" placeholder="Passenger name"></label>
+          <label class="field"><span data-i18n="field_phone">Phone</span><input class="input" name="customerPhone" required inputmode="tel" placeholder="10 digit phone number"></label>
+          <label class="field"><span data-i18n="field_pnr_optional">PNR optional</span><input class="input" name="customerPnr" inputmode="numeric" maxlength="10" placeholder="If available"></label>
+          <label class="field"><span data-i18n="field_train_optional">Train optional</span><input class="input" name="customerTrain" placeholder="Train number if known"></label>
+          <label class="field"><span data-i18n="field_coach_optional">Coach optional</span><input class="input" name="customerCoach" placeholder="B2"></label>
+          <label class="field"><span data-i18n="field_seat_optional">Seat optional</span><input class="input" name="customerSeat" placeholder="41"></label>
         </div>
         <div class="grid two">
-          <label class="field"><span>Rating</span><select class="select" name="rating" required>
-            <option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Average</option><option value="2">2 - Poor</option><option value="1">1 - Bad</option>
+          <label class="field"><span data-i18n="rating">Rating</span><select class="select" name="rating" required>
+            <option value="5" data-i18n="rating_5">5 - Excellent</option><option value="4" data-i18n="rating_4">4 - Good</option><option value="3" data-i18n="rating_3">3 - Average</option><option value="2" data-i18n="rating_2">2 - Poor</option><option value="1" data-i18n="rating_1">1 - Bad</option>
           </select></label>
-          <label class="field"><span>Submission Type</span><select class="select" name="submissionType" id="submissionType" required>
-            <option value="feedback">Feedback</option><option value="complaint">Complaint</option>
+          <label class="field"><span data-i18n="submission_type">Submission Type</span><select class="select" name="submissionType" id="submissionType" required>
+            <option value="feedback" data-i18n="feedback">Feedback</option><option value="complaint" data-i18n="complaint">Complaint</option>
           </select></label>
-          <label class="field"><span>Related Order optional</span><select class="select" name="orderId" id="feedbackOrderSelect">
-            <option value="">General feedback / no order</option>
+          <label class="field"><span data-i18n="related_order_optional">Related Order optional</span><select class="select" name="orderId" id="feedbackOrderSelect">
+            <option value="" data-i18n="general_feedback">General feedback / no order</option>
           </select></label>
         </div>
         <div class="grid two" id="complaintFields">
-          <label class="field"><span>Complaint Nature</span><select class="select" name="category" id="complaintNature"></select></label>
-          <label class="field"><span>Proof Image / Audio / Video</span><input class="input" name="proofFile" type="file" accept="image/*,audio/*,video/*" capture="environment"></label>
+          <label class="field"><span data-i18n="complaint_nature">Complaint Nature</span><select class="select" name="category" id="complaintNature"></select></label>
+          <label class="field"><span data-i18n="proof_file">Proof Image / Audio / Video</span><input class="input" name="proofFile" type="file" accept="image/*,audio/*,video/*" capture="environment"></label>
         </div>
-        <label class="field"><span>Message</span><textarea class="textarea" name="message" required placeholder="Write your feedback or complaint details"></textarea></label>
-        <button class="btn" type="submit"><i data-lucide="message-circle"></i> Submit</button>
+        <label class="field"><span data-i18n="message">Message</span><textarea class="textarea" name="message" required placeholder="Write your feedback or complaint details"></textarea></label>
+        <button class="btn" type="submit"><i data-lucide="message-circle"></i> <span data-i18n="submit">Submit</span></button>
       </form>
       <div id="feedbackAck" class="empty hidden"></div>
     </section>
@@ -209,14 +241,14 @@
     <section class="panel pad stack hidden" data-tab-panel="track">
       <div class="section-title">
         <div>
-          <h2>Live Order Tracking</h2>
-          <p>Enter the phone number used for order booking.</p>
+          <h2 data-i18n="tracking_title">Live Order Tracking</h2>
+          <p data-i18n="tracking_hint">Enter the phone number used for order booking.</p>
         </div>
         <button class="icon-btn" id="refreshTrackBtn" title="Refresh"><i data-lucide="refresh-cw"></i></button>
       </div>
       <div class="row mobile-stack">
-        <label class="field grow"><span>Phone Number</span><input class="input" id="trackPhone" inputmode="tel" placeholder="10 digit phone number"></label>
-        <button class="btn secondary" id="trackSearchBtn"><i data-lucide="search"></i> Search</button>
+        <label class="field grow"><span data-i18n="phone_number">Phone Number</span><input class="input" id="trackPhone" inputmode="tel" placeholder="10 digit phone number"></label>
+        <button class="btn secondary" id="trackSearchBtn"><i data-lucide="search"></i> <span data-i18n="search">Search</span></button>
       </div>
       <div id="trackList" class="list"></div>
     </section>
@@ -224,8 +256,8 @@
     <section class="panel pad stack hidden faq-panel" data-tab-panel="faq">
       <div class="section-title">
         <div>
-          <h2>Meals On Wheels FAQ</h2>
-          <p>Quick help for train QR ordering, delivery OTP and support.</p>
+          <h2 data-i18n="faq_title">Meals On Wheels FAQ</h2>
+          <p data-i18n="faq_hint">Quick help for train QR ordering, delivery OTP and support.</p>
         </div>
       </div>
       <div id="faqList" class="faq-list"></div>
@@ -291,12 +323,459 @@
         localStorage.setItem("mowJourneyContext", JSON.stringify(journeyContext));
       }
 
-      const languageLabels = {
-        en: "Welcome aboard. Scan your train QR and order fresh food from your seat.",
-        hi: "Meals On Wheels mein swagat hai. Apni seat par fresh meal order karein.",
-        bn: "Meals On Wheels e swagat. Nijer seat theke fresh meal order korun."
+      const i18n = {
+        en: {
+          call: "Call",
+          brand_subtitle: "Bharosa Purana, Swaad Naya. Fresh meals delivered to your seat.",
+          promise_hygienic: "Hygienic",
+          promise_ontime: "On-time",
+          promise_menu: "Wide menu",
+          hero_eyebrow: "Meals On Wheels onboard catering",
+          hero_title: "Order fresh meals from your seat.",
+          hero_body: "Choose available items, track your order live, and reach Meals On Wheels support from the same screen.",
+          hero_live: "Live status",
+          hero_menu: "Fresh onboard menu",
+          hero_invoice: "Invoice ready",
+          promo_tag_welcome: "ONBOARD ORDERING",
+          promo_tag_today: "TODAY SPECIAL",
+          promo_tag_kitchen: "BASE KITCHEN",
+          promo_tag_help: "CUSTOMER CARE",
+          promo_combo_eyebrow: "Passenger combo",
+          promo_combo_title: "Meal combos for families and groups.",
+          promo_combo_body: "Add multiple portions in one cart and keep the delivery linked to the same coach and berth.",
+          promo_combo_cta: "Browse menu",
+          promo_kitchen_eyebrow: "Fresh at upcoming station",
+          promo_kitchen_title: "Base kitchen meals can route directly to your train.",
+          promo_kitchen_body: "Use the Base Kitchen filter to see items prepared near the next service point.",
+          promo_kitchen_cta: "See base kitchen menu",
+          promo_help_eyebrow: "Support in the same app",
+          promo_help_title: "Raise feedback or complaint without searching for another number.",
+          promo_help_body: "Your ticket reaches the command center with train, coach and order context.",
+          promo_help_cta: "Open feedback",
+          tab_order: "Order Food",
+          tab_feedback: "Feedback",
+          tab_track: "Track",
+          tab_faq: "FAQ",
+          passenger_title: "Passenger Details",
+          passenger_modal_hint: "Required for order, invoice and tracking.",
+          field_name_optional: "Name optional",
+          field_phone: "Phone",
+          field_email_optional: "Email optional",
+          field_pnr: "PNR Number",
+          field_search_train: "Search Train",
+          field_train_number: "Train Number",
+          field_coach: "Coach",
+          field_seat: "Seat / Berth",
+          field_delivery_option: "Delivery Option",
+          save_passenger: "Save Passenger",
+          field_meal: "Meal",
+          field_delivery_slot: "Preferred Delivery Slot",
+          save: "Save",
+          source_all: "All",
+          source_pantry: "Train Pantry",
+          source_base: "Base Kitchen",
+          source_partner: "Partner",
+          view_cart: "View Cart",
+          review_cart: "Review Cart",
+          review_cart_hint: "Check items, quantity, value and payment mode before placing order.",
+          total_payable: "Total Payable",
+          payment_mode: "Payment Mode",
+          pay_cod: "COD - Cash on Delivery",
+          pay_upi: "UPI on Delivery",
+          pay_qr: "Scan QR Code on Delivery",
+          pay_card: "Debit / Credit Card on Delivery",
+          payment_hint: "Payment choice is saved with the order. Gateway collection will be connected in the payment-provider phase.",
+          add_more_items: "Add More Items",
+          confirm_order: "Confirm Order",
+          feedback_title: "Feedback or Complaint",
+          feedback_hint: "Your feedback goes live to the Meals On Wheels command center.",
+          field_pnr_optional: "PNR optional",
+          field_train_optional: "Train optional",
+          field_coach_optional: "Coach optional",
+          field_seat_optional: "Seat optional",
+          rating: "Rating",
+          rating_5: "5 - Excellent",
+          rating_4: "4 - Good",
+          rating_3: "3 - Average",
+          rating_2: "2 - Poor",
+          rating_1: "1 - Bad",
+          submission_type: "Submission Type",
+          feedback: "Feedback",
+          complaint: "Complaint",
+          related_order_optional: "Related Order optional",
+          general_feedback: "General feedback / no order",
+          complaint_nature: "Complaint Nature",
+          proof_file: "Proof Image / Audio / Video",
+          message: "Message",
+          submit: "Submit",
+          tracking_title: "Live Order Tracking",
+          tracking_hint: "Enter the phone number used for order booking.",
+          phone_number: "Phone Number",
+          search: "Search",
+          faq_title: "Meals On Wheels FAQ",
+          faq_hint: "Quick help for train QR ordering, delivery OTP and support.",
+          sending: "Sending",
+          submitted: "submitted",
+          feedback_failed: "Feedback could not be submitted. Please try again.",
+          please_try_again: "Please try again.",
+          need_help: "Need Help",
+          modify_delivery: "Modify Delivery",
+          feedback_tickets: "Feedback / Complaint Tickets",
+          feedback_tickets_hint: "Status of concerns submitted from this phone number.",
+          general: "General",
+          submitted_on: "Submitted",
+          last_update: "Last Update:",
+          rate_response: "Rate Meals On Wheels response",
+          no_rating: "No rating",
+          unable_tracking: "Unable to load tracking right now:",
+          unable_feedback_tickets: "Unable to load feedback tickets by phone:",
+          need_help_for_order: "Need help for order",
+          reply_or_rating: "Write a reply or choose a rating first.",
+          no_matching_train: "No matching train",
+          passenger: "Passenger",
+          passenger_missing: "Add passenger, train and seat details before placing order.",
+          valid_phone: "Please enter a valid 10 digit phone number.",
+          valid_pnr: "Please enter a valid 10 digit PNR number.",
+          valid_feedback_phone: "Please enter a valid 10 digit phone number for feedback.",
+          cart_stock_changed: "Cart updated as live stock changed.",
+          source_base_label: "Upcoming Base Kitchen",
+          source_partner_label: "Partner From Upcoming Station",
+          source_pantry_label: "Train Pantry",
+          source_base_note: "Approved base-kitchen menu with station handover timing.",
+          source_partner_note: "Approved partner menu near an upcoming station.",
+          source_pantry_note: "Onboard pantry stock available from the train team.",
+          view_food_detail: "View food detail",
+          delivery: "Delivery:",
+          sold_out: "Sold out",
+          available: "Available",
+          notify: "Notify",
+          reduce: "Reduce",
+          add: "Add",
+          max_units_prefix: "Max",
+          max_units_suffix: "unit(s) allowed per order.",
+          sold_out_note: "Tap bell so Meals On Wheels can plan fresh stock.",
+          no_food_available: "No food item is available for this meal and source right now.",
+          item: "item",
+          items: "items",
+          banner_welcome: "Welcome aboard. Scan your train QR and order fresh food from your seat.",
+          banner_qr: "Scan the train QR to auto-fill train and rake details.",
+          banner_offer: "New passenger offer: browse pantry, base kitchen and partner menus in one place.",
+          banner_linked_prefix: "Journey linked",
+          banner_linked_suffix: "Orders and help will route to this onboard team.",
+          banner_back_prefix: "Welcome back. You have placed",
+          banner_back_suffix_one: "Meals On Wheels order from this device.",
+          banner_back_suffix_many: "Meals On Wheels orders from this device."
+        },
+        hi: {
+          call: "कॉल",
+          brand_subtitle: "भरोसा पुराना, स्वाद नया। ताजा भोजन आपकी सीट तक।",
+          promise_hygienic: "स्वच्छ",
+          promise_ontime: "समय पर",
+          promise_menu: "बड़ा मेनू",
+          hero_eyebrow: "Meals On Wheels ऑनबोर्ड कैटरिंग",
+          hero_title: "अपनी सीट से ताजा भोजन ऑर्डर करें।",
+          hero_body: "उपलब्ध आइटम चुनें, ऑर्डर लाइव ट्रैक करें, और इसी स्क्रीन से सहायता पाएं।",
+          hero_live: "लाइव स्थिति",
+          hero_menu: "ताजा ऑनबोर्ड मेनू",
+          hero_invoice: "इनवॉइस तैयार",
+          promo_tag_welcome: "ऑनबोर्ड ऑर्डरिंग",
+          promo_tag_today: "आज का विशेष",
+          promo_tag_kitchen: "बेस किचन",
+          promo_tag_help: "कस्टमर केयर",
+          promo_combo_eyebrow: "यात्री कॉम्बो",
+          promo_combo_title: "परिवार और समूह के लिए मील कॉम्बो।",
+          promo_combo_body: "एक ही कार्ट में कई पोर्शन जोड़ें; डिलीवरी उसी कोच और बर्थ से जुड़ी रहेगी।",
+          promo_combo_cta: "मेनू देखें",
+          promo_kitchen_eyebrow: "आने वाले स्टेशन पर ताजा",
+          promo_kitchen_title: "बेस किचन का भोजन सीधे आपकी ट्रेन तक पहुंच सकता है।",
+          promo_kitchen_body: "अगले सर्विस पॉइंट के पास तैयार आइटम देखने के लिए बेस किचन फिल्टर उपयोग करें।",
+          promo_kitchen_cta: "बेस किचन मेनू देखें",
+          promo_help_eyebrow: "इसी ऐप में सहायता",
+          promo_help_title: "दूसरा नंबर ढूंढे बिना फीडबैक या शिकायत दर्ज करें।",
+          promo_help_body: "आपका टिकट ट्रेन, कोच और ऑर्डर विवरण के साथ कमांड सेंटर तक पहुंचता है।",
+          promo_help_cta: "फीडबैक खोलें",
+          tab_order: "भोजन ऑर्डर",
+          tab_feedback: "फीडबैक",
+          tab_track: "ट्रैक",
+          tab_faq: "सवाल-जवाब",
+          passenger_title: "यात्री विवरण",
+          passenger_modal_hint: "ऑर्डर, इनवॉइस और ट्रैकिंग के लिए आवश्यक।",
+          field_name_optional: "नाम वैकल्पिक",
+          field_phone: "फोन",
+          field_email_optional: "ईमेल वैकल्पिक",
+          field_pnr: "PNR नंबर",
+          field_search_train: "ट्रेन खोजें",
+          field_train_number: "ट्रेन नंबर",
+          field_coach: "कोच",
+          field_seat: "सीट / बर्थ",
+          field_delivery_option: "डिलीवरी विकल्प",
+          save_passenger: "यात्री सेव करें",
+          field_meal: "भोजन",
+          field_delivery_slot: "पसंदीदा डिलीवरी समय",
+          save: "सेव",
+          source_all: "सभी",
+          source_pantry: "ट्रेन पैंट्री",
+          source_base: "बेस किचन",
+          source_partner: "पार्टनर",
+          view_cart: "कार्ट देखें",
+          review_cart: "कार्ट समीक्षा",
+          review_cart_hint: "ऑर्डर से पहले आइटम, मात्रा, राशि और भुगतान मोड जांचें।",
+          total_payable: "कुल देय राशि",
+          payment_mode: "भुगतान मोड",
+          pay_cod: "COD - डिलीवरी पर नकद",
+          pay_upi: "डिलीवरी पर UPI",
+          pay_qr: "डिलीवरी पर QR कोड स्कैन",
+          pay_card: "डिलीवरी पर डेबिट / क्रेडिट कार्ड",
+          payment_hint: "भुगतान विकल्प ऑर्डर के साथ सेव रहेगा। पेमेंट गेटवे अगले चरण में जोड़ा जाएगा।",
+          add_more_items: "और आइटम जोड़ें",
+          confirm_order: "ऑर्डर पुष्टि करें",
+          feedback_title: "फीडबैक या शिकायत",
+          feedback_hint: "आपका फीडबैक Meals On Wheels कमांड सेंटर तक लाइव पहुंचता है।",
+          field_pnr_optional: "PNR वैकल्पिक",
+          field_train_optional: "ट्रेन वैकल्पिक",
+          field_coach_optional: "कोच वैकल्पिक",
+          field_seat_optional: "सीट वैकल्पिक",
+          rating: "रेटिंग",
+          rating_5: "5 - उत्कृष्ट",
+          rating_4: "4 - अच्छा",
+          rating_3: "3 - औसत",
+          rating_2: "2 - खराब",
+          rating_1: "1 - बहुत खराब",
+          submission_type: "सबमिशन प्रकार",
+          feedback: "फीडबैक",
+          complaint: "शिकायत",
+          related_order_optional: "संबंधित ऑर्डर वैकल्पिक",
+          general_feedback: "सामान्य फीडबैक / कोई ऑर्डर नहीं",
+          complaint_nature: "शिकायत का प्रकार",
+          proof_file: "प्रूफ इमेज / ऑडियो / वीडियो",
+          message: "संदेश",
+          submit: "सबमिट",
+          tracking_title: "लाइव ऑर्डर ट्रैकिंग",
+          tracking_hint: "ऑर्डर बुकिंग में इस्तेमाल किया गया फोन नंबर दर्ज करें।",
+          phone_number: "फोन नंबर",
+          search: "खोजें",
+          faq_title: "Meals On Wheels सवाल-जवाब",
+          faq_hint: "ट्रेन QR ऑर्डरिंग, डिलीवरी OTP और सहायता के लिए त्वरित मदद।",
+          sending: "भेज रहे हैं",
+          submitted: "सबमिट हुआ",
+          feedback_failed: "फीडबैक सबमिट नहीं हो सका। कृपया फिर कोशिश करें।",
+          please_try_again: "कृपया फिर कोशिश करें।",
+          need_help: "सहायता चाहिए",
+          modify_delivery: "डिलीवरी बदलें",
+          feedback_tickets: "फीडबैक / शिकायत टिकट",
+          feedback_tickets_hint: "इस फोन नंबर से भेजी गई चिंताओं की स्थिति।",
+          general: "सामान्य",
+          submitted_on: "सबमिट",
+          last_update: "अंतिम अपडेट:",
+          rate_response: "Meals On Wheels उत्तर को रेट करें",
+          no_rating: "कोई रेटिंग नहीं",
+          unable_tracking: "अभी ट्रैकिंग लोड नहीं हो सकी:",
+          unable_feedback_tickets: "फोन से फीडबैक टिकट लोड नहीं हो सके:",
+          need_help_for_order: "ऑर्डर के लिए सहायता चाहिए",
+          reply_or_rating: "पहले उत्तर लिखें या रेटिंग चुनें।",
+          no_matching_train: "कोई मिलती हुई ट्रेन नहीं",
+          passenger: "यात्री",
+          passenger_missing: "ऑर्डर से पहले यात्री, ट्रेन और सीट विवरण जोड़ें।",
+          valid_phone: "कृपया सही 10 अंकों का फोन नंबर दर्ज करें।",
+          valid_pnr: "कृपया सही 10 अंकों का PNR नंबर दर्ज करें।",
+          valid_feedback_phone: "फीडबैक के लिए सही 10 अंकों का फोन नंबर दर्ज करें।",
+          cart_stock_changed: "लाइव स्टॉक बदलने के कारण कार्ट अपडेट हुआ।",
+          source_base_label: "आगामी बेस किचन",
+          source_partner_label: "आगामी स्टेशन पार्टनर",
+          source_pantry_label: "ट्रेन पैंट्री",
+          source_base_note: "स्टेशन हैंडओवर समय के साथ स्वीकृत बेस-किचन मेनू।",
+          source_partner_note: "आगामी स्टेशन के पास स्वीकृत पार्टनर मेनू।",
+          source_pantry_note: "ट्रेन टीम से उपलब्ध ऑनबोर्ड पैंट्री स्टॉक।",
+          view_food_detail: "भोजन विवरण देखें",
+          delivery: "डिलीवरी:",
+          sold_out: "स्टॉक खत्म",
+          available: "उपलब्ध",
+          notify: "सूचित करें",
+          reduce: "घटाएं",
+          add: "जोड़ें",
+          max_units_prefix: "अधिकतम",
+          max_units_suffix: "यूनिट प्रति ऑर्डर अनुमति है।",
+          sold_out_note: "बेल दबाएं ताकि Meals On Wheels ताजा स्टॉक की योजना बना सके।",
+          no_food_available: "इस भोजन और स्रोत के लिए अभी कोई फूड आइटम उपलब्ध नहीं है।",
+          item: "आइटम",
+          items: "आइटम",
+          banner_welcome: "Meals On Wheels में स्वागत है। अपनी सीट से ताजा भोजन ऑर्डर करें।",
+          banner_qr: "ट्रेन QR स्कैन करें, ट्रेन और रेक विवरण अपने-आप भर जाएंगे।",
+          banner_offer: "नया यात्री ऑफर: पैंट्री, बेस किचन और पार्टनर मेनू एक जगह देखें।",
+          banner_linked_prefix: "यात्रा लिंक हुई",
+          banner_linked_suffix: "ऑर्डर और सहायता इसी ऑनबोर्ड टीम को भेजे जाएंगे।",
+          banner_back_prefix: "फिर से स्वागत है। आपने इस डिवाइस से",
+          banner_back_suffix_one: "Meals On Wheels ऑर्डर किया है।",
+          banner_back_suffix_many: "Meals On Wheels ऑर्डर किए हैं।"
+        },
+        bn: {
+          call: "কল",
+          brand_subtitle: "পুরনো ভরসা, নতুন স্বাদ। তাজা খাবার আপনার সিটে।",
+          promise_hygienic: "স্বাস্থ্যকর",
+          promise_ontime: "সময়মতো",
+          promise_menu: "বড় মেনু",
+          hero_eyebrow: "Meals On Wheels অনবোর্ড ক্যাটারিং",
+          hero_title: "নিজের সিট থেকেই তাজা খাবার অর্ডার করুন।",
+          hero_body: "উপলব্ধ আইটেম বেছে নিন, অর্ডার লাইভ ট্র্যাক করুন, এবং একই স্ক্রিন থেকে সহায়তা পান।",
+          hero_live: "লাইভ স্ট্যাটাস",
+          hero_menu: "তাজা অনবোর্ড মেনু",
+          hero_invoice: "ইনভয়েস প্রস্তুত",
+          promo_tag_welcome: "অনবোর্ড অর্ডারিং",
+          promo_tag_today: "আজকের বিশেষ",
+          promo_tag_kitchen: "বেস কিচেন",
+          promo_tag_help: "কাস্টমার কেয়ার",
+          promo_combo_eyebrow: "যাত্রী কম্বো",
+          promo_combo_title: "পরিবার ও দলের জন্য মিল কম্বো।",
+          promo_combo_body: "একই কার্টে একাধিক পরিমাণ যোগ করুন; ডেলিভারি একই কোচ ও বার্থের সঙ্গে যুক্ত থাকবে।",
+          promo_combo_cta: "মেনু দেখুন",
+          promo_kitchen_eyebrow: "আগামী স্টেশনে তাজা",
+          promo_kitchen_title: "বেস কিচেনের খাবার সরাসরি আপনার ট্রেনে পৌঁছাতে পারে।",
+          promo_kitchen_body: "পরের সার্ভিস পয়েন্টের কাছে প্রস্তুত আইটেম দেখতে বেস কিচেন ফিল্টার ব্যবহার করুন।",
+          promo_kitchen_cta: "বেস কিচেন মেনু দেখুন",
+          promo_help_eyebrow: "একই অ্যাপে সহায়তা",
+          promo_help_title: "অন্য নম্বর খোঁজা ছাড়াই ফিডব্যাক বা অভিযোগ জানান।",
+          promo_help_body: "আপনার টিকিট ট্রেন, কোচ এবং অর্ডার তথ্যসহ কমান্ড সেন্টারে পৌঁছায়।",
+          promo_help_cta: "ফিডব্যাক খুলুন",
+          tab_order: "খাবার অর্ডার",
+          tab_feedback: "ফিডব্যাক",
+          tab_track: "ট্র্যাক",
+          tab_faq: "প্রশ্নোত্তর",
+          passenger_title: "যাত্রীর বিবরণ",
+          passenger_modal_hint: "অর্ডার, ইনভয়েস এবং ট্র্যাকিংয়ের জন্য প্রয়োজন।",
+          field_name_optional: "নাম ঐচ্ছিক",
+          field_phone: "ফোন",
+          field_email_optional: "ইমেল ঐচ্ছিক",
+          field_pnr: "PNR নম্বর",
+          field_search_train: "ট্রেন খুঁজুন",
+          field_train_number: "ট্রেন নম্বর",
+          field_coach: "কোচ",
+          field_seat: "সিট / বার্থ",
+          field_delivery_option: "ডেলিভারি বিকল্প",
+          save_passenger: "যাত্রী সেভ করুন",
+          field_meal: "খাবার",
+          field_delivery_slot: "পছন্দের ডেলিভারি সময়",
+          save: "সেভ",
+          source_all: "সব",
+          source_pantry: "ট্রেন প্যান্ট্রি",
+          source_base: "বেস কিচেন",
+          source_partner: "পার্টনার",
+          view_cart: "কার্ট দেখুন",
+          review_cart: "কার্ট পর্যালোচনা",
+          review_cart_hint: "অর্ডার করার আগে আইটেম, পরিমাণ, মূল্য এবং পেমেন্ট মোড পরীক্ষা করুন।",
+          total_payable: "মোট প্রদেয়",
+          payment_mode: "পেমেন্ট মোড",
+          pay_cod: "COD - ডেলিভারির সময় নগদ",
+          pay_upi: "ডেলিভারির সময় UPI",
+          pay_qr: "ডেলিভারির সময় QR কোড স্ক্যান",
+          pay_card: "ডেলিভারির সময় ডেবিট / ক্রেডিট কার্ড",
+          payment_hint: "পেমেন্ট পছন্দ অর্ডারের সঙ্গে সেভ থাকবে। পেমেন্ট গেটওয়ে পরবর্তী ধাপে যুক্ত হবে।",
+          add_more_items: "আরও আইটেম যোগ করুন",
+          confirm_order: "অর্ডার নিশ্চিত করুন",
+          feedback_title: "ফিডব্যাক বা অভিযোগ",
+          feedback_hint: "আপনার ফিডব্যাক Meals On Wheels কমান্ড সেন্টারে লাইভ পৌঁছায়।",
+          field_pnr_optional: "PNR ঐচ্ছিক",
+          field_train_optional: "ট্রেন ঐচ্ছিক",
+          field_coach_optional: "কোচ ঐচ্ছিক",
+          field_seat_optional: "সিট ঐচ্ছিক",
+          rating: "রেটিং",
+          rating_5: "5 - চমৎকার",
+          rating_4: "4 - ভালো",
+          rating_3: "3 - মাঝারি",
+          rating_2: "2 - খারাপ",
+          rating_1: "1 - খুব খারাপ",
+          submission_type: "সাবমিশন ধরন",
+          feedback: "ফিডব্যাক",
+          complaint: "অভিযোগ",
+          related_order_optional: "সম্পর্কিত অর্ডার ঐচ্ছিক",
+          general_feedback: "সাধারণ ফিডব্যাক / কোনও অর্ডার নেই",
+          complaint_nature: "অভিযোগের ধরন",
+          proof_file: "প্রমাণ ছবি / অডিও / ভিডিও",
+          message: "বার্তা",
+          submit: "সাবমিট",
+          tracking_title: "লাইভ অর্ডার ট্র্যাকিং",
+          tracking_hint: "অর্ডার বুকিংয়ে ব্যবহার করা ফোন নম্বর লিখুন।",
+          phone_number: "ফোন নম্বর",
+          search: "খুঁজুন",
+          faq_title: "Meals On Wheels প্রশ্নোত্তর",
+          faq_hint: "ট্রেন QR অর্ডারিং, ডেলিভারি OTP এবং সহায়তার দ্রুত সাহায্য।",
+          sending: "পাঠানো হচ্ছে",
+          submitted: "সাবমিট হয়েছে",
+          feedback_failed: "ফিডব্যাক সাবমিট করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।",
+          please_try_again: "অনুগ্রহ করে আবার চেষ্টা করুন।",
+          need_help: "সহায়তা চাই",
+          modify_delivery: "ডেলিভারি বদলান",
+          feedback_tickets: "ফিডব্যাক / অভিযোগ টিকিট",
+          feedback_tickets_hint: "এই ফোন নম্বর থেকে জমা দেওয়া বিষয়গুলির অবস্থা।",
+          general: "সাধারণ",
+          submitted_on: "সাবমিট",
+          last_update: "শেষ আপডেট:",
+          rate_response: "Meals On Wheels উত্তর রেট করুন",
+          no_rating: "কোনও রেটিং নেই",
+          unable_tracking: "এখন ট্র্যাকিং লোড করা যায়নি:",
+          unable_feedback_tickets: "ফোন নম্বর দিয়ে ফিডব্যাক টিকিট লোড করা যায়নি:",
+          need_help_for_order: "অর্ডারের জন্য সহায়তা চাই",
+          reply_or_rating: "আগে উত্তর লিখুন বা রেটিং বেছে নিন।",
+          no_matching_train: "মিল থাকা কোনও ট্রেন নেই",
+          passenger: "যাত্রী",
+          passenger_missing: "অর্ডারের আগে যাত্রী, ট্রেন এবং সিটের বিবরণ যোগ করুন।",
+          valid_phone: "অনুগ্রহ করে সঠিক 10 অঙ্কের ফোন নম্বর লিখুন।",
+          valid_pnr: "অনুগ্রহ করে সঠিক 10 অঙ্কের PNR নম্বর লিখুন।",
+          valid_feedback_phone: "ফিডব্যাকের জন্য সঠিক 10 অঙ্কের ফোন নম্বর লিখুন।",
+          cart_stock_changed: "লাইভ স্টক বদলানোর কারণে কার্ট আপডেট হয়েছে।",
+          source_base_label: "আগামী বেস কিচেন",
+          source_partner_label: "আগামী স্টেশন পার্টনার",
+          source_pantry_label: "ট্রেন প্যান্ট্রি",
+          source_base_note: "স্টেশন হ্যান্ডওভার সময়সহ অনুমোদিত বেস-কিচেন মেনু।",
+          source_partner_note: "আগামী স্টেশনের কাছে অনুমোদিত পার্টনার মেনু।",
+          source_pantry_note: "ট্রেন টিম থেকে উপলব্ধ অনবোর্ড প্যান্ট্রি স্টক।",
+          view_food_detail: "খাবারের বিবরণ দেখুন",
+          delivery: "ডেলিভারি:",
+          sold_out: "স্টক শেষ",
+          available: "উপলব্ধ",
+          notify: "জানান",
+          reduce: "কমাও",
+          add: "যোগ করুন",
+          max_units_prefix: "সর্বোচ্চ",
+          max_units_suffix: "ইউনিট প্রতি অর্ডারে অনুমোদিত।",
+          sold_out_note: "বেল চাপুন যাতে Meals On Wheels তাজা স্টকের পরিকল্পনা করতে পারে।",
+          no_food_available: "এই খাবার এবং উৎসের জন্য এখন কোনও ফুড আইটেম উপলব্ধ নেই।",
+          item: "আইটেম",
+          items: "আইটেম",
+          banner_welcome: "Meals On Wheels-এ স্বাগতম। নিজের সিট থেকে তাজা খাবার অর্ডার করুন।",
+          banner_qr: "ট্রেন QR স্ক্যান করলে ট্রেন ও রেক বিবরণ নিজে থেকেই পূরণ হবে।",
+          banner_offer: "নতুন যাত্রী অফার: প্যান্ট্রি, বেস কিচেন এবং পার্টনার মেনু এক জায়গায় দেখুন।",
+          banner_linked_prefix: "যাত্রা লিঙ্ক হয়েছে",
+          banner_linked_suffix: "অর্ডার ও সহায়তা এই অনবোর্ড টিমের কাছে যাবে।",
+          banner_back_prefix: "আবার স্বাগতম। আপনি এই ডিভাইস থেকে",
+          banner_back_suffix_one: "Meals On Wheels অর্ডার করেছেন।",
+          banner_back_suffix_many: "Meals On Wheels অর্ডার করেছেন।"
+        }
       };
+      let bannerRotationTimer = null;
+      let promoSlideIndex = 0;
+      let promoAutoTimer = null;
       $("languageSelect").value = localStorage.getItem("mowLanguage") || "en";
+
+      function currentLang() {
+        return i18n[$("languageSelect").value] ? $("languageSelect").value : "en";
+      }
+
+      function textFor(key) {
+        return i18n[currentLang()][key] || i18n.en[key] || key;
+      }
+
+      function applyLanguage() {
+        document.documentElement.lang = currentLang();
+        document.querySelectorAll("[data-i18n]").forEach((node) => {
+          node.textContent = textFor(node.dataset.i18n);
+        });
+        renderBannerInsight();
+        renderFaqs();
+        renderPassengerSummary();
+        renderMenu();
+        if (trackedFeedbacks.length || trackedOrders.length) renderTracking();
+        lucide.createIcons();
+      }
 
       function activeJourneyContext() {
         if (hasJourneyContext) return journeyContext;
@@ -323,33 +802,134 @@
       }
 
       function renderBannerInsight() {
+        if (bannerRotationTimer) clearInterval(bannerRotationTimer);
         const savedOrderCount = Number(localStorage.getItem("mowOrderCount") || 0);
         const ctx = activeJourneyContext();
         const lines = [
-          languageLabels[$("languageSelect").value] || languageLabels.en,
-          ctx.train ? `Journey linked: ${ctx.train}${ctx.rakeNumber ? `, Rake ${ctx.rakeNumber}` : ""}. Orders and help will route to this onboard team.` : "Scan the train QR to auto-fill train and rake details.",
-          savedOrderCount ? `Welcome back. You have placed ${savedOrderCount} Meals On Wheels order${savedOrderCount === 1 ? "" : "s"} from this device.` : "New passenger offer: browse pantry, base kitchen and partner menus in one place."
+          textFor("banner_welcome"),
+          ctx.train ? `${textFor("banner_linked_prefix")}: ${ctx.train}${ctx.rakeNumber ? `, Rake ${ctx.rakeNumber}` : ""}. ${textFor("banner_linked_suffix")}` : textFor("banner_qr"),
+          savedOrderCount ? `${textFor("banner_back_prefix")} ${savedOrderCount} ${savedOrderCount === 1 ? textFor("banner_back_suffix_one") : textFor("banner_back_suffix_many")}` : textFor("banner_offer")
         ];
         let idx = 0;
         $("bannerInsight").textContent = lines[idx];
-        setInterval(() => {
+        bannerRotationTimer = setInterval(() => {
           idx = (idx + 1) % lines.length;
           $("bannerInsight").textContent = lines[idx];
         }, 4200);
       }
 
-      const faqs = [
-        ["How do I order food in train?", "Scan the Meals On Wheels QR in your train or open this app, save passenger details, choose Train Pantry, Base Kitchen or RK Partner items, add food to cart and confirm the order."],
-        ["Why should I scan the train QR code?", "The QR links your train number, rake number, Rake Manager and assigned rider so your order or complaint reaches the correct onboard team."],
-        ["Where will I see my delivery OTP?", "When the rider starts delivery, the OTP appears in Track tab against your order. Share it only after you receive the food."],
-        ["Can I order for multiple passengers?", "Yes. Increase item quantity in the cart based on the number of passengers traveling with you."],
-        ["What if my train is delayed?", "The onboard team and Rake Manager can see the train/rake context. Use Feedback or Need Help from Track tab if timing needs attention."],
-        ["How do I raise a complaint?", "Open Feedback, choose Complaint, select the related order if available, add details and proof if needed. You can track replies in the Track tab."],
-        ["What food options are available?", "Menu can come from Train Pantry, upcoming Base Kitchen and approved RK Partner outlets. Use meal, cuisine and source filters to browse quickly."],
-        ["How do I know the order is complete?", "After OTP verification by the rider, your order status changes to Delivered in the Track tab."]
-      ];
+      function goToPromoSlide(index) {
+        const slides = document.querySelectorAll(".promo-slide");
+        if (!slides.length) return;
+        promoSlideIndex = ((index % slides.length) + slides.length) % slides.length;
+        $("promoTrack").style.transform = `translateX(-${promoSlideIndex * 100}%)`;
+        document.querySelectorAll("[data-promo-dot]").forEach((dot, dotIndex) => {
+          dot.classList.toggle("active", dotIndex === promoSlideIndex);
+        });
+      }
+
+      function startPromoAuto() {
+        if (promoAutoTimer) clearInterval(promoAutoTimer);
+        promoAutoTimer = setInterval(() => goToPromoSlide(promoSlideIndex + 1), 5200);
+      }
+
+      function activatePromoSlide(slide) {
+        const tab = slide?.dataset?.promoTab || "order";
+        showTab(tab);
+        if (slide?.dataset?.promoSource) {
+          selectedMenuSource = slide.dataset.promoSource;
+          document.querySelectorAll("[data-menu-source]").forEach((node) => node.classList.toggle("active", node.dataset.menuSource === selectedMenuSource));
+          renderMenu();
+        }
+        const target = document.querySelector(`[data-tab-panel="${tab}"]`);
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function wirePromoCarousel() {
+        const carousel = $("customerPromoCarousel");
+        const track = $("promoTrack");
+        if (!carousel || !track) return;
+        let touchStartX = 0;
+        let touchDeltaX = 0;
+        $("promoPrevBtn").addEventListener("click", (event) => {
+          event.stopPropagation();
+          goToPromoSlide(promoSlideIndex - 1);
+          startPromoAuto();
+        });
+        $("promoNextBtn").addEventListener("click", (event) => {
+          event.stopPropagation();
+          goToPromoSlide(promoSlideIndex + 1);
+          startPromoAuto();
+        });
+        $("promoDots").addEventListener("click", (event) => {
+          const dot = event.target.closest("[data-promo-dot]");
+          if (!dot) return;
+          goToPromoSlide(Number(dot.dataset.promoDot || 0));
+          startPromoAuto();
+        });
+        carousel.addEventListener("mouseenter", () => promoAutoTimer && clearInterval(promoAutoTimer));
+        carousel.addEventListener("mouseleave", startPromoAuto);
+        track.addEventListener("touchstart", (event) => {
+          touchStartX = event.touches[0].clientX;
+          touchDeltaX = 0;
+          if (promoAutoTimer) clearInterval(promoAutoTimer);
+        }, { passive: true });
+        track.addEventListener("touchmove", (event) => {
+          touchDeltaX = event.touches[0].clientX - touchStartX;
+        }, { passive: true });
+        track.addEventListener("touchend", () => {
+          if (touchDeltaX < -45) goToPromoSlide(promoSlideIndex + 1);
+          if (touchDeltaX > 45) goToPromoSlide(promoSlideIndex - 1);
+          startPromoAuto();
+        });
+        carousel.addEventListener("click", (event) => {
+          if (event.target.closest(".promo-arrow") || event.target.closest("[data-promo-dot]")) return;
+          const action = event.target.closest("[data-hero-tab]") || event.target.closest(".promo-slide");
+          if (action?.dataset?.promoSource) {
+            selectedMenuSource = action.dataset.promoSource;
+            document.querySelectorAll("[data-menu-source]").forEach((node) => node.classList.toggle("active", node.dataset.menuSource === selectedMenuSource));
+          }
+          activatePromoSlide(action?.closest(".promo-slide") || action);
+        });
+        goToPromoSlide(0);
+        startPromoAuto();
+      }
+
+      const faqContent = {
+        en: [
+          ["How do I order food in train?", "Scan the Meals On Wheels QR in your train or open this app, save passenger details, choose Train Pantry, Base Kitchen or RK Partner items, add food to cart and confirm the order."],
+          ["Why should I scan the train QR code?", "The QR links your train number, rake number, Rake Manager and assigned rider so your order or complaint reaches the correct onboard team."],
+          ["Where will I see my delivery OTP?", "When the rider starts delivery, the OTP appears in Track tab against your order. Share it only after you receive the food."],
+          ["Can I order for multiple passengers?", "Yes. Increase item quantity in the cart based on the number of passengers traveling with you."],
+          ["What if my train is delayed?", "The onboard team and Rake Manager can see the train/rake context. Use Feedback or Need Help from Track tab if timing needs attention."],
+          ["How do I raise a complaint?", "Open Feedback, choose Complaint, select the related order if available, add details and proof if needed. You can track replies in the Track tab."],
+          ["What food options are available?", "Menu can come from Train Pantry, upcoming Base Kitchen and approved RK Partner outlets. Use meal, cuisine and source filters to browse quickly."],
+          ["How do I know the order is complete?", "After OTP verification by the rider, your order status changes to Delivered in the Track tab."]
+        ],
+        hi: [
+          ["ट्रेन में खाना कैसे ऑर्डर करूं?", "ट्रेन में Meals On Wheels QR स्कैन करें या यह ऐप खोलें, यात्री विवरण सेव करें, ट्रेन पैंट्री, बेस किचन या RK पार्टनर आइटम चुनें, कार्ट में भोजन जोड़ें और ऑर्डर पुष्टि करें।"],
+          ["ट्रेन QR कोड स्कैन करना क्यों जरूरी है?", "QR आपके ट्रेन नंबर, रेक नंबर, रेक मैनेजर और असाइन किए गए राइडर को लिंक करता है, ताकि आपका ऑर्डर या शिकायत सही ऑनबोर्ड टीम तक पहुंचे।"],
+          ["मेरा डिलीवरी OTP कहां दिखेगा?", "जब राइडर डिलीवरी शुरू करेगा, तो OTP आपके ऑर्डर के सामने ट्रैक टैब में दिखेगा। भोजन मिलने के बाद ही OTP साझा करें।"],
+          ["क्या मैं कई यात्रियों के लिए ऑर्डर कर सकता हूं?", "हां। साथ यात्रा कर रहे यात्रियों के हिसाब से कार्ट में आइटम की मात्रा बढ़ाएं।"],
+          ["अगर मेरी ट्रेन लेट हो जाए तो?", "ऑनबोर्ड टीम और रेक मैनेजर ट्रेन और रेक संदर्भ देख सकते हैं। समय से जुड़ी सहायता के लिए फीडबैक या ट्रैक टैब से सहायता चाहिए विकल्प उपयोग करें।"],
+          ["शिकायत कैसे दर्ज करूं?", "फीडबैक खोलें, शिकायत चुनें, उपलब्ध हो तो संबंधित ऑर्डर चुनें, विवरण और जरूरत हो तो प्रूफ जोड़ें। उत्तर ट्रैक टैब में देख सकते हैं।"],
+          ["कौन-कौन से भोजन विकल्प उपलब्ध हैं?", "मेनू ट्रेन पैंट्री, आगामी बेस किचन और स्वीकृत RK पार्टनर आउटलेट से आ सकता है। जल्दी देखने के लिए भोजन, कुजीन और सोर्स फिल्टर उपयोग करें।"],
+          ["ऑर्डर पूरा हुआ कैसे पता चलेगा?", "राइडर द्वारा OTP सत्यापन के बाद आपका ऑर्डर स्टेटस ट्रैक टैब में डिलीवर्ड हो जाएगा।"]
+        ],
+        bn: [
+          ["ট্রেনে খাবার কীভাবে অর্ডার করব?", "ট্রেনে Meals On Wheels QR স্ক্যান করুন বা এই অ্যাপ খুলুন, যাত্রীর বিবরণ সেভ করুন, ট্রেন প্যান্ট্রি, বেস কিচেন বা RK পার্টনার আইটেম বেছে নিন, খাবার কার্টে যোগ করুন এবং অর্ডার নিশ্চিত করুন।"],
+          ["ট্রেন QR কোড স্ক্যান করা কেন দরকার?", "QR আপনার ট্রেন নম্বর, রেক নম্বর, রেক ম্যানেজার এবং নির্ধারিত রাইডারকে যুক্ত করে, যাতে আপনার অর্ডার বা অভিযোগ সঠিক অনবোর্ড টিমের কাছে যায়।"],
+          ["আমার ডেলিভারি OTP কোথায় দেখব?", "রাইডার ডেলিভারি শুরু করলে OTP আপনার অর্ডারের পাশে ট্র্যাক ট্যাবে দেখা যাবে। খাবার পাওয়ার পরেই OTP শেয়ার করুন।"],
+          ["আমি কি একাধিক যাত্রীর জন্য অর্ডার করতে পারি?", "হ্যাঁ। সঙ্গে ভ্রমণ করা যাত্রীদের সংখ্যার অনুযায়ী কার্টে আইটেমের পরিমাণ বাড়ান।"],
+          ["আমার ট্রেন দেরি হলে কী হবে?", "অনবোর্ড টিম এবং রেক ম্যানেজার ট্রেন ও রেক তথ্য দেখতে পারবেন। সময় সংক্রান্ত সাহায্যের জন্য ফিডব্যাক বা ট্র্যাক ট্যাব থেকে সহায়তা চাই ব্যবহার করুন।"],
+          ["অভিযোগ কীভাবে জানাব?", "ফিডব্যাক খুলুন, অভিযোগ বেছে নিন, থাকলে সংশ্লিষ্ট অর্ডার নির্বাচন করুন, বিস্তারিত লিখুন এবং দরকার হলে প্রমাণ যোগ করুন। উত্তর ট্র্যাক ট্যাবে দেখতে পারবেন।"],
+          ["কী কী খাবারের বিকল্প আছে?", "মেনু ট্রেন প্যান্ট্রি, আগামী বেস কিচেন এবং অনুমোদিত RK পার্টনার আউটলেট থেকে আসতে পারে। দ্রুত দেখতে খাবার, কুইজিন এবং সোর্স ফিল্টার ব্যবহার করুন।"],
+          ["অর্ডার সম্পূর্ণ হয়েছে কীভাবে জানব?", "রাইডার OTP যাচাই করার পরে আপনার অর্ডার স্ট্যাটাস ট্র্যাক ট্যাবে ডেলিভার্ড হয়ে যাবে।"]
+        ]
+      };
 
       function renderFaqs() {
+        const faqs = faqContent[currentLang()] || faqContent.en;
         $("faqList").innerHTML = faqs.map(([question, answer], index) => `
           <details class="faq-item" ${index === 0 ? "open" : ""}>
             <summary>${escapeHtml(question)}<i data-lucide="chevron-down"></i></summary>
@@ -456,7 +1036,7 @@
       function renderCustomerTrainSelect() {
         const query = $("customerTrainSearch").value;
         const matching = trainMasters.filter((train) => trainSearchMatch(train, query)).slice(0, 80);
-        $("customerTrainSelect").innerHTML = matching.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No matching train</option>`;
+        $("customerTrainSelect").innerHTML = matching.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">${textFor("no_matching_train")}</option>`;
         if (saved.train && trainMasters.some((train) => train.trainNumber === saved.train || train.id === saved.train)) {
           $("customerTrainSelect").value = saved.train;
         }
@@ -464,10 +1044,10 @@
 
       function renderPassengerSummary(data = passenger()) {
         const enough = data.phone && data.pnr && data.train && data.coach && data.seat;
-        const displayName = data.name || "Passenger";
+        const displayName = data.name || textFor("passenger");
         $("passengerSummary").textContent = enough
           ? `${displayName} | ${data.train}${data.rakeNumber ? ` Rake ${data.rakeNumber}` : ""} | ${data.coach}/${data.seat} | PNR ${data.pnr}`
-          : "Add passenger, train and seat details before placing order.";
+          : textFor("passenger_missing");
       }
 
       function openPassengerModal() {
@@ -485,11 +1065,11 @@
         }
         const data = passenger();
         if (data.phone.length !== 10) {
-          toast("Please enter a valid 10 digit phone number.");
+          toast(textFor("valid_phone"));
           return null;
         }
         if (data.pnr.length !== 10) {
-          toast("Please enter a valid 10 digit PNR number.");
+          toast(textFor("valid_pnr"));
           return null;
         }
         localStorage.setItem("rkPassenger", JSON.stringify(data));
@@ -534,7 +1114,7 @@
           });
         }
         if (customer.phone.length !== 10) {
-          toast("Please enter a valid 10 digit phone number for feedback.");
+          toast(textFor("valid_feedback_phone"));
           field("customerPhone")?.focus();
           return null;
         }
@@ -564,7 +1144,7 @@
             changed = true;
           }
         });
-        if (changed) toast("Cart updated as live stock changed.");
+        if (changed) toast(textFor("cart_stock_changed"));
       }
 
       function menuSourceOf(item) {
@@ -575,15 +1155,15 @@
       }
 
       function sourceLabel(source) {
-        if (source === "base-kitchen") return "Upcoming Base Kitchen";
-        if (source === "partner") return "Partner From Upcoming Station";
-        return "Train Pantry";
+        if (source === "base-kitchen") return textFor("source_base_label");
+        if (source === "partner") return textFor("source_partner_label");
+        return textFor("source_pantry_label");
       }
 
       function sourceNote(source) {
-        if (source === "base-kitchen") return "Approved base-kitchen menu with station handover timing.";
-        if (source === "partner") return "Approved partner menu near an upcoming station.";
-        return "Onboard pantry stock available from the train team.";
+        if (source === "base-kitchen") return textFor("source_base_note");
+        if (source === "partner") return textFor("source_partner_note");
+        return textFor("source_pantry_note");
       }
 
       function menuItemCard(item) {
@@ -594,7 +1174,7 @@
         const soldOut = stock <= 0;
         return `
           <div class="item menu-card">
-            <div class="menu-card-media" data-product-detail="${item.id}" title="View food detail">
+            <div class="menu-card-media" data-product-detail="${item.id}" title="${textFor("view_food_detail")}">
               ${item.itemImage ? `<img class="food-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : `<div class="food-img placeholder"><i data-lucide="utensils"></i></div>`}
             </div>
             <div class="menu-card-body">
@@ -603,19 +1183,19 @@
                 <b class="menu-price">${money(sell)}</b>
               </div>
               <p class="menu-meta">${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
-              <p class="menu-meta"><b>Delivery:</b> ${escapeHtml(menuDeliveryEstimate(item))}</p>
+              <p class="menu-meta"><b>${textFor("delivery")}</b> ${escapeHtml(menuDeliveryEstimate(item))}</p>
               <div class="menu-tags">${itemCuisineTags(item).slice(0, 2).map((tag) => `<span class="menu-tag">${escapeHtml(tag)}</span>`).join("")}</div>
               <div class="menu-card-actions">
-                <span class="badge ${soldOut ? "danger" : "ok"}">${soldOut ? "Sold out" : "Available"}</span>
+                <span class="badge ${soldOut ? "danger" : "ok"}">${soldOut ? textFor("sold_out") : textFor("available")}</span>
                 <div class="qty-stepper">
-                  ${soldOut ? `<button class="btn secondary compact-btn" data-notify-item="${item.id}" title="Notify"><i data-lucide="bell"></i></button>` : `
-                    <button class="icon-btn" data-minus="${item.id}" title="Reduce"><i data-lucide="minus"></i></button>
+                  ${soldOut ? `<button class="btn secondary compact-btn" data-notify-item="${item.id}" title="${textFor("notify")}"><i data-lucide="bell"></i></button>` : `
+                    <button class="icon-btn" data-minus="${item.id}" title="${textFor("reduce")}"><i data-lucide="minus"></i></button>
                     <b>${inCart}</b>
-                    <button class="icon-btn" data-plus="${item.id}" title="Add" ${inCart >= maxQty ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
+                    <button class="icon-btn" data-plus="${item.id}" title="${textFor("add")}" ${inCart >= maxQty ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
                 </div>
               </div>
-              ${!soldOut && maxQty < stock ? `<p class="sold-out-note">Max ${maxQty} unit(s) allowed per order.</p>` : ""}
-              ${soldOut ? `<p class="sold-out-note">Tap bell so Meals On Wheels can plan fresh stock.</p>` : ""}
+              ${!soldOut && maxQty < stock ? `<p class="sold-out-note">${textFor("max_units_prefix")} ${maxQty} ${textFor("max_units_suffix")}</p>` : ""}
+              ${soldOut ? `<p class="sold-out-note">${textFor("sold_out_note")}</p>` : ""}
             </div>
           </div>`;
       }
@@ -634,7 +1214,7 @@
             <div class="section-title compact-title"><div><h2>${sourceLabel(source)}</h2><p>${sourceNote(source)}</p></div></div>
             <div class="customer-menu-grid">${rows.map(menuItemCard).join("")}</div>
           </div>`;
-        }).join("") : `<div class="empty">No food item is available for this meal and source right now.</div>`;
+        }).join("") : `<div class="empty">${textFor("no_food_available")}</div>`;
         lucide.createIcons();
         renderCart();
       }
@@ -643,7 +1223,7 @@
         const lines = [...cart.values()];
         const count = lines.reduce((sum, line) => sum + line.qty, 0);
         const total = lines.reduce((sum, line) => sum + line.qty * sellingPriceOf(line), 0);
-        $("cartCount").textContent = `${count} item${count === 1 ? "" : "s"}`;
+        $("cartCount").textContent = `${count} ${count === 1 ? textFor("item") : textFor("items")}`;
         $("cartTotal").textContent = money(total);
         $("placeOrderBtn").disabled = count === 0;
       }
@@ -671,7 +1251,7 @@
           </div>`).join("") || `<div class="empty">Your cart is empty.</div>`;
         $("cartReviewTotal").textContent = money(total);
         $("confirmOrderBtn").disabled = !lines.length;
-        $("confirmOrderBtn").innerHTML = `<i data-lucide="send"></i> Confirm Order`;
+        $("confirmOrderBtn").innerHTML = `<i data-lucide="send"></i> ${textFor("confirm_order")}`;
         lucide.createIcons();
       }
 
@@ -887,7 +1467,7 @@
         } catch (error) {
           toast(error.message || "Unable to place order because stock changed.");
           confirmBtn.disabled = false;
-          confirmBtn.innerHTML = `<i data-lucide="send"></i> Confirm Order`;
+          confirmBtn.innerHTML = `<i data-lucide="send"></i> ${textFor("confirm_order")}`;
           lucide.createIcons();
           return;
         }
@@ -919,7 +1499,7 @@
         if (!customer) return;
         const submitBtn = form.querySelector("button[type='submit']");
         submitBtn.disabled = true;
-        submitBtn.innerHTML = `<i data-lucide="loader-2"></i> Sending`;
+        submitBtn.innerHTML = `<i data-lucide="loader-2"></i> ${textFor("sending")}`;
         lucide.createIcons();
         try {
           const proof = await proofFileData(form.proofFile.files[0]);
@@ -989,21 +1569,21 @@
               : `Thank you for your feedback. Your acknowledgement number is <b>${ticketNo}</b>.`
           );
           loadTracking(customer.phone);
-          toast(`${data.submissionType === "complaint" ? "Complaint" : "Feedback"} submitted: ${ticketNo}`);
+          toast(`${data.submissionType === "complaint" ? textFor("complaint") : textFor("feedback")} ${textFor("submitted")}: ${ticketNo}`);
         } catch (error) {
           console.error(error);
-          showFeedbackAck("danger-soft", `Feedback could not be submitted: ${escapeHtml(error.message || "Please try again.")}`);
-          toast("Feedback could not be submitted. Please try again.");
+          showFeedbackAck("danger-soft", `${textFor("feedback_failed")} ${escapeHtml(error.message || textFor("please_try_again"))}`);
+          toast(textFor("feedback_failed"));
         } finally {
           submitBtn.disabled = false;
-          submitBtn.innerHTML = `<i data-lucide="message-circle"></i> Submit`;
+          submitBtn.innerHTML = `<i data-lucide="message-circle"></i> ${textFor("submit")}`;
           lucide.createIcons();
         }
       });
 
       function renderFeedbackOrderOptions() {
         const options = trackedOrders.map((order) => `<option value="${order.id}">${escapeHtml(order.orderNo || order.id)} - ${escapeHtml((order.items || []).map((line) => line.name).join(", "))}</option>`).join("");
-        $("feedbackOrderSelect").innerHTML = `<option value="">General feedback / no order</option>${options}`;
+        $("feedbackOrderSelect").innerHTML = `<option value="">${textFor("general_feedback")}</option>${options}`;
       }
 
       function populateFeedbackFromOrder(orderId) {
@@ -1071,17 +1651,17 @@
                 <button class="btn secondary" data-edit-order="${order.id}"><i data-lucide="pencil"></i> Edit Order</button>
                 <button class="btn danger" data-cancel-order="${order.id}"><i data-lucide="x"></i> ${escapeHtml(cancelCountdownText(order) || "Cancel Order")}</button>
               ` : ""}
-              <button class="btn secondary" data-help-order="${order.id}"><i data-lucide="message-square-warning"></i> Need Help</button>
-              ${!["out-for-delivery", "delivered", "cancelled"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-modify-slot="${order.id}"><i data-lucide="calendar-clock"></i> Modify Delivery</button>` : ""}
+              <button class="btn secondary" data-help-order="${order.id}"><i data-lucide="message-square-warning"></i> ${textFor("need_help")}</button>
+              ${!["out-for-delivery", "delivered", "cancelled"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-modify-slot="${order.id}"><i data-lucide="calendar-clock"></i> ${textFor("modify_delivery")}</button>` : ""}
             </div>
           </div>`).join("") : `<div class="empty">No order found for this phone number.</div>`;
         const feedbackHtml = trackedFeedbacks.length ? `
-          <div class="section-title" style="margin-top:12px;"><div><h2>Feedback / Complaint Tickets</h2><p>Status of concerns submitted from this phone number.</p></div></div>
+          <div class="section-title" style="margin-top:12px;"><div><h2>${textFor("feedback_tickets")}</h2><p>${textFor("feedback_tickets_hint")}</p></div></div>
           ${trackedFeedbacks.map((fb) => `
             <div class="item">
               <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)}</h3>${statusBadge(fb.status)}</div>
-              <p>${escapeHtml(fb.type || "feedback")} | ${escapeHtml(fb.orderNo || "General")} | Submitted ${nowLabel(fb.createdAt || fb.timestamp)}</p>
-              ${fb.updatedAt ? `<p><b>Last Update:</b> ${nowLabel(fb.updatedAt)}</p>` : ""}
+              <p>${escapeHtml(fb.type || textFor("feedback"))} | ${escapeHtml(fb.orderNo || textFor("general"))} | ${textFor("submitted_on")} ${nowLabel(fb.createdAt || fb.timestamp)}</p>
+              ${fb.updatedAt ? `<p><b>${textFor("last_update")}</b> ${nowLabel(fb.updatedAt)}</p>` : ""}
               <p>${escapeHtml(fb.message || "")}</p>
               <div class="ack ${["resolved", "closed", "acknowledged"].includes(String(fb.status || "").toLowerCase()) ? "success" : "danger-soft"}" style="margin-top:10px;">
                 <b>Meals On Wheels Update:</b> ${escapeHtml(fb.customerNotice || fb.managerResponse || "Your ticket is with Meals On Wheels command center. Please check again shortly.")}
@@ -1104,8 +1684,8 @@
               <div class="feedback-reply-box">
                 <label class="field"><span>Your reply to Meals On Wheels</span><textarea class="textarea" rows="2" placeholder="Write your reply or further detail" data-customer-feedback-reply="${fb.id}"></textarea></label>
                 <div class="row mobile-stack">
-                  <label class="field grow"><span>Rate Meals On Wheels response</span><select class="select" data-customer-feedback-rating="${fb.id}">
-                    <option value="">No rating</option>
+                  <label class="field grow"><span>${textFor("rate_response")}</span><select class="select" data-customer-feedback-rating="${fb.id}">
+                    <option value="">${textFor("no_rating")}</option>
                     <option value="5">5 - Excellent</option>
                     <option value="4">4 - Good</option>
                     <option value="3">3 - Average</option>
@@ -1153,7 +1733,7 @@
             renderTracking();
           }, (error) => {
             console.error(error);
-            $("trackList").innerHTML = `<div class="empty">Unable to load tracking right now: ${escapeHtml(error.message)}</div>`;
+            $("trackList").innerHTML = `<div class="empty">${textFor("unable_tracking")} ${escapeHtml(error.message)}</div>`;
           });
         unsubscribeFeedbackPhoneTrack = db.collection("feedbacks")
           .where("customerPhone", "==", phone)
@@ -1162,7 +1742,7 @@
             refreshFeedbacks();
           }, (error) => {
             console.error(error);
-            $("trackList").insertAdjacentHTML("beforeend", `<div class="empty danger-soft">Unable to load feedback tickets by phone: ${escapeHtml(error.message)}</div>`);
+            $("trackList").insertAdjacentHTML("beforeend", `<div class="empty danger-soft">${textFor("unable_feedback_tickets")} ${escapeHtml(error.message)}</div>`);
           });
         unsubscribeFeedbackNestedTrack = db.collection("feedbacks")
           .where("customer.phone", "==", phone)
@@ -1233,7 +1813,7 @@
           $("submissionType").dispatchEvent(new Event("change"));
           $("feedbackOrderSelect").value = order?.id || "";
           populateFeedbackFromOrder(order?.id || "");
-          $("feedbackForm").elements.message.value = order ? `Need help for order ${order.orderNo || order.id}: ` : "";
+          $("feedbackForm").elements.message.value = order ? `${textFor("need_help_for_order")} ${order.orderNo || order.id}: ` : "";
           $("feedbackForm").scrollIntoView({ behavior: "smooth", block: "start" });
         }
         if (modifySlot) {
@@ -1262,7 +1842,7 @@
           const text = document.querySelector(`[data-customer-feedback-reply="${id}"]`)?.value.trim() || "";
           const rating = document.querySelector(`[data-customer-feedback-rating="${id}"]`)?.value || "";
           if (!text && !rating) {
-            toast("Write a reply or choose a rating first.");
+            toast(textFor("reply_or_rating"));
             return;
           }
           const ticket = trackedFeedbacks.find((entry) => entry.id === id);
@@ -1290,7 +1870,7 @@
       $("feedbackOrderSelect").addEventListener("change", () => populateFeedbackFromOrder($("feedbackOrderSelect").value));
       $("languageSelect").addEventListener("change", () => {
         localStorage.setItem("mowLanguage", $("languageSelect").value);
-        $("bannerInsight").textContent = languageLabels[$("languageSelect").value] || languageLabels.en;
+        applyLanguage();
       });
       $("submissionType").dispatchEvent(new Event("change"));
       document.querySelectorAll("[data-hero-tab]").forEach((btn) => {
@@ -1316,8 +1896,9 @@
         }
         renderPassengerSummary();
       });
+      wirePromoCarousel();
       renderJourneyContext();
-      renderBannerInsight();
+      applyLanguage();
       renderFaqs();
       renderPassengerSummary(saved);
       loadTracking(saved.phone || localStorage.getItem("rkTrackPhone") || "");

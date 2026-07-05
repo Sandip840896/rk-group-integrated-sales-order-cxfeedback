@@ -12,6 +12,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script defer src="rk-common.js"></script>
+  <script defer src="route-master-data.js"></script>
 </head>
 <body>
   <main class="main stack">
@@ -101,6 +102,7 @@
       let kitchens = [];
       let trainMasters = [];
       let trainRoutes = [];
+      const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
 
       const seedRouteCatalogue = {
         ...gitanjaliRouteStops,
@@ -129,13 +131,17 @@
 
       function activeTrainMasters() {
         const merged = new Map();
-        seedTrainMasters.forEach((train) => merged.set(String(train.trainNumber || train.id), train));
-        trainMasters.filter((train) => train.active !== false).forEach((train) => merged.set(String(train.trainNumber || train.id), train));
+        seedTrainMasters.forEach((train) => merged.set(String(train.id || train.trainNumber), train));
+        indianRailRoutes.forEach((route) => {
+          const key = String(route.id || route.trainNumber || "");
+          if (key) merged.set(key, { ...route, active: true });
+        });
+        trainMasters.filter((train) => train.active !== false).forEach((train) => merged.set(String(train.id || train.trainNumber), train));
         trainRoutes.forEach((route) => {
-          const key = String(route.trainNumber || route.id || "");
+          const key = String(route.id || route.trainNumber || "");
           if (key && !merged.has(key)) merged.set(key, { trainNumber: key, trainName: route.trainName || "Train Route Master", yardName: route.yardName || "", active: true });
         });
-        return [...merged.values()].sort((a, b) => String(a.trainNumber || a.id).localeCompare(String(b.trainNumber || b.id)));
+        return [...merged.values()].sort((a, b) => String(a.trainNumber || a.id).localeCompare(String(b.trainNumber || b.id), undefined, { numeric: true }));
       }
 
       function requestPayload(req) {
@@ -358,17 +364,18 @@
       function renderRouteTrainSelect() {
         const current = $("routeTrain").value;
         const rows = routeTrainRows();
-        $("routeTrain").innerHTML = rows.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No matching train</option>`;
-        if (rows.some((train) => (train.trainNumber || train.id) === current)) $("routeTrain").value = current;
+        $("routeTrain").innerHTML = rows.map((train) => `<option value="${escapeHtml(train.id || train.trainNumber)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No matching train</option>`;
+        if (rows.some((train) => (train.id || train.trainNumber) === current)) $("routeTrain").value = current;
         renderRoute();
       }
 
       function selectedRouteTrain() {
-        return activeTrainMasters().find((train) => train.trainNumber === $("routeTrain").value || train.id === $("routeTrain").value);
+        return activeTrainMasters().find((train) => train.id === $("routeTrain").value || train.trainNumber === $("routeTrain").value);
       }
 
       function routeDocForTrain(trainNo) {
-        return trainRoutes.find((row) => row.trainNumber === trainNo || row.id === trainNo);
+        return trainRoutes.find((row) => row.id === trainNo || row.trainNumber === trainNo)
+          || indianRailRoutes.find((row) => row.id === trainNo || row.trainNumber === trainNo);
       }
 
       async function ensureRouteSeed() {
@@ -433,7 +440,7 @@
         $("routeList").innerHTML = `
           <div class="ack success" style="margin-bottom:10px;">
             <b>${escapeHtml(trainLabel(train) || route?.trainName || trainNo)}</b>
-            ${route?.source ? `<br><small>Route source: ${escapeHtml(route.source)}</small>` : ""}
+            ${route?.source ? `<br><small>Route source: ${escapeHtml(route.source)}${route.sourceAsOf ? ` | ${escapeHtml(route.sourceAsOf)}` : ""}</small>` : ""}
           </div>
           <table>
             <thead><tr><th>Seq</th><th>Station</th><th>Code</th><th>Day</th><th>Arrival</th><th>Departure</th><th>Halt</th><th>KM</th><th>Base Kitchen Logic</th></tr></thead>
@@ -624,9 +631,10 @@
       $("downloadRouteBtn").addEventListener("click", downloadCurrentRouteExcel);
       $("saveRouteCsvBtn").addEventListener("click", async () => {
         const train = selectedRouteTrain();
+        const selectedRouteId = $("routeTrain").value;
         const stops = parseRouteCsv($("routeCsvInput").value);
         if (!train || !stops.length) return toast("Select train and paste valid route rows first.");
-        await db.collection("trainRoutes").doc(train.trainNumber || train.id).set({
+        await db.collection("trainRoutes").doc(selectedRouteId || train.trainNumber || train.id).set({
           trainNumber: train.trainNumber || train.id,
           trainName: train.trainName || "",
           yardName: train.yardName || "",

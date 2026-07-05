@@ -136,6 +136,165 @@ a {
   box-shadow: 0 18px 42px rgba(11, 46, 87, 0.22);
 }
 
+.customer-promo-carousel {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 14px;
+  border-radius: 8px;
+  color: #fff;
+  background: #0b2e57;
+  box-shadow: 0 18px 42px rgba(11, 46, 87, 0.22);
+}
+
+.promo-track {
+  display: flex;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  touch-action: pan-y;
+}
+
+.promo-slide {
+  position: relative;
+  min-width: 100%;
+  min-height: 214px;
+  padding: 22px 48px 42px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  cursor: pointer;
+  isolation: isolate;
+}
+
+.promo-slide::after {
+  content: "";
+  position: absolute;
+  right: -36px;
+  bottom: -42px;
+  width: 160px;
+  height: 160px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  z-index: -1;
+}
+
+.promo-welcome {
+  background:
+    linear-gradient(90deg, rgba(11, 46, 87, 0.95), rgba(11, 46, 87, 0.65)),
+    url("Branding/Social media Cover page.png") center / cover no-repeat;
+}
+
+.promo-offer {
+  background: linear-gradient(120deg, #7a1e2e, #c8102e);
+}
+
+.promo-kitchen {
+  background: linear-gradient(120deg, #0b2e57, #1f6b48);
+}
+
+.promo-help {
+  background: linear-gradient(120deg, #27335f, #7a4a22);
+}
+
+.promo-tag {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 5px 10px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.16);
+  font-size: 10px;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+}
+
+.promo-slide h2 {
+  max-width: 420px;
+  margin: 4px 0 7px;
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.promo-slide p:not(.eyebrow) {
+  max-width: 430px;
+  margin: 0;
+  color: rgba(255,255,255,0.84);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.promo-cta {
+  width: fit-content;
+  min-height: 36px;
+  margin-top: 14px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #0b2e57;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.promo-cta.saffron {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.promo-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,0.24);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.28);
+  color: #fff;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.promo-arrow.prev {
+  left: 10px;
+}
+
+.promo-arrow.next {
+  right: 10px;
+}
+
+.promo-arrow svg {
+  width: 17px;
+  height: 17px;
+}
+
+.promo-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+
+.promo-dots button {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.42);
+  cursor: pointer;
+}
+
+.promo-dots button.active {
+  width: 22px;
+  background: #fff;
+}
+
 .brand-splash {
   position: fixed;
   inset: 0;
@@ -1472,6 +1631,37 @@ th {
   .customer-hero {
     margin: -4px -4px 12px;
     padding: 12px;
+  }
+
+  .customer-promo-carousel {
+    margin: -4px -4px 12px;
+  }
+
+  .promo-slide {
+    min-height: 210px;
+    padding: 42px 42px 42px 14px;
+  }
+
+  .promo-slide h2 {
+    font-size: 20px;
+  }
+
+  .promo-slide p:not(.eyebrow) {
+    font-size: 12px;
+  }
+
+  .promo-tag {
+    top: 12px;
+    right: 12px;
+    max-width: 156px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .promo-arrow {
+    width: 30px;
+    height: 30px;
   }
 
   .customer-utility-dock {
