@@ -431,6 +431,13 @@
           stop.km || 0
         ].join(",")).join("\n");
         if (!stops.length) {
+          if (!indianRailRoutes.length) {
+            $("routeList").innerHTML = `<div class="empty danger-soft">
+              <b>Route master data file is not loaded.</b><br>
+              Please confirm <code>route-master-data.js</code> is published in the same GitHub Pages folder as <code>control-tower.html</code>, then hard refresh the page.
+            </div>`;
+            return;
+          }
           $("routeList").innerHTML = `<div class="empty danger-soft">
             <b>No route master saved for ${escapeHtml(trainLabel(train) || trainNo)}.</b><br>
             Verify route on Indian Railways NTES, then paste route rows in Import / Edit Route. After saving, this train will behave like Gitanjali with the full route table.
