@@ -40,6 +40,7 @@
             <option value="base-kitchen">Base Kitchen Rider</option>
             <option value="partner">RK Partner Rider</option>
           </select></label>
+          <label class="field"><span>Search Mapping</span><input class="input" id="assignmentSearch" placeholder="Search train, base kitchen or RK Partner"></label>
           <label class="field"><span>Mapped Location</span><select class="select" name="assignmentId" id="assignmentId" required></select></label>
           <label class="field"><span>Rake Number for Train Vendor</span><input class="input" name="rakeNumber" id="riderRakeNumber" placeholder="Example: 1"></label>
           <label class="field"><span>Photo</span><input class="input" name="photoFile" type="file" accept="image/*"></label>
@@ -94,6 +95,7 @@
       let trainMasters = [];
       let baseKitchens = [];
       let partners = [];
+      let assignmentSearchTerm = "";
       const DELIVERY_RATE = 30;
 
       function otp() {
@@ -116,7 +118,8 @@
       }
 
       function renderAssignmentOptions() {
-        const rows = currentAssignmentOptions();
+        const query = assignmentSearchTerm.toLowerCase().trim();
+        const rows = currentAssignmentOptions().filter((row) => `${row.id || ""} ${row.name || ""}`.toLowerCase().includes(query)).slice(0, 100);
         $("assignmentId").innerHTML = rows.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join("") || `<option value="">No approved master found</option>`;
         const isTrain = $("assignmentType").value === "train";
         $("riderRakeNumber").closest(".field").classList.toggle("hidden", !isTrain);
@@ -375,7 +378,15 @@
 
       $("loadMyOrders").addEventListener("click", renderMine);
       $("applyEarningsBtn").addEventListener("click", renderEarnings);
-      $("assignmentType").addEventListener("change", renderAssignmentOptions);
+      $("assignmentType").addEventListener("change", () => {
+        assignmentSearchTerm = "";
+        $("assignmentSearch").value = "";
+        renderAssignmentOptions();
+      });
+      $("assignmentSearch").addEventListener("input", (event) => {
+        assignmentSearchTerm = event.target.value || "";
+        renderAssignmentOptions();
+      });
       const today = new Date().toISOString().slice(0, 10);
       $("earnFrom").value = today;
       $("earnTo").value = today;

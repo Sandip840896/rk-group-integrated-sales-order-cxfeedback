@@ -32,8 +32,8 @@
     </select></label>
     <a id="callRakeLink" href="tel:858483366"><i data-lucide="phone-call"></i> <span data-i18n="call">Call</span></a>
   </div>
-  <main class="main mobile-main">
-    <section class="brand-cover-strip">
+  <main class="main mobile-main customer-order-first">
+    <section class="brand-cover-strip compact-customer-brand">
       <div class="brand-cover-copy">
         <div class="brand-mark">MEALS <span>ON</span> WHEELS</div>
         <h2>Meals On Wheels</h2>
@@ -46,7 +46,7 @@
         </div>
       </div>
     </section>
-    <section class="customer-promo-carousel" id="customerPromoCarousel" aria-label="Meals On Wheels offers">
+    <section class="customer-promo-carousel compact-promo" id="customerPromoCarousel" aria-label="Meals On Wheels offers">
       <div class="promo-track" id="promoTrack">
         <article class="promo-slide promo-welcome" data-promo-tab="order">
           <span class="promo-tag" data-i18n="promo_tag_welcome">ONBOARD ORDERING</span>
@@ -201,6 +201,16 @@
       </div>
     </div>
 
+    <div class="modal-backdrop hidden priority-modal" id="deliveryOtpModal">
+      <div class="modal stack otp-focus-modal">
+        <div class="section-title">
+          <div><h2>Delivery OTP</h2><p>Share this OTP only after receiving your food.</p></div>
+          <button class="icon-btn" id="closeDeliveryOtpBtn" title="Close"><i data-lucide="x"></i></button>
+        </div>
+        <div id="deliveryOtpBody"></div>
+      </div>
+    </div>
+
     <section class="panel pad stack hidden" data-tab-panel="feedback">
       <div class="section-title">
         <div>
@@ -218,8 +228,14 @@
           <label class="field"><span data-i18n="field_seat_optional">Seat optional</span><input class="input" name="customerSeat" placeholder="41"></label>
         </div>
         <div class="grid two">
-          <label class="field"><span data-i18n="rating">Rating</span><select class="select" name="rating" required>
-            <option value="5" data-i18n="rating_5">5 - Excellent</option><option value="4" data-i18n="rating_4">4 - Good</option><option value="3" data-i18n="rating_3">3 - Average</option><option value="2" data-i18n="rating_2">2 - Poor</option><option value="1" data-i18n="rating_1">1 - Bad</option>
+          <label class="field"><span>Food quality</span><select class="select" name="foodRating" required>
+            <option value="10">10 - Excellent</option><option value="9">9</option><option value="8">8</option><option value="7">7 - Good</option><option value="6">6</option><option value="5">5 - Average</option><option value="4">4</option><option value="3">3 - Poor</option><option value="2">2</option><option value="1">1 - Bad</option>
+          </select></label>
+          <label class="field"><span>Delivery person quality</span><select class="select" name="deliveryRating" required>
+            <option value="10">10 - Excellent</option><option value="9">9</option><option value="8">8</option><option value="7">7 - Good</option><option value="6">6</option><option value="5">5 - Average</option><option value="4">4</option><option value="3">3 - Poor</option><option value="2">2</option><option value="1">1 - Bad</option>
+          </select></label>
+          <label class="field"><span>Overall experience</span><select class="select" name="overallRating" required>
+            <option value="10">10 - Excellent</option><option value="9">9</option><option value="8">8</option><option value="7">7 - Good</option><option value="6">6</option><option value="5">5 - Average</option><option value="4">4</option><option value="3">3 - Poor</option><option value="2">2</option><option value="1">1 - Bad</option>
           </select></label>
           <label class="field"><span data-i18n="submission_type">Submission Type</span><select class="select" name="submissionType" id="submissionType" required>
             <option value="feedback" data-i18n="feedback">Feedback</option><option value="complaint" data-i18n="complaint">Complaint</option>
@@ -266,7 +282,7 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      appHeader("Meals On Wheels Customer App", "Fresh meals, happy journeys");
+      document.body.classList.add("customer-public-view");
       setTimeout(() => $("brandSplash")?.classList.add("hidden"), 3000);
       lucide.createIcons();
       wireTabs("order");
@@ -312,6 +328,9 @@
       const hasJourneyContext = Boolean(journeyContext.qrId || journeyContext.train || journeyContext.rakeNumber);
       let trackedOrders = [];
       let trackedFeedbacks = [];
+      let adminUsers = [];
+      let lastOtpOrderId = sessionStorage.getItem("lastOtpOrderId") || "";
+      let lastDeliveredPromptOrderId = sessionStorage.getItem("lastDeliveredPromptOrderId") || "";
       let unsubscribeTrack = null;
       let unsubscribeFeedbackPhoneTrack = null;
       let unsubscribeFeedbackNestedTrack = null;
@@ -801,6 +820,25 @@
         $("callRakeLink").href = `tel:${callPhone || "858483366"}`;
       }
 
+      function rakeManagerForTrain(trainNo) {
+        const train = String(trainNo || "");
+        return adminUsers.find((user) => {
+          const role = String(user.role || "").toLowerCase();
+          const scope = String(user.accessScope || "").toLowerCase();
+          const value = String(user.accessValue || "");
+          return role === "rake-manager" && user.active !== false && (scope === "train" || scope === "train-rake") && value.split("-")[0] === train;
+        });
+      }
+
+      function applyRakeManagerToCustomer(data) {
+        const manager = rakeManagerForTrain(data.train);
+        if (!manager) return data;
+        data.rakeManagerName = manager.name || data.rakeManagerName || "";
+        data.rakeManagerPhone = cleanPhone(manager.phone || manager.mobile || manager.mobileNumber || manager.contactPhone || data.rakeManagerPhone || "");
+        if (data.rakeManagerPhone) $("callRakeLink").href = `tel:${data.rakeManagerPhone}`;
+        return applyRakeManagerToCustomer(data);
+      }
+
       function renderBannerInsight() {
         if (bannerRotationTimer) clearInterval(bannerRotationTimer);
         const savedOrderCount = Number(localStorage.getItem("mowOrderCount") || 0);
@@ -1118,7 +1156,7 @@
           field("customerPhone")?.focus();
           return null;
         }
-        return customer;
+        return applyRakeManagerToCustomer(customer);
       }
 
       function showFeedbackAck(type, html) {
@@ -1504,8 +1542,17 @@
         try {
           const proof = await proofFileData(form.proofFile.files[0]);
           const ticketNo = shortId(data.submissionType === "complaint" ? "CMP" : "FDB");
+          const foodRating = Number(data.foodRating || 0);
+          const deliveryRating = Number(data.deliveryRating || 0);
+          const overallRating = Number(data.overallRating || 0);
+          const ratingAlert = Math.min(foodRating, deliveryRating, overallRating) < 7;
           const feedbackRef = await db.collection("feedbacks").add({
-            rating: Number(data.rating),
+            rating: overallRating,
+            foodRating,
+            deliveryRating,
+            overallRating,
+            ratingAlert,
+            deliveryPersonName: relatedOrder?.deliveryPersonName || relatedOrder?.assignedRiderName || "",
             submissionType: data.submissionType,
             message: data.message,
             ticketNo,
@@ -1530,12 +1577,12 @@
             assignedRiderPhone: customer.assignedRiderPhone || "",
             coach: customer.coach,
             seat: customer.seat,
-            status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
+            status: data.submissionType === "complaint" || ratingAlert ? "open" : "acknowledged",
             customerNotice: data.submissionType === "complaint"
               ? "Your complaint has been received by Meals On Wheels. Our command center will review it shortly."
               : "Your feedback has been received by Meals On Wheels. Thank you for helping us improve.",
             statusLog: [{
-              status: data.submissionType === "complaint" || Number(data.rating) <= 3 ? "open" : "acknowledged",
+              status: data.submissionType === "complaint" || ratingAlert ? "open" : "acknowledged",
               note: data.submissionType === "complaint"
                 ? "Complaint received by Meals On Wheels."
                 : "Feedback received by Meals On Wheels.",
@@ -1597,6 +1644,39 @@
         form.elements.customerTrain.value = customer.train || order.train || "";
         form.elements.customerCoach.value = customer.coach || order.coach || "";
         form.elements.customerSeat.value = customer.seat || order.seat || "";
+        form.elements.submissionType.value = "feedback";
+        form.elements.message.value = `Feedback for delivered order ${order.orderNo || order.id}. Delivery person: ${order.deliveryPersonName || order.assignedRiderName || "not assigned"}. `;
+      }
+
+      function showDeliveryOtpOverlay(order) {
+        if (!order?.deliveryOtp || String(order.status || "").toLowerCase() !== "out-for-delivery") return;
+        if (lastOtpOrderId === order.id) return;
+        lastOtpOrderId = order.id;
+        sessionStorage.setItem("lastOtpOrderId", order.id);
+        $("deliveryOtpBody").innerHTML = `
+          <div class="otp-alert large-otp-alert">
+            <span>${escapeHtml(order.orderNo || order.id)}</span>
+            <b>${escapeHtml(order.deliveryOtp)}</b>
+            <small>${escapeHtml(order.deliveryPersonName || "Delivery partner")} will ask for this OTP after handing over food.</small>
+          </div>
+          <button class="btn" data-open-track-from-otp="${escapeHtml(order.id)}"><i data-lucide="map-pin"></i> Track Order</button>`;
+        $("deliveryOtpModal").classList.remove("hidden");
+        playBuzz("Delivery OTP is ready.");
+        if ("vibrate" in navigator) navigator.vibrate([200, 120, 200]);
+        lucide.createIcons();
+      }
+
+      function promptDeliveredFeedback(order) {
+        if (!order?.id || String(order.status || "").toLowerCase() !== "delivered") return;
+        if (lastDeliveredPromptOrderId === order.id) return;
+        lastDeliveredPromptOrderId = order.id;
+        sessionStorage.setItem("lastDeliveredPromptOrderId", order.id);
+        showTab("feedback");
+        renderFeedbackOrderOptions();
+        $("feedbackOrderSelect").value = order.id;
+        populateFeedbackFromOrder(order.id);
+        playBuzz("Please rate your delivered order.");
+        $("feedbackForm").scrollIntoView({ behavior: "smooth", block: "start" });
       }
 
       function mergeTrackedFeedbacks(...groups) {
@@ -1697,6 +1777,10 @@
               </div>
             </div>`).join("")}` : "";
         $("trackList").innerHTML = orderHtml + feedbackHtml;
+        const activeOtpOrder = trackedOrders.find((order) => order.deliveryOtp && String(order.status || "").toLowerCase() === "out-for-delivery");
+        if (activeOtpOrder) showDeliveryOtpOverlay(activeOtpOrder);
+        const deliveredWithoutFeedback = trackedOrders.find((order) => String(order.status || "").toLowerCase() === "delivered" && !trackedFeedbacks.some((fb) => fb.orderId === order.id));
+        if (deliveredWithoutFeedback) promptDeliveredFeedback(deliveredWithoutFeedback);
         lucide.createIcons();
       }
 
@@ -1873,6 +1957,12 @@
         applyLanguage();
       });
       $("submissionType").dispatchEvent(new Event("change"));
+      $("closeDeliveryOtpBtn").addEventListener("click", () => $("deliveryOtpModal").classList.add("hidden"));
+      $("deliveryOtpModal").addEventListener("click", (event) => {
+        if (!event.target.closest("[data-open-track-from-otp]")) return;
+        $("deliveryOtpModal").classList.add("hidden");
+        showTab("track");
+      });
       document.querySelectorAll("[data-hero-tab]").forEach((btn) => {
         btn.addEventListener("click", () => showTab(btn.dataset.heroTab));
       });
@@ -1887,6 +1977,10 @@
         clampCartToLiveStock();
         renderMenu();
       }, "name", "asc", 200);
+      onLive("adminUsers", (rows) => {
+        adminUsers = rows;
+        renderPassengerSummary();
+      }, "email", "asc", 300);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((train) => train.active !== false);
         renderCustomerTrainSelect();

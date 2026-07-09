@@ -40,6 +40,9 @@
           </div>
           <div class="grid two">
             <label class="field"><span>User Name</span><input class="input" name="name" required placeholder="Staff name"></label>
+            <label class="field"><span>Mobile Number</span><input class="input" name="phone" inputmode="tel" placeholder="10 digit staff phone"></label>
+          </div>
+          <div class="grid two">
             <label class="field"><span>Role</span><select class="select" name="role" id="adminRole">
               <option value="rake-manager">Rake Manager</option>
               <option value="base-kitchen">Base Kitchen Manager</option>
@@ -51,6 +54,10 @@
             </select></label>
           </div>
           <label class="field"><span>Allowed Apps</span><div class="check-grid" id="allowedApps"></div></label>
+          <div class="grid two" id="trainAttachFields">
+            <label class="field"><span>Search Train to Attach</span><input class="input" id="adminTrainSearch" placeholder="Search train number, name or yard"></label>
+            <label class="field"><span>Attached Train</span><select class="select" id="adminTrainSelect"></select></label>
+          </div>
           <div class="grid two">
             <label class="field"><span>Access Scope</span><select class="select" name="accessScope">
               <option value="all">All locations</option>
@@ -123,6 +130,7 @@
         admin: appOptions.map(([id]) => id)
       };
       let users = [];
+      let trainMasters = [];
 
       $("allowedApps").innerHTML = appOptions.map(([id, label]) => `<label class="check-pill"><input type="checkbox" value="${id}"> ${label}</label>`).join("");
 
@@ -135,6 +143,20 @@
 
       function applyRoleDefaults() {
         setAllowedApps(defaultsByRole[$("adminRole").value] || []);
+        const isRake = $("adminRole").value === "rake-manager";
+        $("trainAttachFields").classList.toggle("hidden", !isRake);
+        if (isRake) $("adminAccessForm").accessScope.value = "train";
+      }
+
+      function trainSearchMatch(train, query) {
+        return `${train.trainNumber || train.id || ""} ${train.trainName || ""} ${train.yardName || ""}`.toLowerCase().includes(String(query || "").toLowerCase().trim());
+      }
+
+      function renderAdminTrainSelect(selected = "") {
+        const query = $("adminTrainSearch").value;
+        const rows = trainMasters.filter((train) => train.active !== false && trainSearchMatch(train, query)).slice(0, 80);
+        $("adminTrainSelect").innerHTML = rows.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No matching train</option>`;
+        if (selected && rows.some((train) => String(train.trainNumber || train.id) === String(selected))) $("adminTrainSelect").value = selected;
       }
 
       function selectedApps() {
@@ -165,12 +187,18 @@
         const data = getForm(form);
         const allowedApps = selectedApps();
         if (!allowedApps.length) return toast("Select at least one allowed app.");
+        if (data.role === "rake-manager") {
+          data.accessScope = "train";
+          data.accessValue = $("adminTrainSelect").value || data.accessValue || "";
+          if (!data.accessValue) return toast("Attach one train to this rake manager.");
+        }
         const id = firebaseDocId(String(data.email || "").toLowerCase());
         setSubmitState(form, "saving", "Saving...");
         await db.collection("adminUsers").doc(id).set({
           email: String(data.email || "").toLowerCase(),
           password: data.password || "",
           name: data.name || "",
+          phone: cleanPhone(data.phone || ""),
           role: data.role || "viewer",
           allowedApps,
           access: allowedApps.join(","),
@@ -200,9 +228,13 @@
           form.email.value = user.email || "";
           form.password.value = user.password || "";
           form.name.value = user.name || "";
+          form.phone.value = cleanPhone(user.phone || "");
           form.role.value = user.role || "viewer";
           form.accessScope.value = user.accessScope || "all";
           form.accessValue.value = user.accessValue || "";
+          $("adminTrainSearch").value = "";
+          renderAdminTrainSelect(user.accessValue || "");
+          if (user.role === "rake-manager" && user.accessValue) $("adminTrainSelect").value = String(user.accessValue).split("-")[0];
           form.permissionLevel.value = user.permissionLevel || "read-write";
           form.active.value = user.active === false ? "false" : "true";
           setAllowedApps(user.allowedApps || String(user.access || "").split(",").map((value) => value.trim()).filter(Boolean));
@@ -217,7 +249,13 @@
         }
       });
 
+      $("adminTrainSearch").addEventListener("input", () => renderAdminTrainSelect());
+      $("adminTrainSelect").addEventListener("change", () => {
+        $("adminAccessForm").accessScope.value = "train";
+        $("adminAccessForm").accessValue.value = $("adminTrainSelect").value;
+      });
       onLive("adminUsers", (rows) => { users = rows; renderUsers(); }, "email", "asc", 300);
+      onLive("trainMasters", (rows) => { trainMasters = rows; renderAdminTrainSelect($("adminAccessForm").accessValue.value); }, "trainNumber", "asc", 300);
     });
   </script>
 </body>

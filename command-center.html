@@ -359,6 +359,17 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="deliveryAssignModal">
+    <div class="modal stack">
+      <div class="section-title">
+        <div><h2>Assign Delivery Person</h2><p id="deliveryAssignHint">Choose an approved logged-in delivery person for this order.</p></div>
+        <button class="icon-btn" id="closeDeliveryAssignBtn" type="button" title="Close"><i data-lucide="x"></i></button>
+      </div>
+      <label class="field"><span>Search Delivery Person</span><input class="input" id="deliveryAssignSearch" placeholder="Search rider name, phone, train, kitchen or partner"></label>
+      <div id="deliveryAssignList" class="list"></div>
+    </div>
+  </div>
+
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
       appHeader("Meals On Wheels Rake Manager Command Center", "Live rail catering control room");
@@ -374,13 +385,17 @@
       let indents = [];
       let invoices = [];
       let stockInterests = [];
+      let deliveryPartners = [];
       let cashPurchases = [];
       let storeInwards = [];
       let staffSales = [];
       let trainMasterSearchTerm = "";
+      let deliveryAssignOrderId = "";
+      let deliveryAssignSearchTerm = "";
       let menuMasterSearchTerm = "";
       let kitchenMasterSearchTerm = "";
       let adminUsers = [];
+      let accessUsers = [];
       let currentUser = JSON.parse(sessionStorage.getItem("rkCurrentUser") || "null");
       let seenOrders = new Set();
       let seenFeedbacks = new Set();
@@ -410,7 +425,7 @@
         if (email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD) {
           currentUser = { email, name: "Sandip Nandi", role: "super-admin", access: "all", accessScope: "all", accessValue: "" };
         } else {
-          const found = adminUsers.find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && user.active !== false);
+          const found = [...adminUsers, ...accessUsers].find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && user.active !== false);
           if (!found) {
             toast("Login failed. Please check ID and password.");
             return;
@@ -642,6 +657,81 @@
         lucide.createIcons();
       }
 
+      function riderMatchesOrder(rider, order) {
+        if (String(rider.status || "").toLowerCase() !== "approved") return false;
+        const type = String(rider.assignmentType || "").toLowerCase();
+        if (type === "train") {
+          const sameTrain = String(rider.train || rider.assignmentId || "") === String(order.train || "");
+          const orderRake = String(order.rakeNumber || order.qrRakeNumber || "");
+          return sameTrain && (!rider.rakeNumber || !orderRake || String(rider.rakeNumber) === orderRake);
+        }
+        if (type === "base-kitchen") return String(rider.baseKitchenId || rider.assignmentId || "") === String(order.baseKitchenId || "");
+        if (type === "partner") {
+          const partnerId = String(rider.partnerId || rider.assignmentId || "");
+          return String(order.partnerId || order.supplierId || "") === partnerId || (order.items || []).some((line) => String(line.partnerId || line.supplierId || "") === partnerId);
+        }
+        return false;
+      }
+
+      function renderDeliveryAssignList() {
+        const order = orders.find((entry) => entry.id === deliveryAssignOrderId);
+        if (!order) {
+          $("deliveryAssignList").innerHTML = `<div class="empty danger-soft">Order not found.</div>`;
+          return;
+        }
+        const query = deliveryAssignSearchTerm.toLowerCase().trim();
+        const riders = deliveryPartners
+          .filter((rider) => riderMatchesOrder(rider, order))
+          .filter((rider) => `${rider.name || ""} ${rider.phone || ""} ${rider.assignmentLabel || ""} ${rider.baseKitchenName || ""} ${rider.partnerName || ""} ${rider.train || ""}`.toLowerCase().includes(query));
+        $("deliveryAssignHint").textContent = `${order.orderNo || order.id} | Train ${order.train || ""}${order.trainName ? ` - ${order.trainName}` : ""}`;
+        $("deliveryAssignList").innerHTML = riders.map((rider) => `
+          <div class="item">
+            <div class="row between">
+              <div>
+                <h3>${escapeHtml(rider.name || rider.phone || rider.id)}</h3>
+                <p>${escapeHtml(rider.phone || "")} | ${escapeHtml(rider.roleLabel || rider.assignmentType || "Delivery person")}</p>
+                <p>${escapeHtml(rider.assignmentLabel || rider.baseKitchenName || rider.partnerName || rider.train || "")}${rider.rakeNumber ? ` | Rake ${escapeHtml(rider.rakeNumber)}` : ""}</p>
+              </div>
+              <span class="badge ok">available</span>
+            </div>
+            <button class="btn" data-choose-delivery-rider="${escapeHtml(rider.id)}"><i data-lucide="check"></i> Assign This Rider</button>
+          </div>`).join("") || `<div class="empty danger-soft">No approved delivery person found for this order mapping. Ask rider to register/login for the same train, base kitchen or RK Partner and get Control Tower approval.</div>`;
+        lucide.createIcons();
+      }
+
+      function openDeliveryAssign(orderId) {
+        deliveryAssignOrderId = orderId;
+        deliveryAssignSearchTerm = "";
+        $("deliveryAssignSearch").value = "";
+        renderDeliveryAssignList();
+        $("deliveryAssignModal").classList.remove("hidden");
+      }
+
+      async function assignDeliveryRider(riderId) {
+        const order = orders.find((entry) => entry.id === deliveryAssignOrderId);
+        const rider = deliveryPartners.find((entry) => entry.id === riderId);
+        if (!order || !rider) return toast("Select a valid order and rider.");
+        const phone = cleanPhone(rider.phone || rider.id);
+        const deliveryOtp = order.deliveryOtp || String(Math.floor(100000 + Math.random() * 900000));
+        await db.collection("customerOrders").doc(order.id).update({
+          status: "out-for-delivery",
+          deliveryPersonName: rider.name || "",
+          deliveryPersonPhone: phone,
+          assignedRiderName: rider.name || "",
+          assignedRiderPhone: phone,
+          deliveryPersonPhoto: rider.photo || "",
+          deliveryVehicleType: rider.vehicleType || "",
+          deliveryVanNo: rider.vehicleNo || "",
+          deliveryOtp,
+          deliveryOtpStatus: "active",
+          deliveryStartedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: `Delivery assigned to ${rider.name || phone}. OTP released to customer app.` })
+        });
+        $("deliveryAssignModal").classList.add("hidden");
+        toast("Delivery assigned and OTP visible to customer.");
+      }
+
       async function handleCustomerOrderAction(event) {
         const btn = event.target.closest("[data-order-status]");
         const cancel = event.target.closest("[data-cancel-customer-order]");
@@ -660,23 +750,7 @@
           toast("Order status updated.");
         }
         if (initDelivery) {
-          const order = orders.find((entry) => entry.id === initDelivery.dataset.initDelivery);
-          const name = prompt("Delivery person name");
-          if (!name) return;
-          const phone = cleanPhone(prompt("Delivery person mobile number", order?.assignedRiderPhone || order?.deliveryPersonPhone || "") || "");
-          const deliveryOtp = order?.deliveryOtp || String(Math.floor(100000 + Math.random() * 900000));
-          await db.collection("customerOrders").doc(initDelivery.dataset.initDelivery).update({
-            status: "out-for-delivery",
-            deliveryPersonName: name,
-            deliveryPersonPhone: phone,
-            assignedRiderPhone: phone,
-            deliveryOtp,
-            deliveryOtpStatus: "active",
-            deliveryStartedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-            statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: `Delivery by ${name}. OTP released to customer app.` })
-          });
-          toast("Delivery initiated and visible to customer.");
+          openDeliveryAssign(initDelivery.dataset.initDelivery);
         }
         if (cancel) {
           const order = orders.find((entry) => entry.id === cancel.dataset.cancelCustomerOrder);
@@ -694,6 +768,16 @@
       $("ordersList").addEventListener("click", handleCustomerOrderAction);
       $("recentOrders").addEventListener("click", handleCustomerOrderAction);
       $("commandTrainFilter").addEventListener("change", renderOrders);
+      $("closeDeliveryAssignBtn").addEventListener("click", () => $("deliveryAssignModal").classList.add("hidden"));
+      $("deliveryAssignSearch").addEventListener("input", (event) => {
+        deliveryAssignSearchTerm = event.target.value || "";
+        renderDeliveryAssignList();
+      });
+      $("deliveryAssignList").addEventListener("click", async (event) => {
+        const choose = event.target.closest("[data-choose-delivery-rider]");
+        if (!choose) return;
+        await assignDeliveryRider(choose.dataset.chooseDeliveryRider);
+      });
 
       function renderFeedbacks() {
         const visibleStockInterests = visibleStockInterestsForAccess();
@@ -704,11 +788,15 @@
             <p>${escapeHtml(row.customer?.name || "")} | ${escapeHtml(row.customerPhone || "")} | Train ${escapeHtml(row.train || "")}${row.trainName ? ` - ${escapeHtml(row.trainName)}` : ""}</p>
             <p>${(row.mealSlots || []).map(escapeHtml).join(", ")} | ${nowLabel(row.createdAt)}</p>
           </div>`).join("") || `<div class="empty">No sold-out interest yet.</div>`;
-        $("feedbackList").innerHTML = visibleFeedbacks.map((fb) => `
-          <div class="item">
-            <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")} | Rating ${escapeHtml(fb.rating || "-")}</h3>${statusBadge(fb.status)}</div>
+        $("feedbackList").innerHTML = visibleFeedbacks.map((fb) => {
+          const ratingAlert = fb.ratingAlert || Math.min(Number(fb.foodRating || fb.rating || 10), Number(fb.deliveryRating || fb.rating || 10), Number(fb.overallRating || fb.rating || 10)) < 7;
+          return `
+          <div class="item ${ratingAlert ? "urgent-item" : ""}">
+            <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")} | Overall ${escapeHtml(fb.overallRating || fb.rating || "-")}/10</h3>${statusBadge(fb.status)}</div>
             <p>${escapeHtml(fb.customer?.name || fb.name || "")} | ${escapeHtml(fb.customer?.phone || fb.phone || "")} | Train ${escapeHtml(fb.train || fb.customer?.train || "")}</p>
             <p><b>Order:</b> ${escapeHtml(fb.orderNo || "General")} | <b>Nature:</b> ${escapeHtml(fb.nature || fb.category || "Feedback")}</p>
+            <p><b>Ratings:</b> Food ${escapeHtml(fb.foodRating || "-")}/10 | Delivery ${escapeHtml(fb.deliveryRating || "-")}/10 | Overall ${escapeHtml(fb.overallRating || fb.rating || "-")}/10${fb.deliveryPersonName ? ` | Delivery person ${escapeHtml(fb.deliveryPersonName)}` : ""}</p>
+            ${ratingAlert ? `<div class="ack danger-soft" style="margin:8px 0;">Rating below 7. Call customer and coordinate corrective action.</div>` : ""}
             <p>${escapeHtml(fb.message || fb.feedback || "")}</p>
             ${!["resolved", "closed"].includes(String(fb.status || "").toLowerCase()) ? `<div class="ack danger-soft" style="margin:8px 0;">Reply within 10 minutes: ${escapeHtml(slaText(fb.createdAt || fb.timestamp, 10))}</div>` : ""}
             ${fb.proof?.dataUrl ? `
@@ -726,7 +814,8 @@
               <input class="input grow" placeholder="Manager response / resolution note" value="${escapeHtml(fb.managerResponse || "")}" data-resolution="${fb.id}">
               <button class="btn" data-save-feedback="${fb.id}"><i data-lucide="check"></i> Save Status</button>
             </div>
-          </div>`).join("") || `<div class="empty">No feedback yet.</div>`;
+          </div>`;
+        }).join("") || `<div class="empty">No feedback yet.</div>`;
         lucide.createIcons();
         renderTabBadges();
       }
@@ -1656,6 +1745,10 @@
         renderMetrics();
       }, "timestamp", "desc", 200);
       onLive("stockInterests", (rows) => { stockInterests = rows; renderFeedbacks(); }, "createdAt", "desc", 200);
+      onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => {
+        deliveryPartners = rows;
+        if (deliveryAssignOrderId) renderDeliveryAssignList();
+      }, "updatedAt", "desc", 250);
       onLive("indents", (rows) => { indents = rows; renderIndents(); }, "createdAt", "desc", 200);
       onLive("invoices", (rows) => { invoices = rows; renderInvoices(); }, "createdAt", "desc", 200);
       onLive("cashPurchases", (rows) => { cashPurchases = rows; renderPurchases(); }, "createdAt", "desc", 200);
@@ -1681,6 +1774,9 @@
         adminUsers = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
         renderAdminUsers();
       });
+      onLive("adminUsers", (rows) => {
+        accessUsers = rows;
+      }, "email", "asc", 300);
       renderPendingIndentItems();
     });
   </script>

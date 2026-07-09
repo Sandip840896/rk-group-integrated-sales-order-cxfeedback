@@ -669,6 +669,120 @@ a {
   border-color: #cbd5e1;
 }
 
+.customer-public-view .topbar {
+  display: none;
+}
+
+.customer-order-first {
+  padding-top: 18px;
+}
+
+.compact-customer-brand {
+  min-height: auto;
+  padding: 14px;
+}
+
+.compact-customer-brand .brand-cover-copy {
+  gap: 5px;
+}
+
+.compact-customer-brand h2 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.compact-customer-brand p {
+  margin: 0;
+}
+
+.compact-customer-brand .brand-promise-row {
+  margin-top: 8px;
+}
+
+.compact-promo {
+  min-height: 168px;
+}
+
+.compact-promo .promo-slide {
+  min-height: 168px;
+  padding: 16px;
+}
+
+.compact-promo h2 {
+  font-size: 22px;
+  line-height: 1.12;
+}
+
+.priority-modal {
+  z-index: 90;
+}
+
+.otp-focus-modal {
+  max-width: 420px;
+}
+
+.large-otp-alert {
+  text-align: center;
+  padding: 18px;
+}
+
+.large-otp-alert b {
+  font-size: 42px;
+}
+
+@media (max-width: 640px) {
+  .customer-order-first {
+    padding: 10px 10px 88px;
+  }
+
+  .compact-customer-brand {
+    padding: 12px;
+  }
+
+  .compact-customer-brand .brand-mark,
+  .compact-customer-brand .brand-promise-row {
+    display: none;
+  }
+
+  .compact-customer-brand h2 {
+    font-size: 20px;
+  }
+
+  .compact-customer-brand .banner-insight {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .compact-promo,
+  .compact-promo .promo-slide {
+    min-height: 128px;
+  }
+
+  .compact-promo .promo-slide {
+    padding: 12px 42px 14px 12px;
+  }
+
+  .compact-promo .eyebrow,
+  .compact-promo .hero-points,
+  .compact-promo .promo-slide > p:not(.eyebrow) {
+    display: none;
+  }
+
+  .compact-promo h2 {
+    font-size: 18px;
+  }
+
+  .customer-tabs {
+    top: 0;
+    padding-bottom: 6px;
+  }
+
+  .meal-filter-bar {
+    position: static;
+    padding: 8px;
+  }
+}
+
 .master-scroll {
   max-height: 760px;
   overflow-y: auto;

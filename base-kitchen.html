@@ -82,6 +82,17 @@
     </section>
   </main>
 
+  <div class="modal-backdrop hidden" id="bkRiderModal">
+    <div class="modal stack">
+      <div class="section-title">
+        <div><h2>Select Base Kitchen Rider</h2><p>Choose an approved rider mapped to this base kitchen.</p></div>
+        <button class="icon-btn" id="closeBkRiderBtn" type="button" title="Close"><i data-lucide="x"></i></button>
+      </div>
+      <label class="field"><span>Search Rider</span><input class="input" id="bkRiderSearch" placeholder="Search rider name, phone or vehicle"></label>
+      <div id="bkRiderList" class="list"></div>
+    </div>
+  </div>
+
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
       appHeader("Meals On Wheels Base Kitchen Operations", "Indent acceptance, delivery planning and invoice");
@@ -95,6 +106,9 @@
       let invoices = [];
       let catalogRequests = [];
       let customerOrders = [];
+      let deliveryPartners = [];
+      let pendingInvoiceIndentId = "";
+      let bkRiderSearchTerm = "";
       let seenIndents = new Set();
       let seenCustomerOrders = new Set();
       $("bkCatalogCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
@@ -147,6 +161,72 @@
           const ownLine = (order.items || []).some((line) => String(line.baseKitchenId || line.supplierId || "") === activeKitchenId || String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen");
           return (source === "base-kitchen" || source === "mixed" || ownLine) && (ownOrder || ownLine);
         });
+      }
+
+      function approvedKitchenRiders() {
+        const query = bkRiderSearchTerm.toLowerCase().trim();
+        return deliveryPartners
+          .filter((rider) => String(rider.status || "").toLowerCase() === "approved")
+          .filter((rider) => String(rider.assignmentType || "").toLowerCase() === "base-kitchen")
+          .filter((rider) => String(rider.baseKitchenId || rider.assignmentId || "") === String(activeKitchenId))
+          .filter((rider) => `${rider.name || ""} ${rider.phone || ""} ${rider.vehicleNo || ""}`.toLowerCase().includes(query));
+      }
+
+      function renderBkRiderList() {
+        const riders = approvedKitchenRiders();
+        $("bkRiderList").innerHTML = riders.map((rider) => `
+          <div class="item">
+            <div class="row between">
+              <div>
+                <h3>${escapeHtml(rider.name || rider.phone || rider.id)}</h3>
+                <p>${escapeHtml(rider.phone || "")} | ${escapeHtml(rider.vehicleType || "")}${rider.vehicleNo ? ` | ${escapeHtml(rider.vehicleNo)}` : ""}</p>
+                <p>${escapeHtml(rider.assignmentLabel || rider.baseKitchenName || "")}</p>
+              </div>
+              <span class="badge ok">approved</span>
+            </div>
+            <button class="btn" data-bk-rider="${escapeHtml(rider.id)}"><i data-lucide="check"></i> Use This Rider</button>
+          </div>`).join("") || `<div class="empty danger-soft">No approved rider is mapped to this base kitchen yet.</div>`;
+        lucide.createIcons();
+      }
+
+      function openBkRiderModal(indentId) {
+        pendingInvoiceIndentId = indentId;
+        bkRiderSearchTerm = "";
+        $("bkRiderSearch").value = "";
+        renderBkRiderList();
+        $("bkRiderModal").classList.remove("hidden");
+      }
+
+      async function createInvoiceWithRider(riderId) {
+        const indent = indents.find((entry) => entry.id === pendingInvoiceIndentId);
+        const rider = deliveryPartners.find((entry) => entry.id === riderId);
+        if (!indent || !rider) return toast("Select a valid indent and rider.");
+        const approvedItems = (indent.items || []).filter((line) => Number(line.approvedQty ?? line.requestedQty ?? 0) > 0);
+        if (!approvedItems.length) return toast("No approved quantity available to invoice.");
+        const totalCost = approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0) * costPriceOf(line), 0);
+        await db.collection("invoices").add({
+          invoiceNo: shortId("INV"),
+          indentId: indent.id,
+          indentNo: indent.indentNo || "",
+          train: indent.train || "",
+          rackManager: indent.rackManager || "",
+          baseKitchenId: indent.baseKitchenId,
+          baseKitchenName: indent.baseKitchenName || "",
+          deliveryStation: indent.deliveryStation || "",
+          deliveryTime: indent.deliveryTime || indent.requiredBy || "",
+          deliveryPersonName: rider.name || "",
+          deliveryPersonPhone: cleanPhone(rider.phone || rider.id),
+          deliveryVanNo: rider.vehicleNo || "",
+          items: approvedItems,
+          totalQty: approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0), 0),
+          totalCost,
+          status: "sent",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        await db.collection("indents").doc(indent.id).update({ status: "invoiced", updatedAt: FieldValue.serverTimestamp() });
+        $("bkRiderModal").classList.add("hidden");
+        toast("Invoice created and sent to rake manager.");
       }
 
       function renderMetrics() {
@@ -260,34 +340,19 @@
             toast("No approved quantity available to invoice.");
             return;
           }
-          const deliveryPersonName = prompt("Delivery person name for this base kitchen dispatch");
-          if (!deliveryPersonName) return;
-          const deliveryPersonPhone = cleanPhone(prompt("Delivery person mobile number") || "");
-          const deliveryVanNo = prompt("Van / vehicle number", "") || "";
-          const totalCost = approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0) * costPriceOf(line), 0);
-          await db.collection("invoices").add({
-            invoiceNo: shortId("INV"),
-            indentId: indent.id,
-            indentNo: indent.indentNo || "",
-            train: indent.train || "",
-            rackManager: indent.rackManager || "",
-            baseKitchenId: indent.baseKitchenId,
-            baseKitchenName: indent.baseKitchenName || "",
-            deliveryStation: indent.deliveryStation || "",
-            deliveryTime: indent.deliveryTime || indent.requiredBy || "",
-            deliveryPersonName,
-            deliveryPersonPhone,
-            deliveryVanNo,
-            items: approvedItems,
-            totalQty: approvedItems.reduce((sum, line) => sum + Number(line.approvedQty ?? line.requestedQty ?? 0), 0),
-            totalCost,
-            status: "sent",
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp()
-          });
-          await db.collection("indents").doc(indent.id).update({ status: "invoiced", updatedAt: FieldValue.serverTimestamp() });
-          toast("Invoice created and sent to rake manager.");
+          openBkRiderModal(indent.id);
         }
+      });
+
+      $("closeBkRiderBtn").addEventListener("click", () => $("bkRiderModal").classList.add("hidden"));
+      $("bkRiderSearch").addEventListener("input", (event) => {
+        bkRiderSearchTerm = event.target.value || "";
+        renderBkRiderList();
+      });
+      $("bkRiderList").addEventListener("click", async (event) => {
+        const rider = event.target.closest("[data-bk-rider]");
+        if (!rider) return;
+        await createInvoiceWithRider(rider.dataset.bkRider);
       });
 
       function renderInvoices() {
@@ -526,6 +591,10 @@
         renderAll();
       }, "createdAt", "desc", 250);
       onLive("invoices", (rows) => { invoices = rows; renderAll(); }, "createdAt", "desc", 250);
+      onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => {
+        deliveryPartners = rows;
+        if (pendingInvoiceIndentId) renderBkRiderList();
+      }, "updatedAt", "desc", 250);
       onLive("customerOrders", (rows) => {
         const visible = rows.filter((order) => {
           const source = String(order.fulfillmentSource || "").toLowerCase();

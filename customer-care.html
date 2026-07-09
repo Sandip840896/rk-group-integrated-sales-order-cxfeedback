@@ -89,7 +89,8 @@
       }
 
       function complaintEscalated(fb) {
-        return !["resolved", "closed"].includes(String(fb.status || "").toLowerCase()) && ageMinutes(fb.createdAt || fb.timestamp) >= 10;
+        const ratingAlert = fb.ratingAlert || Math.min(Number(fb.foodRating || fb.rating || 10), Number(fb.deliveryRating || fb.rating || 10), Number(fb.overallRating || fb.rating || 10)) < 7;
+        return !["resolved", "closed"].includes(String(fb.status || "").toLowerCase()) && (ratingAlert || ageMinutes(fb.createdAt || fb.timestamp) >= 10);
       }
 
       function supplierText(order) {
@@ -132,10 +133,12 @@
 
       function complaintCard(fb) {
         return `<div class="item ${complaintEscalated(fb) ? "urgent-item" : ""}">
-          <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")}</h3>${statusBadge(fb.status || "open")}</div>
+          <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")} | Overall ${escapeHtml(fb.overallRating || fb.rating || "-")}/10</h3>${statusBadge(fb.status || "open")}</div>
           <p>${escapeHtml(fb.customer?.name || "")} | ${escapeHtml(fb.customer?.phone || "")} | Train ${escapeHtml(fb.customer?.train || fb.train || "")}</p>
           <p><b>Order:</b> ${escapeHtml(fb.orderNo || "General")} | <b>Nature:</b> ${escapeHtml(fb.nature || fb.category || "Feedback")}</p>
+          <p><b>Ratings:</b> Food ${escapeHtml(fb.foodRating || "-")}/10 | Delivery ${escapeHtml(fb.deliveryRating || "-")}/10 | Overall ${escapeHtml(fb.overallRating || fb.rating || "-")}/10${fb.deliveryPersonName ? ` | Delivery person ${escapeHtml(fb.deliveryPersonName)}` : ""}</p>
           <p>${escapeHtml(fb.message || "")}</p>
+          ${(fb.ratingAlert || Math.min(Number(fb.foodRating || fb.rating || 10), Number(fb.deliveryRating || fb.rating || 10), Number(fb.overallRating || fb.rating || 10)) < 7) ? `<div class="ack danger-soft" style="margin-top:10px;">Rating below 7. Customer care should call the passenger and record solution notes.</div>` : ""}
           ${complaintEscalated(fb) ? `<div class="ack danger-soft" style="margin-top:10px;">Complaint not attended within 10 minutes. Customer care can reply and coordinate action.</div>` : ""}
           <label class="field" style="margin-top:10px;"><span>Reply to customer</span><textarea class="textarea" rows="2" data-care-reply="${fb.id}" placeholder="Write customer-care response"></textarea></label>
           <div class="row mobile-stack">
