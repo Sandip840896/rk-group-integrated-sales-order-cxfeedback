@@ -203,7 +203,8 @@
       function renderMetrics() {
         $("mPending").textContent = requests.filter((r) => ["pending", "resubmitted"].includes(String(r.status || "").toLowerCase())).length;
         $("mApproved").textContent = requests.filter((r) => r.status === "approved").length;
-        $("mPartners").textContent = partners.filter((p) => p.status === "pending").length + riders.filter((p) => p.status === "pending").length;
+        const pendingStatus = (row) => String(row.status || row.approvalStatus || "pending").toLowerCase() === "pending";
+        $("mPartners").textContent = partners.filter(pendingStatus).length + riders.filter(pendingStatus).length;
         $("mLiveItems").textContent = menuItems.length;
       }
 
@@ -329,7 +330,16 @@
       }
 
       function renderRiders() {
-        $("riderQueue").innerHTML = riders.map((rider) => `
+        const sorted = [...riders].sort((a, b) => {
+          const rank = (rider) => String(rider.status || rider.approvalStatus || "pending").toLowerCase() === "pending" ? 0 : 1;
+          return rank(a) - rank(b) || String(b.updatedAt?.toMillis?.() || b.updatedAt || "").localeCompare(String(a.updatedAt?.toMillis?.() || a.updatedAt || ""));
+        });
+        $("riderQueue").innerHTML = sorted.map((rider) => {
+          const approvalStatus = String(rider.status || rider.approvalStatus || "pending").toLowerCase();
+          const mapping = rider.assignmentType === "train"
+            ? `${rider.assignmentLabel || rider.train || rider.assignmentId || ""}${rider.rakeNumber ? ` | Rake ${rider.rakeNumber}` : ""}`
+            : (rider.assignmentLabel || rider.baseKitchenName || rider.partnerName || rider.assignmentId || "");
+          return `
           <div class="item">
             <div class="row between">
               <div class="row grow">
@@ -338,18 +348,20 @@
                   <h3>${escapeHtml(rider.name || rider.phone || rider.id)}</h3>
                   <p>${escapeHtml(rider.phone || "")} | ${escapeHtml(rider.vehicleType || "")}${rider.vehicleNo ? ` | ${escapeHtml(rider.vehicleNo)}` : ""}</p>
                   <p>${escapeHtml(rider.baseLocation || "")}</p>
+                  ${mapping ? `<p><b>Mapped:</b> ${escapeHtml(mapping)}</p>` : ""}
                 </div>
               </div>
-              ${statusBadge(rider.status || "pending")}
+              ${statusBadge(approvalStatus)}
             </div>
             ${rider.kyc ? `<details class="status-details"><summary><i data-lucide="id-card"></i> View KYC</summary><img class="proof-img" src="${rider.kyc}" alt="Rider KYC"></details>` : ""}
             <div class="row wrap" style="margin-top:10px;">
-              ${rider.status === "pending" ? `
+              ${approvalStatus === "pending" ? `
                 <button class="btn" data-approve-rider="${rider.id}"><i data-lucide="check"></i> Approve Rider</button>
                 <button class="btn danger" data-reject-rider="${rider.id}"><i data-lucide="x"></i> Reject</button>
               ` : ""}
             </div>
-          </div>`).join("") || `<div class="empty">No rider registration request.</div>`;
+          </div>`;
+        }).join("") || `<div class="empty">No rider registration request.</div>`;
         lucide.createIcons();
         renderMetrics();
       }
@@ -651,7 +663,12 @@
         }, { merge: true });
         toast("Train route master saved.");
       });
-      await ensureRouteSeed();
+      try {
+        await ensureRouteSeed();
+      } catch (error) {
+        console.error(error);
+        toast(firebaseAccessMessage("trainRoutes", error));
+      }
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { requests = rows; renderCatalog(); }, "createdAt", "desc", 250);
       onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); renderMasters(); }, "createdAt", "desc", 250);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { riders = rows; renderRiders(); }, "updatedAt", "desc", 250);

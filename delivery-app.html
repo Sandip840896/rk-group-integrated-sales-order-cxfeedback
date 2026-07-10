@@ -160,9 +160,9 @@
         if (cleanPhone(order.assignedRiderPhone || order.deliveryPersonPhone) === cleanPhone(profile.phone)) return true;
         const type = String(profile.assignmentType || "").toLowerCase();
         if (type === "train") {
-          const sameTrain = String(order.train || "") === String(profile.train || profile.assignmentId || "");
+          const sameTrain = trainMatches([order.train, order.trainName], [profile.train, profile.assignmentId, profile.assignmentLabel, profile.trainName]);
           const orderRake = String(order.rakeNumber || order.qrRakeNumber || "");
-          return sameTrain && (!profile.rakeNumber || !orderRake || orderRake === String(profile.rakeNumber));
+          return sameTrain && rakeMatches(profile.rakeNumber, orderRake);
         }
         if (type === "base-kitchen") return String(order.baseKitchenId || "") === String(profile.baseKitchenId || profile.assignmentId || "");
         if (type === "partner") {
@@ -292,6 +292,13 @@
           };
           await compatSet("deliveryPartners", "deliveryPartner", phone, {
             ...profilePayload
+          }, { merge: true });
+          await db.collection("systemSettings").doc(compatDocId("deliveryPartner", phone)).set({
+            ...profilePayload,
+            type: "deliveryPartner",
+            compatCollection: "deliveryPartners",
+            compatFallback: true,
+            updatedAt: FieldValue.serverTimestamp()
           }, { merge: true });
           localStorage.setItem("rkDeliveryPhone", phone);
           $("deliveryPhone").value = phone;

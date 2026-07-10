@@ -140,6 +140,44 @@ function trainLabel(train) {
   return `${train.trainNumber || train.id || ""} - ${train.trainName || ""}${train.yardName ? ` (${train.yardName})` : ""}`;
 }
 
+function trainBaseNumber(value) {
+  const text = String(value || "").trim();
+  const firstToken = text.split(/\s+/)[0] || text;
+  const match = firstToken.match(/\d{4,6}/);
+  return match ? match[0] : firstToken.toLowerCase();
+}
+
+function trainKeys(...values) {
+  const keys = new Set();
+  values.flat().forEach((value) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === "object") {
+      keys.add(String(value.trainNumber || "").trim().toLowerCase());
+      keys.add(String(value.id || "").trim().toLowerCase());
+      keys.add(String(value.train || "").trim().toLowerCase());
+      keys.add(trainBaseNumber(value.trainNumber || value.id || value.train));
+      return;
+    }
+    keys.add(String(value).trim().toLowerCase());
+    keys.add(trainBaseNumber(value));
+  });
+  keys.delete("");
+  return keys;
+}
+
+function trainMatches(left, right) {
+  if (!left || !right) return false;
+  const leftKeys = trainKeys(left);
+  const rightKeys = trainKeys(right);
+  return [...leftKeys].some((key) => rightKeys.has(key));
+}
+
+function rakeMatches(left, right) {
+  const a = String(left || "").trim();
+  const b = String(right || "").trim();
+  return !a || !b || a === b;
+}
+
 function parseCsvRows(text) {
   const rows = [];
   let row = [];
