@@ -138,6 +138,7 @@
           <p><b>Order:</b> ${escapeHtml(fb.orderNo || "General")} | <b>Nature:</b> ${escapeHtml(fb.nature || fb.category || "Feedback")}</p>
           <p><b>Ratings:</b> Food ${escapeHtml(fb.foodRating || "-")}/10 | Delivery ${escapeHtml(fb.deliveryRating || "-")}/10 | Overall ${escapeHtml(fb.overallRating || fb.rating || "-")}/10${fb.deliveryPersonName ? ` | Delivery person ${escapeHtml(fb.deliveryPersonName)}` : ""}</p>
           <p>${escapeHtml(fb.message || "")}</p>
+          ${fb.supplierRemark ? `<div class="ack" style="margin-top:10px;"><b>Supplier internal remark:</b> ${escapeHtml(fb.supplierRemark)}${fb.supplierRemarkBy ? ` <span class="muted-text">- ${escapeHtml(fb.supplierRemarkBy)}</span>` : ""}</div>` : ""}
           ${(fb.ratingAlert || Math.min(Number(fb.foodRating || fb.rating || 10), Number(fb.deliveryRating || fb.rating || 10), Number(fb.overallRating || fb.rating || 10)) < 7) ? `<div class="ack danger-soft" style="margin-top:10px;">Rating below 7. Customer care should call the passenger and record solution notes.</div>` : ""}
           ${complaintEscalated(fb) ? `<div class="ack danger-soft" style="margin-top:10px;">Complaint not attended within 10 minutes. Customer care can reply and coordinate action.</div>` : ""}
           <label class="field" style="margin-top:10px;"><span>Reply to customer</span><textarea class="textarea" rows="2" data-care-reply="${fb.id}" placeholder="Write customer-care response"></textarea></label>

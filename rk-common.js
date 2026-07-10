@@ -13,7 +13,7 @@ const FieldValue = firebase.firestore.FieldValue;
 
 const SUPPORT_HTML = "System developer and support<br>Sandip Nandi | 858483366<br>sandipnandi2000@gmail.com";
 
-const mealSlots = ["Breakfast", "Lunch", "Snacks", "Dinner", "Beverage", "Other"];
+const mealSlots = ["Breakfast", "Lunch", "Evening Tiffin", "Dinner", "Beverage", "Other"];
 const cuisineOptions = ["North Indian", "South Indian", "Chinese"];
 const menuPreferenceFilters = ["Veg", "Non-Veg", ...cuisineOptions];
 const complaintNatures = ["Over Charging", "Staff Behavior", "Food Quality", "Food Qty", "Expiry Product", "Hygiene", "Others"];
@@ -231,6 +231,11 @@ function orderPrintableHtml(order) {
       <td>${money(Number(line.qty || 0) * Number(line.price ?? line.sellingPrice ?? 0))}</td>
     </tr>`).join("");
   const totalQty = items.reduce((sum, line) => sum + Number(line.qty || 0), 0);
+  const itemsTotal = Number(order.itemsTotal ?? items.reduce((sum, line) => sum + Number(line.qty || 0) * Number(line.price ?? line.sellingPrice ?? 0), 0));
+  const deliveryCharge = Number(order.deliveryCharge || 0);
+  const processingCharge = Number(order.processingCharge || 0);
+  const highDemandCharge = Number(order.highDemandCharge || 0);
+  const couponDiscount = Number(order.couponDiscount || 0);
   return `<!doctype html>
 <html>
 <head>
@@ -280,7 +285,12 @@ function orderPrintableHtml(order) {
     <thead><tr><th>Sl</th><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
     <tbody>${rows}</tbody>
     <tfoot>
-      <tr><td colspan="2" class="total">Total</td><td><b>${totalQty}</b></td><td></td><td><b>${money(order.total)}</b></td></tr>
+      <tr><td colspan="2" class="total">Items Total</td><td><b>${totalQty}</b></td><td></td><td><b>${money(itemsTotal)}</b></td></tr>
+      <tr><td colspan="4" class="total">Delivery Charge</td><td>${money(deliveryCharge)}</td></tr>
+      <tr><td colspan="4" class="total">Processing Charge</td><td>${money(processingCharge)}</td></tr>
+      ${highDemandCharge ? `<tr><td colspan="4" class="total">High Demand Charge</td><td>${money(highDemandCharge)}</td></tr>` : ""}
+      ${couponDiscount ? `<tr><td colspan="4" class="total">Coupon Discount ${escapeHtml(order.couponCode || "")}</td><td>- ${money(couponDiscount)}</td></tr>` : ""}
+      <tr><td colspan="4" class="total">Total Payable</td><td><b>${money(order.total)}</b></td></tr>
     </tfoot>
   </table>
   <div class="box">Thank you for giving Meals On Wheels the opportunity to serve you. We wish you a comfortable and pleasant journey.</div>
@@ -469,8 +479,8 @@ function compatDocId(type, value = "") {
 function statusBadge(status) {
   const s = String(status || "new").toLowerCase();
   let tone = "info";
-  if (["delivered", "accepted", "closed", "resolved", "invoiced"].includes(s)) tone = "ok";
-  if (["processing", "preparing", "out-for-delivery", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor", "customer-replied"].includes(s)) tone = "warn";
+  if (["delivered", "accepted", "closed", "resolved", "invoiced", "supplier-delivered-to-rake"].includes(s)) tone = "ok";
+  if (["processing", "preparing", "out-for-delivery", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor", "customer-replied", "restaurant-accepted", "restaurant-preparing", "restaurant-handover"].includes(s)) tone = "warn";
   if (["disputed", "cancelled", "rejected", "open"].includes(s)) tone = "danger";
   return `<span class="badge ${tone}">${escapeHtml(s.replace(/-/g, " "))}</span>`;
 }

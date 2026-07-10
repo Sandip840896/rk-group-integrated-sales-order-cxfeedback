@@ -23,11 +23,13 @@
       <div class="metric"><b id="mLiveItems">0</b><span>Live catalog items</span></div>
     </div>
 
-    <div class="tabs">
+    <div class="tabs control-vertical-tabs">
       <button class="tab-btn" data-tab="catalog"><i data-lucide="badge-check"></i> Catalog Approval</button>
       <button class="tab-btn" data-tab="masters"><i data-lucide="database"></i> Master Rectification</button>
       <button class="tab-btn" data-tab="partners"><i data-lucide="store"></i> Partner Onboarding</button>
       <button class="tab-btn" data-tab="riders"><i data-lucide="bike"></i> Rider Approval</button>
+      <button class="tab-btn" data-tab="marketing"><i data-lucide="badge-percent"></i> Marketing</button>
+      <button class="tab-btn" data-tab="service"><i data-lucide="power"></i> Restaurant On-Off</button>
       <button class="tab-btn" data-tab="route"><i data-lucide="rail-symbol"></i> Train Route</button>
     </div>
 
@@ -66,6 +68,34 @@
       <div id="riderQueue" class="list"></div>
     </section>
 
+    <section class="panel pad stack hidden" data-tab-panel="marketing">
+      <div class="section-title">
+        <div><h2>Marketing Control</h2><p>Set free-delivery value, delivery/processing/high-demand charges, offer remarks and coupon discount.</p></div>
+      </div>
+      <form id="marketingForm" class="stack">
+        <div class="grid two">
+          <label class="field"><span>Apply Train</span><input class="input" name="train" placeholder="All or train number" value="All"></label>
+          <label class="field"><span>Free Delivery Minimum</span><input class="input" name="freeDeliveryMin" type="number" value="150"></label>
+          <label class="field"><span>Delivery Charge Below Minimum</span><input class="input" name="deliveryChargeBelowMin" type="number" value="20"></label>
+          <label class="field"><span>Processing Charge</span><input class="input" name="processingCharge" type="number" value="20"></label>
+          <label class="field"><span>High Demand Charge</span><input class="input" name="highDemandCharge" type="number" value="0"></label>
+          <label class="field"><span>Coupon Code</span><input class="input" name="couponCode" placeholder="MOW5"></label>
+          <label class="field"><span>Coupon Type</span><select class="select" name="couponType"><option value="percent">Percent</option><option value="flat">Flat Amount</option></select></label>
+          <label class="field"><span>Coupon Value</span><input class="input" name="couponValue" type="number" value="5"></label>
+          <label class="field"><span>Coupon Active</span><select class="select" name="couponActive"><option value="true">Active</option><option value="false">Inactive</option></select></label>
+        </div>
+        <button class="btn" type="submit"><i data-lucide="save"></i> Save Marketing Settings</button>
+      </form>
+      <div id="marketingList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="service">
+      <div class="section-title">
+        <div><h2>Restaurant / Supplier On-Off Log</h2><p>Base kitchens, partners and rake managers can switch product or service off with reason. Control Tower tracks and reactivates from here.</p></div>
+      </div>
+      <div id="serviceSwitchList" class="list"></div>
+    </section>
+
     <section class="panel pad stack hidden" data-tab-panel="route">
       <div class="section-title">
         <div><h2>Train Route Master</h2><p>Search any train master and maintain the full station route for planning, QR and handover logic.</p></div>
@@ -102,6 +132,8 @@
       let kitchens = [];
       let trainMasters = [];
       let trainRoutes = [];
+      let marketingSettings = [];
+      let serviceSwitches = [];
       const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
 
       const seedRouteCatalogue = {
@@ -164,6 +196,8 @@
           makerRequestId: req.id,
           supplierId: req.supplierId || req.baseKitchenId || req.partnerId || "",
           supplierName: req.supplierName || req.baseKitchenName || req.partnerName || "",
+          supplierPhone: req.supplierPhone || req.partnerPhone || req.phone || "",
+          partnerPhone: String(req.source || req.sourceType || "").toLowerCase().includes("partner") ? req.supplierPhone || req.partnerPhone || req.phone || "" : "",
           linkedTrain: req.linkedTrain || "",
           approvedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
@@ -194,6 +228,8 @@
           linkedTrain: requestValue(req, "linkedTrain") || req.linkedTrain || "All",
           description: requestValue(req, "description") || req.description || "",
           supplierName: requestValue(req, "supplierName") || req.supplierName || req.baseKitchenName || req.partnerName || req.supplierPhone || "",
+          supplierPhone: req.supplierPhone || req.partnerPhone || req.phone || "",
+          partnerPhone: String(req.source || req.sourceType || "").toLowerCase().includes("partner") ? req.supplierPhone || req.partnerPhone || req.phone || "" : "",
           sourceType: req.sourceType || req.source || "base kitchen",
           source: req.source || req.sourceType || "base kitchen",
           itemImage: req.itemImage || ""
@@ -281,6 +317,9 @@
               <label class="field"><span>Sell</span><input class="input" type="number" value="${Number(item.sellingPrice || item.price || 0)}" data-menu-master="${item.id}" data-field="sellingPrice"></label>
               <label class="field"><span>Cost</span><input class="input" type="number" value="${Number(item.costPrice || 0)}" data-menu-master="${item.id}" data-field="costPrice"></label>
               <label class="field"><span>Stock</span><input class="input" type="number" value="${Number(item.stockQty || 0)}" data-menu-master="${item.id}" data-field="stockQty"></label>
+              <label class="field"><span>Product Remark</span><select class="select" data-menu-master="${item.id}" data-field="productRemark">
+                ${["", "Top Selling", "High Demand", "Chef Special", "Limited Stock"].map((tag) => `<option value="${tag}" ${String(item.productRemark || "") === tag ? "selected" : ""}>${tag || "No remark"}</option>`).join("")}
+              </select></label>
               <label class="field"><span>Available</span><select class="select" data-menu-master="${item.id}" data-field="available"><option value="true" ${item.available === false ? "" : "selected"}>true</option><option value="false" ${item.available === false ? "selected" : ""}>false</option></select></label>
             </div>
             <button class="btn secondary" data-save-menu-master="${item.id}"><i data-lucide="save"></i> Save Catalog</button>
@@ -364,6 +403,34 @@
         }).join("") || `<div class="empty">No rider registration request.</div>`;
         lucide.createIcons();
         renderMetrics();
+      }
+
+      function renderMarketing() {
+        const row = marketingSettings.find((entry) => entry.id === "default") || {};
+        $("marketingForm").freeDeliveryMin.value = Number(row.freeDeliveryMin || 150);
+        $("marketingForm").deliveryChargeBelowMin.value = Number(row.deliveryChargeBelowMin || 20);
+        $("marketingForm").processingCharge.value = Number(row.processingCharge || 20);
+        $("marketingForm").highDemandCharge.value = Number(row.highDemandCharge || 0);
+        const coupons = row.coupons || [];
+        $("marketingList").innerHTML = `
+          <div class="item">
+            <div class="row between"><h3>Global Cart Charges</h3><span class="badge info">default</span></div>
+            <p>Free delivery above ${money(row.freeDeliveryMin || 150)} | Delivery ${money(row.deliveryChargeBelowMin || 20)} | Processing ${money(row.processingCharge || 20)} | High demand ${money(row.highDemandCharge || 0)}</p>
+            <p><b>Coupons:</b> ${coupons.map((coupon) => `${escapeHtml(coupon.code)} ${coupon.type === "percent" ? `${coupon.value}%` : money(coupon.value)} ${coupon.active === false ? "(inactive)" : ""}`).join(", ") || "No coupon configured"}</p>
+          </div>`;
+      }
+
+      function renderServiceSwitches() {
+        $("serviceSwitchList").innerHTML = serviceSwitches.map((row) => `
+          <div class="item ${row.active === false ? "urgent-item" : ""}">
+            <div class="row between"><h3>${escapeHtml(row.name || row.supplierName || row.itemName || row.id)}</h3>${statusBadge(row.active === false ? "inactive" : "active")}</div>
+            <p>${escapeHtml(row.sourceType || row.source || row.app || "")} | ${escapeHtml(row.reason || "No reason captured")}</p>
+            <p>${escapeHtml(row.phone || row.supplierPhone || "")} | ${nowLabel(row.updatedAt || row.createdAt)}</p>
+            <div class="row wrap" style="margin-top:10px;">
+              ${row.active === false ? `<button class="btn" data-reactivate-service="${row.id}"><i data-lucide="power"></i> Reactivate</button>` : ""}
+            </div>
+          </div>`).join("") || `<div class="empty success">No supplier service switch-off log right now.</div>`;
+        lucide.createIcons();
       }
 
       function routeTrainRows() {
@@ -593,6 +660,48 @@
         }
       });
 
+      $("marketingForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const data = getForm(form);
+        const coupon = data.couponCode ? {
+          code: String(data.couponCode || "").trim().toUpperCase(),
+          type: data.couponType || "percent",
+          value: Number(data.couponValue || 0),
+          active: data.couponActive === "true"
+        } : null;
+        const payload = {
+          freeDeliveryMin: Number(data.freeDeliveryMin || 150),
+          deliveryChargeBelowMin: Number(data.deliveryChargeBelowMin || 20),
+          processingCharge: Number(data.processingCharge || 20),
+          highDemandCharge: Number(data.highDemandCharge || 0),
+          coupons: coupon ? [coupon] : [],
+          trainConfigs: String(data.train || "All").toLowerCase() === "all" ? [] : [{
+            train: data.train,
+            freeDeliveryMin: Number(data.freeDeliveryMin || 150),
+            deliveryChargeBelowMin: Number(data.deliveryChargeBelowMin || 20),
+            processingCharge: Number(data.processingCharge || 20),
+            highDemandCharge: Number(data.highDemandCharge || 0)
+          }],
+          updatedAt: FieldValue.serverTimestamp()
+        };
+        await db.collection("marketingSettings").doc("default").set(payload, { merge: true });
+        toast("Marketing settings saved.");
+      });
+
+      $("serviceSwitchList").addEventListener("click", async (event) => {
+        const reactivate = event.target.closest("[data-reactivate-service]");
+        if (!reactivate) return;
+        const row = serviceSwitches.find((entry) => entry.id === reactivate.dataset.reactivateService);
+        await db.collection("serviceSwitches").doc(row.id).update({
+          active: true,
+          reactivatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        if (row.menuItemId) await db.collection("menuItems").doc(row.menuItemId).update({ available: true, updatedAt: FieldValue.serverTimestamp() });
+        toast("Service/product reactivated.");
+      });
+
       document.querySelector("[data-tab-panel='masters']").addEventListener("click", async (event) => {
         const viewBtn = event.target.closest("[data-master-view]");
         const saveMenu = event.target.closest("[data-save-menu-master]");
@@ -613,6 +722,7 @@
             price: Number(field("sellingPrice") || 0),
             costPrice: Number(field("costPrice") || 0),
             stockQty: Number(field("stockQty") || 0),
+            productRemark: field("productRemark"),
             available: field("available") === "true",
             updatedAt: FieldValue.serverTimestamp()
           });
@@ -672,6 +782,8 @@
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { requests = rows; renderCatalog(); }, "createdAt", "desc", 250);
       onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); renderMasters(); }, "createdAt", "desc", 250);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { riders = rows; renderRiders(); }, "updatedAt", "desc", 250);
+      onLive("marketingSettings", (rows) => { marketingSettings = rows; renderMarketing(); }, "updatedAt", "desc", 50);
+      onLive("serviceSwitches", (rows) => { serviceSwitches = rows; renderServiceSwitches(); }, "updatedAt", "desc", 200);
       renderMasters();
       renderRouteTrainSelect();
       onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); renderMasters(); }, "name", "asc", 300);

@@ -66,12 +66,12 @@
           <p data-i18n="promo_combo_body">Add multiple portions in one cart and keep the delivery linked to the same coach and berth.</p>
           <button class="promo-cta" type="button" data-hero-tab="order" data-i18n="promo_combo_cta">Browse menu</button>
         </article>
-        <article class="promo-slide promo-kitchen" data-promo-tab="order" data-promo-source="base-kitchen">
-          <span class="promo-tag" data-i18n="promo_tag_kitchen">BASE KITCHEN</span>
+        <article class="promo-slide promo-kitchen" data-promo-tab="order" data-promo-source="restaurant">
+          <span class="promo-tag" data-i18n="promo_tag_kitchen">RESTAURANT</span>
           <p class="eyebrow" data-i18n="promo_kitchen_eyebrow">Fresh at upcoming station</p>
           <h2 data-i18n="promo_kitchen_title">Base kitchen meals can route directly to your train.</h2>
-          <p data-i18n="promo_kitchen_body">Use the Base Kitchen filter to see items prepared near the next service point.</p>
-          <button class="promo-cta saffron" type="button" data-hero-tab="order" data-promo-source="base-kitchen" data-i18n="promo_kitchen_cta">See base kitchen menu</button>
+          <p data-i18n="promo_kitchen_body">Use Restaurant to see approved food near the next service point.</p>
+          <button class="promo-cta saffron" type="button" data-hero-tab="order" data-promo-source="restaurant" data-i18n="promo_kitchen_cta">See restaurant menu</button>
         </article>
         <article class="promo-slide promo-help" data-promo-tab="feedback">
           <span class="promo-tag" data-i18n="promo_tag_help">CUSTOMER CARE</span>
@@ -114,12 +114,18 @@
             <button class="icon-btn" id="closePassengerBtn" type="button" title="Close"><i data-lucide="x"></i></button>
           </div>
           <form id="customerForm" class="grid two">
+            <label class="field" style="grid-column:1/-1;"><span>Register Option</span><div class="source-segments compact-segments" id="registrationModeSegments">
+              <button class="active" data-register-mode="pnr" type="button"><i data-lucide="ticket-check"></i> Register through PNR</button>
+              <button data-register-mode="train" type="button"><i data-lucide="train-front"></i> Train No / Name</button>
+            </div></label>
             <label class="field"><span data-i18n="field_name_optional">Name optional</span><input class="input" name="name" placeholder="Passenger name"></label>
             <label class="field"><span data-i18n="field_phone">Phone</span><input class="input" name="phone" required inputmode="tel" placeholder="10 digit number"></label>
             <label class="field"><span data-i18n="field_email_optional">Email optional</span><input class="input" name="email" type="email" placeholder="name@example.com"></label>
             <label class="field"><span data-i18n="field_pnr">PNR Number</span><input class="input" name="pnr" required inputmode="numeric" maxlength="10" placeholder="10 digit PNR, e.g. 1234567890"></label>
+            <div class="ack success" id="pnrIntegrationHint" style="grid-column:1/-1;">PNR API integration point ready. For now, save PNR and choose train from local train master if live web detail is not connected.</div>
             <label class="field"><span data-i18n="field_search_train">Search Train</span><input class="input" id="customerTrainSearch" placeholder="Type train number, name or yard"></label>
             <label class="field"><span data-i18n="field_train_number">Train Number</span><select class="select" name="train" id="customerTrainSelect" required></select></label>
+            <label class="field" style="grid-column:1/-1;"><span>Current / Last Station</span><select class="select" name="currentStation" id="currentStationSelect"></select></label>
             <label class="field"><span data-i18n="field_coach">Coach</span><input class="input" name="coach" required placeholder="B2"></label>
             <label class="field"><span data-i18n="field_seat">Seat / Berth</span><input class="input" name="seat" required placeholder="41"></label>
             <label class="field"><span data-i18n="field_delivery_option">Delivery Option</span><select class="select" name="deliveryMode" id="deliveryMode">
@@ -131,15 +137,15 @@
         </div>
       </div>
       <div class="meal-filter-bar">
-        <label class="field grow"><span data-i18n="field_meal">Meal</span><select id="mealFilter" class="select"></select></label>
+        <label class="field grow"><span data-i18n="field_meal">Now Serving</span><select id="mealFilter" class="select"></select></label>
         <label class="field grow"><span data-i18n="field_delivery_slot">Preferred Delivery Slot</span><select id="deliveryWindow" class="select"></select></label>
         <button class="btn secondary" id="savePassengerBtn"><i data-lucide="save"></i> <span data-i18n="save">Save</span></button>
       </div>
+      <div id="restaurantStationPanel" class="restaurant-station-panel hidden"></div>
       <div class="source-segments" id="sourceSegments">
         <button class="active" data-menu-source="all" type="button"><i data-lucide="layout-grid"></i> <span data-i18n="source_all">All</span></button>
         <button data-menu-source="pantry" type="button"><i data-lucide="train-front"></i> <span data-i18n="source_pantry">Train Pantry</span></button>
-        <button data-menu-source="base-kitchen" type="button"><i data-lucide="chef-hat"></i> <span data-i18n="source_base">Base Kitchen</span></button>
-        <button data-menu-source="partner" type="button"><i data-lucide="store"></i> <span data-i18n="source_partner">Partner</span></button>
+        <button data-menu-source="restaurant" type="button"><i data-lucide="store"></i> <span>Restaurant</span></button>
       </div>
       <div class="preference-segments" id="preferenceSegments">
         <button class="active" data-menu-preference="all" type="button">All Food</button>
@@ -171,8 +177,15 @@
           <button class="icon-btn" id="closeCartReviewBtn" title="Close"><i data-lucide="x"></i></button>
         </div>
         <div id="cartReviewList" class="list"></div>
+        <div id="addonSuggestionList" class="list"></div>
         <div class="panel pad stack">
           <div class="row between">
+            <b>Items Total</b>
+            <b id="cartItemsTotal">Rs 0</b>
+          </div>
+          <label class="field"><span>Coupon Code</span><div class="row mobile-stack"><input class="input grow" id="couponCode" placeholder="Enter coupon"><button class="btn secondary" id="applyCouponBtn" type="button"><i data-lucide="badge-percent"></i> Apply</button></div></label>
+          <div id="chargeBreakup" class="charge-breakup"></div>
+          <div class="row between total-row">
             <b data-i18n="total_payable">Total Payable</b>
             <b id="cartReviewTotal">Rs 0</b>
           </div>
@@ -312,6 +325,11 @@
       let trainMasters = [];
       let selectedMenuSource = "all";
       let selectedPreference = "all";
+      let registrationMode = "pnr";
+      let marketingSettings = null;
+      let trainRoutes = [];
+      let serviceSwitches = [];
+      let couponApplied = null;
       const urlParams = new URLSearchParams(location.search);
       const journeyContext = {
         qrId: urlParams.get("qrId") || urlParams.get("qr") || "",
@@ -365,7 +383,7 @@
           promo_combo_cta: "Browse menu",
           promo_kitchen_eyebrow: "Fresh at upcoming station",
           promo_kitchen_title: "Base kitchen meals can route directly to your train.",
-          promo_kitchen_body: "Use the Base Kitchen filter to see items prepared near the next service point.",
+          promo_kitchen_body: "Use Restaurant to see approved food near the next service point.",
           promo_kitchen_cta: "See base kitchen menu",
           promo_help_eyebrow: "Support in the same app",
           promo_help_title: "Raise feedback or complaint without searching for another number.",
@@ -935,13 +953,13 @@
 
       const faqContent = {
         en: [
-          ["How do I order food in train?", "Scan the Meals On Wheels QR in your train or open this app, save passenger details, choose Train Pantry, Base Kitchen or RK Partner items, add food to cart and confirm the order."],
+          ["How do I order food in train?", "Scan the Meals On Wheels QR in your train or open this app, save passenger details, choose Pantry or Restaurant items, add food to cart and confirm the order."],
           ["Why should I scan the train QR code?", "The QR links your train number, rake number, Rake Manager and assigned rider so your order or complaint reaches the correct onboard team."],
           ["Where will I see my delivery OTP?", "When the rider starts delivery, the OTP appears in Track tab against your order. Share it only after you receive the food."],
           ["Can I order for multiple passengers?", "Yes. Increase item quantity in the cart based on the number of passengers traveling with you."],
           ["What if my train is delayed?", "The onboard team and Rake Manager can see the train/rake context. Use Feedback or Need Help from Track tab if timing needs attention."],
           ["How do I raise a complaint?", "Open Feedback, choose Complaint, select the related order if available, add details and proof if needed. You can track replies in the Track tab."],
-          ["What food options are available?", "Menu can come from Train Pantry, upcoming Base Kitchen and approved RK Partner outlets. Use meal, cuisine and source filters to browse quickly."],
+          ["What food options are available?", "Menu can come from Pantry and approved Restaurant outlets. Use source and cuisine filters to browse quickly."]
           ["How do I know the order is complete?", "After OTP verification by the rider, your order status changes to Delivered in the Track tab."]
         ],
         hi: [
@@ -978,8 +996,7 @@
 
       function menuDeliveryEstimate(item) {
         const source = menuSourceOf(item);
-        if (source === "base-kitchen") return "45-75 min at upcoming station";
-        if (source === "partner") return "30-60 min from upcoming station";
+        if (source === "restaurant") return "30-75 min at upcoming restaurant station";
         return "15-30 min from train pantry";
       }
 
@@ -1027,6 +1044,58 @@
         return true;
       }
 
+      function currentMealByClock(date = new Date()) {
+        const hour = date.getHours();
+        const minutes = hour * 60 + date.getMinutes();
+        if (minutes < 9 * 60) return "Breakfast";
+        if (minutes < 14 * 60) return "Lunch";
+        if (minutes < 18 * 60 + 30) return "Evening Tiffin";
+        if (minutes < 23 * 60) return "Dinner";
+        return "Beverage";
+      }
+
+      function marketingConfigForTrain(trainNo) {
+        const defaults = {
+          freeDeliveryMin: 150,
+          deliveryChargeBelowMin: 20,
+          processingCharge: 20,
+          highDemandCharge: 0,
+          offers: [],
+          coupons: []
+        };
+        if (!marketingSettings) return defaults;
+        const trainConfig = (marketingSettings.trainConfigs || []).find((row) => String(row.train || "") === String(trainNo || ""));
+        return { ...defaults, ...marketingSettings, ...(trainConfig || {}) };
+      }
+
+      function cartPricing(lines = [...cart.values()]) {
+        const itemsTotal = lines.reduce((sum, line) => sum + Number(line.qty || 0) * sellingPriceOf(line), 0);
+        const cfg = marketingConfigForTrain(passenger().train);
+        const deliveryCharge = itemsTotal >= Number(cfg.freeDeliveryMin || 0) ? 0 : Number(cfg.deliveryChargeBelowMin || 0);
+        const processingCharge = Number(cfg.processingCharge || 0);
+        const highDemandCharge = Number(cfg.highDemandCharge || 0);
+        let discount = 0;
+        const couponCode = String($("couponCode")?.value || "").trim().toUpperCase();
+        const coupon = (cfg.coupons || []).find((row) => String(row.code || "").toUpperCase() === couponCode && row.active !== false);
+        if (coupon) {
+          discount = coupon.type === "percent" ? Math.round(itemsTotal * Number(coupon.value || 0) / 100) : Number(coupon.value || 0);
+          couponApplied = coupon;
+        } else if (couponCode) {
+          couponApplied = null;
+        }
+        return {
+          itemsTotal,
+          deliveryCharge,
+          processingCharge,
+          highDemandCharge,
+          discount: Math.min(discount, itemsTotal),
+          total: Math.max(0, itemsTotal + deliveryCharge + processingCharge + highDemandCharge - Math.min(discount, itemsTotal)),
+          freeDeliveryMin: Number(cfg.freeDeliveryMin || 0),
+          couponCode,
+          couponApplied
+        };
+      }
+
       function deliverySlotsForMeal(meal, source = selectedMenuSource) {
         if (source === "base-kitchen") return ["Upcoming station - 45 to 75 min", "Next major halt - 75 to 120 min"];
         if (source === "partner") return ["Upcoming station partner - 30 to 60 min", "Next partner station - 60 to 90 min"];
@@ -1042,6 +1111,39 @@
         const slots = deliverySlotsForMeal(meal);
         $("deliveryWindow").innerHTML = slots.map((slot) => `<option value="${escapeHtml(slot)}">${escapeHtml(slot.replace("-", " to "))}</option>`).join("");
       }
+
+      function selectedRouteStops() {
+        const trainNo = passenger().train || $("customerTrainSelect").value;
+        const route = trainRoutes.find((row) => String(row.trainNumber || row.id) === String(trainNo));
+        return route?.stops || [];
+      }
+
+      function renderCurrentStationSelect() {
+        const stops = selectedRouteStops();
+        const current = $("currentStationSelect").value;
+        $("currentStationSelect").innerHTML = stops.map((stop, index) => `<option value="${index}">${escapeHtml(stop.station || stop.code || `Stop ${index + 1}`)}${stop.code ? ` (${escapeHtml(stop.code)})` : ""}</option>`).join("") || `<option value="">Route API / station list pending</option>`;
+        if (current && stops[Number(current)]) $("currentStationSelect").value = current;
+        renderRestaurantStationPanel();
+      }
+
+      function upcomingRestaurantStops() {
+        const stops = selectedRouteStops();
+        const currentIndex = Number($("currentStationSelect").value || 0);
+        return stops.slice(currentIndex + 1).filter((stop) => Number(stop.haltMinutes || 0) >= 4).slice(0, 5);
+      }
+
+      function renderRestaurantStationPanel() {
+        const panel = $("restaurantStationPanel");
+        const show = selectedMenuSource === "restaurant";
+        panel.classList.toggle("hidden", !show);
+        if (!show) return;
+        const stops = upcomingRestaurantStops();
+        panel.innerHTML = stops.length ? `
+          <div class="section-title compact-title"><div><h2>Upcoming Restaurant Stations</h2><p>Restaurant menu is planned around the next halts of 4 minutes or more.</p></div></div>
+          <div class="station-chip-row">${stops.map((stop) => `<span class="badge info">${escapeHtml(stop.station || stop.code)} | Halt ${Number(stop.haltMinutes || 0)} min</span>`).join("")}</div>
+        ` : `<div class="empty">Select train and current / last station to see upcoming restaurant stops.</div>`;
+      }
+      $("mealFilter").innerHTML = [`${currentMealByClock()}`].map((m) => `<option>${m}</option>`).join("");
       renderDeliveryWindows();
 
       function passenger() {
@@ -1078,6 +1180,7 @@
         if (saved.train && trainMasters.some((train) => train.trainNumber === saved.train || train.id === saved.train)) {
           $("customerTrainSelect").value = saved.train;
         }
+        renderCurrentStationSelect();
       }
 
       function renderPassengerSummary(data = passenger()) {
@@ -1187,20 +1290,35 @@
 
       function menuSourceOf(item) {
         const source = String(item.sourceType || item.source || item.fulfillmentSource || "").toLowerCase();
-        if (source.includes("partner")) return "partner";
-        if (source.includes("base")) return "base-kitchen";
+        if (source.includes("partner") || source.includes("base") || source.includes("restaurant")) return "restaurant";
         return "pantry";
       }
 
+      function fulfillmentSourceOf(item) {
+        const source = String(item.sourceType || item.source || item.fulfillmentSource || "").toLowerCase();
+        if (source.includes("partner")) return "partner";
+        if (source.includes("base")) return "base-kitchen";
+        if (source.includes("restaurant")) return "restaurant";
+        return "pantry";
+      }
+
+      function serviceIsActiveForItem(item) {
+        return !serviceSwitches.some((row) => {
+          if (row.active !== false) return false;
+          if (row.menuItemId && row.menuItemId === item.id) return true;
+          if (row.supplierId && [item.supplierId, item.baseKitchenId].includes(row.supplierId)) return true;
+          if (row.supplierPhone && cleanPhone(row.supplierPhone) && cleanPhone(row.supplierPhone) === cleanPhone(item.supplierPhone || item.partnerPhone || "")) return true;
+          return false;
+        });
+      }
+
       function sourceLabel(source) {
-        if (source === "base-kitchen") return textFor("source_base_label");
-        if (source === "partner") return textFor("source_partner_label");
+        if (source === "restaurant") return "Restaurant";
         return textFor("source_pantry_label");
       }
 
       function sourceNote(source) {
-        if (source === "base-kitchen") return textFor("source_base_note");
-        if (source === "partner") return textFor("source_partner_note");
+        if (source === "restaurant") return "Approved base-kitchen and RK Partner restaurant menu for upcoming stations.";
         return textFor("source_pantry_note");
       }
 
@@ -1222,7 +1340,10 @@
               </div>
               <p class="menu-meta">${itemMealSlots(item).map(escapeHtml).join(", ")} | ${escapeHtml(item.type || "veg")}</p>
               <p class="menu-meta"><b>${textFor("delivery")}</b> ${escapeHtml(menuDeliveryEstimate(item))}</p>
-              <div class="menu-tags">${itemCuisineTags(item).slice(0, 2).map((tag) => `<span class="menu-tag">${escapeHtml(tag)}</span>`).join("")}</div>
+              <div class="menu-tags">
+                ${(item.productRemark || item.demandTag || item.salesTag) ? `<span class="menu-tag hot-tag">${escapeHtml(item.productRemark || item.demandTag || item.salesTag)}</span>` : ""}
+                ${itemCuisineTags(item).slice(0, 2).map((tag) => `<span class="menu-tag">${escapeHtml(tag)}</span>`).join("")}
+              </div>
               <div class="menu-card-actions">
                 <span class="badge ${soldOut ? "danger" : "ok"}">${soldOut ? textFor("sold_out") : textFor("available")}</span>
                 <div class="qty-stepper">
@@ -1241,10 +1362,11 @@
       function renderMenu() {
         const selectedMeal = $("mealFilter").value;
         const items = menuItems.filter((item) => item.available !== false
+          && serviceIsActiveForItem(item)
           && (selectedMeal === "All" || itemMealSlots(item).includes(selectedMeal))
           && matchesMenuPreference(item, selectedPreference)
           && (selectedMenuSource === "all" || menuSourceOf(item) === selectedMenuSource));
-        const groups = ["pantry", "base-kitchen", "partner"].filter((source) => selectedMenuSource === "all" || selectedMenuSource === source);
+        const groups = ["pantry", "restaurant"].filter((source) => selectedMenuSource === "all" || selectedMenuSource === source);
         $("menuList").innerHTML = items.length ? groups.map((source) => {
           const rows = items.filter((item) => menuSourceOf(item) === source);
           if (!rows.length) return "";
@@ -1268,7 +1390,7 @@
 
       function renderCartReview() {
         const lines = [...cart.values()];
-        const total = lines.reduce((sum, line) => sum + line.qty * sellingPriceOf(line), 0);
+        const pricing = cartPricing(lines);
         $("cartReviewList").innerHTML = lines.map((line) => `
           <div class="item">
             <div class="row between">
@@ -1287,7 +1409,21 @@
               </div>
             </div>
           </div>`).join("") || `<div class="empty">Your cart is empty.</div>`;
-        $("cartReviewTotal").textContent = money(total);
+        const addOns = menuItems
+          .filter((item) => item.available !== false && Number(item.stockQty || 0) > 0 && !cart.has(item.id))
+          .filter((item) => /water|cold|drink|beverage|burger|snack|tea|coffee/i.test(`${item.name || ""} ${item.category || ""} ${item.cuisine || ""}`))
+          .slice(0, 4);
+        $("addonSuggestionList").innerHTML = addOns.length ? `
+          <div class="section-title compact-title"><div><h2>Add-on Suggestions</h2><p>Complete your order with frequently bought items.</p></div></div>
+          ${addOns.map((item) => `<div class="item addon-item"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(sourceLabel(menuSourceOf(item)))} | ${money(sellingPriceOf(item))}</p></div><button class="btn secondary" data-addon-plus="${item.id}"><i data-lucide="plus"></i> Add</button></div>`).join("")}` : "";
+        $("cartItemsTotal").textContent = money(pricing.itemsTotal);
+        $("chargeBreakup").innerHTML = `
+          <div class="row between"><span>Free delivery above</span><b>${money(pricing.freeDeliveryMin)}</b></div>
+          <div class="row between"><span>Delivery charge</span><b>${money(pricing.deliveryCharge)}</b></div>
+          <div class="row between"><span>Processing charge</span><b>${money(pricing.processingCharge)}</b></div>
+          ${pricing.highDemandCharge ? `<div class="row between"><span>High demand charge</span><b>${money(pricing.highDemandCharge)}</b></div>` : ""}
+          ${pricing.discount ? `<div class="row between success-text"><span>Coupon discount ${escapeHtml(pricing.couponCode)}</span><b>- ${money(pricing.discount)}</b></div>` : pricing.couponCode ? `<div class="ack danger-soft">Coupon not valid for this train/cart.</div>` : ""}`;
+        $("cartReviewTotal").textContent = money(pricing.total);
         $("confirmOrderBtn").disabled = !lines.length;
         $("confirmOrderBtn").innerHTML = `<i data-lucide="send"></i> ${textFor("confirm_order")}`;
         lucide.createIcons();
@@ -1357,6 +1493,7 @@
         selectedMenuSource = btn.dataset.menuSource;
         document.querySelectorAll("[data-menu-source]").forEach((node) => node.classList.toggle("active", node === btn));
         renderDeliveryWindows();
+        renderRestaurantStationPanel();
         renderMenu();
       });
       $("preferenceSegments").addEventListener("click", (event) => {
@@ -1414,6 +1551,21 @@
         renderCartReview();
       });
 
+      $("addonSuggestionList").addEventListener("click", (event) => {
+        const add = event.target.closest("[data-addon-plus]");
+        if (!add) return;
+        const item = menuItems.find((entry) => entry.id === add.dataset.addonPlus);
+        if (!item) return;
+        cart.set(item.id, { ...item, qty: (cart.get(item.id)?.qty || 0) + 1 });
+        renderMenu();
+        renderCartReview();
+      });
+
+      $("applyCouponBtn").addEventListener("click", () => {
+        renderCartReview();
+        toast(couponApplied ? "Coupon applied." : "Coupon checked.");
+      });
+
       $("placeOrderBtn").addEventListener("click", openCartReview);
       $("closeCartReviewBtn").addEventListener("click", closeCartReview);
       $("continueShoppingBtn").addEventListener("click", closeCartReview);
@@ -1437,14 +1589,19 @@
           itemImage: line.itemImage || "",
           source: line.source || "pantry",
           sourceType: line.sourceType || line.source || "pantry",
-          fulfillmentSource: menuSourceOf(line),
+          fulfillmentSource: fulfillmentSourceOf(line),
           supplierId: line.supplierId || line.baseKitchenId || "",
           supplierName: line.supplierName || line.baseKitchenName || "",
-          baseKitchenId: line.baseKitchenId || (menuSourceOf(line) === "base-kitchen" ? line.supplierId || "" : ""),
-          baseKitchenName: line.baseKitchenName || (menuSourceOf(line) === "base-kitchen" ? line.supplierName || "" : ""),
+          supplierPhone: line.supplierPhone || line.partnerPhone || "",
+          partnerId: fulfillmentSourceOf(line) === "partner" ? line.partnerId || line.supplierId || "" : "",
+          partnerName: fulfillmentSourceOf(line) === "partner" ? line.partnerName || line.supplierName || "" : "",
+          partnerPhone: fulfillmentSourceOf(line) === "partner" ? line.partnerPhone || line.supplierPhone || "" : "",
+          baseKitchenId: line.baseKitchenId || (fulfillmentSourceOf(line) === "base-kitchen" ? line.supplierId || "" : ""),
+          baseKitchenName: line.baseKitchenName || (fulfillmentSourceOf(line) === "base-kitchen" ? line.supplierName || "" : ""),
           mealSlots: itemMealSlots(line)
         }));
-        const total = items.reduce((sum, line) => sum + line.qty * line.price, 0);
+        const pricing = cartPricing([...cart.values()]);
+        const total = pricing.total;
         const orderSources = [...new Set(items.map((line) => line.fulfillmentSource || "pantry"))];
         let orderNo = "";
         try {
@@ -1490,9 +1647,17 @@
               orderSources,
               baseKitchenId: items.find((line) => line.fulfillmentSource === "base-kitchen")?.baseKitchenId || "",
               baseKitchenName: items.find((line) => line.fulfillmentSource === "base-kitchen")?.baseKitchenName || "",
+              supplierPhone: items.find((line) => line.supplierPhone)?.supplierPhone || "",
+              partnerPhone: items.find((line) => line.fulfillmentSource === "partner")?.partnerPhone || "",
               supplierName: items.find((line) => line.supplierName)?.supplierName || "",
               paymentMode,
               paymentStatus: paymentMode === "COD" ? "cash-on-delivery" : "collection-pending",
+              itemsTotal: pricing.itemsTotal,
+              deliveryCharge: pricing.deliveryCharge,
+              processingCharge: pricing.processingCharge,
+              highDemandCharge: pricing.highDemandCharge,
+              couponCode: pricing.couponCode || "",
+              couponDiscount: pricing.discount,
               items,
               total,
               status: "new",
@@ -1967,6 +2132,20 @@
         btn.addEventListener("click", () => showTab(btn.dataset.heroTab));
       });
       $("customerTrainSearch").addEventListener("input", renderCustomerTrainSelect);
+      $("customerTrainSelect").addEventListener("change", () => {
+        renderCurrentStationSelect();
+        renderPassengerSummary();
+        renderMenu();
+      });
+      $("currentStationSelect").addEventListener("change", renderRestaurantStationPanel);
+      $("registrationModeSegments").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-register-mode]");
+        if (!btn) return;
+        registrationMode = btn.dataset.registerMode;
+        document.querySelectorAll("[data-register-mode]").forEach((node) => node.classList.toggle("active", node === btn));
+        $("customerTrainSearch").closest(".field").classList.toggle("hidden", registrationMode === "pnr");
+        $("pnrIntegrationHint").classList.toggle("hidden", registrationMode !== "pnr");
+      });
       $("refreshTrackBtn").addEventListener("click", () => loadTracking());
       $("trackSearchBtn").addEventListener("click", () => loadTracking());
       $("trackPhone").addEventListener("keydown", (event) => {
@@ -1981,6 +2160,18 @@
         adminUsers = rows;
         renderPassengerSummary();
       }, "email", "asc", 300);
+      onLive("marketingSettings", (rows) => {
+        marketingSettings = rows.find((row) => row.id === "default") || rows[0] || null;
+        renderCart();
+      }, "updatedAt", "desc", 20);
+      onLive("trainRoutes", (rows) => {
+        trainRoutes = rows;
+        renderCurrentStationSelect();
+      }, "updatedAt", "desc", 300);
+      onLive("serviceSwitches", (rows) => {
+        serviceSwitches = rows;
+        renderMenu();
+      }, "updatedAt", "desc", 200);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((train) => train.active !== false);
         renderCustomerTrainSelect();

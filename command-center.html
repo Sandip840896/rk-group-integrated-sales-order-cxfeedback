@@ -32,9 +32,10 @@
       </div>
     </section>
 
-    <div class="tabs">
+    <div class="tabs manager-vertical-tabs">
       <button class="tab-btn" data-tab="overview"><i data-lucide="activity"></i> Overview</button>
       <button class="tab-btn" data-tab="orders"><i data-lucide="receipt-text"></i> Customer Orders <span class="tab-badge hidden" id="ordersTabBadge">0</span></button>
+      <button class="tab-btn" data-tab="restaurantHandover"><i data-lucide="package-check"></i> Restaurant Handover <span class="tab-badge hidden" id="restaurantTabBadge">0</span></button>
       <button class="tab-btn" data-tab="feedback"><i data-lucide="messages-square"></i> Feedback <span class="tab-badge hidden" id="feedbackTabBadge">0</span></button>
       <button class="tab-btn" data-tab="indent"><i data-lucide="send"></i> Base Kitchen Indent</button>
       <button class="tab-btn" data-tab="invoice"><i data-lucide="file-check-2"></i> Delivery Invoice</button>
@@ -87,6 +88,13 @@
       </div>
       <label class="field"><span>Show Orders For Train</span><select class="select" id="commandTrainFilter"></select></label>
       <div id="ordersList" class="list"></div>
+    </section>
+
+    <section data-tab-panel="restaurantHandover" class="panel pad stack hidden">
+      <div class="section-title">
+        <div><h2>Restaurant Handover to Rake Manager</h2><p>Base kitchen and RK Partner deliver to rake manager first. Passenger delivery starts only after supplier OTP handover is verified.</p></div>
+      </div>
+      <div id="restaurantHandoverList" class="list"></div>
     </section>
 
     <section data-tab-panel="feedback" class="panel pad stack hidden">
@@ -549,6 +557,7 @@
         renderTrainSelects();
         renderKitchenSelects();
         renderOrders();
+        renderRestaurantHandovers();
         renderFeedbacks();
         renderIndents();
         renderInvoices();
@@ -598,10 +607,21 @@
 
       function renderTabBadges() {
         const liveOrderCount = visibleOrdersForAccess().filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())).length;
+        const restaurantCount = visibleRestaurantOrdersForAccess().filter((order) => !["out-for-delivery", "delivered", "cancelled"].includes(String(order.status || "").toLowerCase())).length;
         const activeFeedbackCount = visibleFeedbacksForAccess().filter((fb) => !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length;
         const openInterestCount = visibleStockInterestsForAccess().filter((row) => !["resolved", "closed", "cancelled"].includes(String(row.status || "").toLowerCase())).length;
         setTabBadge("ordersTabBadge", liveOrderCount);
+        setTabBadge("restaurantTabBadge", restaurantCount);
         setTabBadge("feedbackTabBadge", activeFeedbackCount + openInterestCount);
+      }
+
+      function orderHasRestaurantSource(order) {
+        return (order.items || []).some((line) => ["base-kitchen", "partner", "restaurant"].includes(String(line.fulfillmentSource || "").toLowerCase()))
+          || ["base-kitchen", "partner", "restaurant", "mixed"].includes(String(order.fulfillmentSource || "").toLowerCase());
+      }
+
+      function visibleRestaurantOrdersForAccess() {
+        return visibleOrdersForAccess().filter(orderHasRestaurantSource);
       }
 
       function orderLineCostPrice(line) {
@@ -656,8 +676,35 @@
       function renderOrders() {
         const trainFilter = $("commandTrainFilter")?.value || "all";
         const accessOrders = visibleOrdersForAccess();
-        const visibleOrders = trainFilter === "all" ? accessOrders : accessOrders.filter((order) => trainMatches(order.train, trainFilter));
+        const directOrders = accessOrders.filter((order) => !orderHasRestaurantSource(order));
+        const visibleOrders = trainFilter === "all" ? directOrders : directOrders.filter((order) => trainMatches(order.train, trainFilter));
         $("ordersList").innerHTML = visibleOrders.map(orderCard).join("") || `<div class="empty">No live customer order for this train.</div>`;
+        renderMetrics();
+        lucide.createIcons();
+      }
+
+      function restaurantHandoverCard(order) {
+        const status = String(order.status || "new").toLowerCase();
+        const supplierName = order.baseKitchenName || order.supplierName || (order.items || []).find((line) => line.supplierName)?.supplierName || "Restaurant supplier";
+        const supplierOtp = order.supplierHandoverOtp || "";
+        return `<div class="item ${["new", "restaurant-accepted", "restaurant-preparing", "restaurant-handover"].includes(status) ? "urgent-item" : ""}">
+          <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
+          <p><b>Supplier:</b> ${escapeHtml(supplierName)} | <b>Train:</b> ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""}</p>
+          <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+          <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")} | ${money(order.total)}</p>
+          ${supplierOtp && status === "restaurant-handover" ? `<div class="otp-alert"><span>Supplier Handover OTP</span><b>${escapeHtml(supplierOtp)}</b><small>Give this OTP only after receiving restaurant food from base kitchen / RK Partner.</small></div>` : ""}
+          ${status === "supplier-delivered-to-rake" ? `<div class="ack success" style="margin-top:10px;"><b>Received by rake manager:</b> Now assign this order to onboard delivery person.</div>` : ""}
+          <div class="row wrap" style="margin-top:10px;">
+            ${status === "supplier-delivered-to-rake" ? `<button class="btn" data-init-delivery="${order.id}"><i data-lucide="bike"></i> Initiate Passenger Delivery</button>` : ""}
+            ${canCommandCancelCustomerOrder(order) ? `<button class="btn danger" data-cancel-customer-order="${order.id}"><i data-lucide="x"></i> Cancel Order</button>` : ""}
+          </div>
+        </div>`;
+      }
+
+      function renderRestaurantHandovers() {
+        const rows = visibleRestaurantOrdersForAccess()
+          .filter((order) => !["out-for-delivery", "delivered", "cancelled"].includes(String(order.status || "").toLowerCase()));
+        $("restaurantHandoverList").innerHTML = rows.map(restaurantHandoverCard).join("") || `<div class="empty">No restaurant handover pending right now.</div>`;
         renderMetrics();
         lucide.createIcons();
       }
@@ -772,6 +819,7 @@
 
       $("ordersList").addEventListener("click", handleCustomerOrderAction);
       $("recentOrders").addEventListener("click", handleCustomerOrderAction);
+      $("restaurantHandoverList").addEventListener("click", handleCustomerOrderAction);
       $("commandTrainFilter").addEventListener("change", renderOrders);
       $("closeDeliveryAssignBtn").addEventListener("click", () => $("deliveryAssignModal").classList.add("hidden"));
       $("deliveryAssignSearch").addEventListener("input", (event) => {
@@ -810,6 +858,7 @@
                 ${String(fb.proof.type || "").startsWith("audio/") ? `<audio controls src="${fb.proof.dataUrl}"></audio>` : ""}
                 ${String(fb.proof.type || "").startsWith("video/") ? `<video controls src="${fb.proof.dataUrl}"></video>` : ""}
               </div>` : ""}
+            ${fb.supplierRemark ? `<div class="ack" style="margin-top:10px;"><b>Supplier internal remark:</b> ${escapeHtml(fb.supplierRemark)}${fb.supplierRemarkBy ? ` <span class="muted-text">- ${escapeHtml(fb.supplierRemarkBy)}</span>` : ""}</div>` : ""}
             ${fb.managerResponse ? `<p><b>Resolution:</b> ${escapeHtml(fb.managerResponse)}${fb.lastResponder ? ` <span class="muted-text">- by ${escapeHtml(fb.lastResponder)}</span>` : ""}</p>` : ""}
             ${fb.customerReply ? `<div class="ack success" style="margin-top:10px;"><b>Customer reply:</b> ${escapeHtml(fb.customerReply)}${fb.customerReplyRating ? `<br><small>Customer rating for response: ${escapeHtml(fb.customerReplyRating)} / 5</small>` : ""}</div>` : ""}
             <div class="row mobile-stack" style="margin-top:10px;">
@@ -1399,7 +1448,27 @@
         }
         if (toggle) {
           const item = menuItems.find((entry) => entry.id === toggle.dataset.toggleItem);
-          await db.collection("menuItems").doc(item.id).update({ available: item.available === false, updatedAt: FieldValue.serverTimestamp() });
+          const nextAvailable = item.available === false;
+          let reason = "";
+          if (!nextAvailable) {
+            reason = prompt("Reason for switching off this product", "Product temporarily unavailable.") || "";
+            if (!reason) return;
+          }
+          await db.collection("menuItems").doc(item.id).update({ available: nextAvailable, updatedAt: FieldValue.serverTimestamp() });
+          if (!nextAvailable) {
+            await db.collection("serviceSwitches").doc(`menuItem__${item.id}`).set({
+              active: false,
+              app: "command-center",
+              sourceType: item.source || "pantry",
+              menuItemId: item.id,
+              itemName: item.name || "",
+              name: item.name || "",
+              supplierName: item.supplierName || item.baseKitchenName || "",
+              reason,
+              updatedAt: FieldValue.serverTimestamp(),
+              createdAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
           toast("Item availability updated.");
         }
       });
@@ -1740,6 +1809,7 @@
         seenOrders = new Set(rows.map((row) => row.id));
         orders = rows;
         renderOrders();
+        renderRestaurantHandovers();
       }, "createdAt", "desc", 200);
       onLive("feedbacks", (rows) => {
         const incoming = rows.filter((row) => !seenFeedbacks.has(row.id));

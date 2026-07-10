@@ -730,6 +730,49 @@ a {
   font-size: 42px;
 }
 
+.restaurant-station-panel,
+.charge-breakup {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.station-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.charge-breakup .row {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.total-row {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.addon-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hot-tag {
+  color: #7c2d12;
+  background: #ffedd5;
+  border-color: #fed7aa;
+}
+
+.success-text {
+  color: var(--ok);
+}
+
 @media (max-width: 640px) {
   .customer-order-first {
     padding: 10px 10px 88px;
@@ -873,6 +916,37 @@ a {
 .tab-btn.active .tab-badge {
   color: var(--danger);
   background: #fff;
+}
+
+.manager-vertical-tabs,
+.control-vertical-tabs {
+  align-items: stretch;
+  flex-direction: column;
+  float: left;
+  width: min(245px, 28vw);
+  max-height: calc(100vh - 98px);
+  margin: 0 18px 18px 0;
+  padding: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: sticky;
+  top: 82px;
+  z-index: 5;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(137, 151, 176, 0.22);
+  border-radius: 8px;
+}
+
+.manager-vertical-tabs .tab-btn,
+.control-vertical-tabs .tab-btn {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+}
+
+.main:has(.manager-vertical-tabs) [data-tab-panel],
+.main:has(.control-vertical-tabs) [data-tab-panel] {
+  margin-left: min(263px, calc(28vw + 18px));
 }
 
 .icon-btn {
@@ -1740,6 +1814,28 @@ th {
 
   .main {
     padding: 14px;
+  }
+
+  .manager-vertical-tabs,
+  .control-vertical-tabs {
+    float: none;
+    flex-direction: row;
+    width: 100%;
+    max-height: none;
+    margin: 0;
+    overflow-x: auto;
+    position: static;
+  }
+
+  .manager-vertical-tabs .tab-btn,
+  .control-vertical-tabs .tab-btn {
+    justify-content: center;
+    width: auto;
+  }
+
+  .main:has(.manager-vertical-tabs) [data-tab-panel],
+  .main:has(.control-vertical-tabs) [data-tab-panel] {
+    margin-left: 0;
   }
 
   .customer-hero {

@@ -23,6 +23,7 @@
       <div class="row mobile-stack">
         <select id="kitchenSelect" class="select grow"></select>
         <button class="btn" id="saveKitchenBtn"><i data-lucide="check"></i> Start</button>
+        <button class="btn danger" id="switchOffKitchenBtn"><i data-lucide="power"></i> Switch Off Service</button>
       </div>
     </div>
 
@@ -36,6 +37,7 @@
     <div class="tabs" style="margin-top:14px;">
       <button class="tab-btn" data-tab="incoming"><i data-lucide="inbox"></i> Incoming Indents</button>
       <button class="tab-btn" data-tab="customer"><i data-lucide="receipt-text"></i> Customer Orders</button>
+      <button class="tab-btn" data-tab="dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</button>
       <button class="tab-btn" data-tab="catalog"><i data-lucide="utensils"></i> Catalog Requests</button>
       <button class="tab-btn" data-tab="invoice"><i data-lucide="file-plus-2"></i> Invoices</button>
       <button class="tab-btn" data-tab="dispute"><i data-lucide="alert-triangle"></i> Disputes</button>
@@ -47,8 +49,14 @@
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="customer">
-      <div class="section-title"><div><h2>Customer Food Orders</h2><p>Orders from passengers for this base kitchen must be accepted within 5 minutes.</p></div></div>
+      <div class="section-title"><div><h2>Customer Food Orders</h2><p>Base kitchen delivers restaurant orders to the rake manager. Passenger delivery starts after OTP handover.</p></div></div>
       <div id="bkCustomerOrders" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="dashboard">
+      <div class="section-title"><div><h2>Base Kitchen Dashboard</h2><p>Complaints, refund notes, cancellations and customer food feedback for this kitchen.</p></div></div>
+      <div id="bkDashboardMetrics" class="grid four"></div>
+      <div id="bkDashboardList" class="list"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="catalog">
@@ -106,6 +114,7 @@
       let invoices = [];
       let catalogRequests = [];
       let customerOrders = [];
+      let feedbacks = [];
       let deliveryPartners = [];
       let pendingInvoiceIndentId = "";
       let bkRiderSearchTerm = "";
@@ -134,6 +143,24 @@
         localStorage.setItem("rkBaseKitchen", activeKitchenId);
         toast("Kitchen selected. Live indents loaded.");
         renderAll();
+      });
+
+      $("switchOffKitchenBtn").addEventListener("click", async () => {
+        if (!activeKitchenId) return toast("Select base kitchen first.");
+        const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
+        const reason = prompt("Reason for switching off base kitchen service", "Kitchen temporarily unavailable.");
+        if (!reason) return;
+        await db.collection("serviceSwitches").doc(`baseKitchen__${firebaseDocId(activeKitchenId)}`).set({
+          active: false,
+          app: "base-kitchen",
+          sourceType: "base-kitchen",
+          supplierId: activeKitchenId,
+          name: kitchen?.name || activeKitchenId,
+          reason,
+          updatedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        toast("Service switched off and Control Tower notified.");
       });
 
       $("kitchenSelect").addEventListener("change", () => {
@@ -250,17 +277,54 @@
       function renderCustomerOrders() {
         const rows = visibleCustomerOrders();
         $("bkCustomerOrders").innerHTML = rows.map((order) => `
-          <div class="item ${String(order.status || "").toLowerCase() === "new" ? "urgent-item" : ""}">
+          <div class="item ${["new", "restaurant-accepted", "restaurant-preparing", "restaurant-handover"].includes(String(order.status || "").toLowerCase()) ? "urgent-item" : ""}">
             <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
             <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
             <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${escapeHtml(order.deliveryWindow || "")}</p>
             <p>${(order.items || []).filter((line) => String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen").map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ") || (order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
-            <div class="ack ${String(order.status || "").toLowerCase() === "new" ? "danger-soft" : "success"}" style="margin-top:10px;">${escapeHtml(acceptanceClock(order))}</div>
+            ${String(order.status || "").toLowerCase() === "restaurant-handover" ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Rake Manager OTP:</b> ${escapeHtml(order.supplierHandoverOtp || "")}. Collect this OTP from rake manager after physical handover.</div>` : `<div class="ack ${String(order.status || "").toLowerCase() === "new" ? "danger-soft" : "success"}" style="margin-top:10px;">${escapeHtml(acceptanceClock(order))}</div>`}
             <div class="row wrap" style="margin-top:10px;">
               ${String(order.status || "").toLowerCase() === "new" ? `<button class="btn" data-bk-accept-order="${order.id}"><i data-lucide="check"></i> Accept Customer Order</button>` : ""}
-              ${["accepted", "preparing"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-bk-ready-order="${order.id}"><i data-lucide="package-check"></i> Ready for Delivery</button>` : ""}
+              ${["accepted", "preparing", "restaurant-accepted", "restaurant-preparing"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-bk-ready-order="${order.id}"><i data-lucide="package-check"></i> Ready for Rake Manager</button>` : ""}
+              ${String(order.status || "").toLowerCase() === "restaurant-handover" ? `<button class="btn" data-bk-complete-handover="${order.id}"><i data-lucide="key-round"></i> Close Handover with OTP</button>` : ""}
             </div>
           </div>`).join("") || `<div class="empty">No customer order assigned to this base kitchen.</div>`;
+        lucide.createIcons();
+      }
+
+      function supplierOrderIds() {
+        return new Set(visibleCustomerOrders().map((order) => String(order.id)));
+      }
+
+      function supplierFeedbacks() {
+        const ids = supplierOrderIds();
+        return feedbacks.filter((fb) => ids.has(String(fb.orderId || "")) || visibleCustomerOrders().some((order) => String(order.orderNo || "") === String(fb.orderNo || "")));
+      }
+
+      function renderDashboard() {
+        const orders = visibleCustomerOrders();
+        const complaints = supplierFeedbacks();
+        const cancelled = orders.filter((order) => String(order.status || "").toLowerCase() === "cancelled");
+        const refunds = complaints.filter((fb) => Number(fb.refundAmount || 0) > 0 || String(fb.status || "").toLowerCase().includes("refund"));
+        $("bkDashboardMetrics").innerHTML = [
+          ["Delivered", orders.filter((order) => String(order.status || "").toLowerCase() === "delivered").length],
+          ["Complaints", complaints.length],
+          ["Refunds", refunds.length],
+          ["Cancelled", cancelled.length]
+        ].map(([label, value]) => `<div class="metric"><b>${value}</b><span>${label}</span></div>`).join("");
+        $("bkDashboardList").innerHTML = complaints.map((fb) => `
+          <div class="item ${fb.ratingAlert ? "urgent-item" : ""}">
+            <div class="row between"><h3>${escapeHtml(fb.orderNo || fb.orderId || fb.id)}</h3>${statusBadge(fb.status || "open")}</div>
+            <p>${escapeHtml(fb.customer?.name || "")} | ${escapeHtml(fb.customer?.phone || "")} | Train ${escapeHtml(fb.customer?.train || fb.train || "")}</p>
+            <p><b>Ratings:</b> Food ${escapeHtml(fb.foodRating || "-")}/10 | Delivery ${escapeHtml(fb.deliveryRating || "-")}/10 | Overall ${escapeHtml(fb.overallRating || fb.rating || "-")}/10</p>
+            <p>${escapeHtml(fb.message || fb.feedback || "")}</p>
+            ${fb.proof?.dataUrl ? `<div class="media-proof">${String(fb.proof.type || "").startsWith("image/") ? `<img class="proof-img" src="${fb.proof.dataUrl}" alt="Customer proof">` : ""}</div>` : ""}
+            ${Number(fb.refundAmount || 0) > 0 ? `<div class="ack danger-soft" style="margin-top:10px;">Refund recorded: ${money(Number(fb.refundAmount || 0))}</div>` : ""}
+            <div class="row mobile-stack" style="margin-top:10px;">
+              <input class="input grow" placeholder="Private remark for rake manager and customer care" value="${escapeHtml(fb.supplierRemark || "")}" data-bk-feedback-remark="${fb.id}">
+              <button class="btn secondary" data-bk-save-feedback="${fb.id}"><i data-lucide="save"></i> Save Remark</button>
+            </div>
+          </div>`).join("") || `<div class="empty success">No complaint, refund or cancellation for this base kitchen right now.</div>`;
         lucide.createIcons();
       }
 
@@ -380,24 +444,58 @@
       $("bkCustomerOrders").addEventListener("click", async (event) => {
         const accept = event.target.closest("[data-bk-accept-order]");
         const ready = event.target.closest("[data-bk-ready-order]");
+        const complete = event.target.closest("[data-bk-complete-handover]");
         if (accept) {
           await db.collection("customerOrders").doc(accept.dataset.bkAcceptOrder).update({
-            status: "accepted",
+            status: "restaurant-accepted",
             baseKitchenAcceptedAt: FieldValue.serverTimestamp(),
-            statusLog: FieldValue.arrayUnion({ status: "accepted", at: new Date().toISOString(), note: "Accepted by base kitchen manager" }),
+            supplierHandoverRole: "base-kitchen",
+            statusLog: FieldValue.arrayUnion({ status: "restaurant-accepted", at: new Date().toISOString(), note: "Accepted by base kitchen manager" }),
             updatedAt: FieldValue.serverTimestamp()
           });
           toast("Customer order accepted by base kitchen.");
         }
         if (ready) {
+          const order = customerOrders.find((entry) => entry.id === ready.dataset.bkReadyOrder);
           await db.collection("customerOrders").doc(ready.dataset.bkReadyOrder).update({
-            status: "preparing",
+            status: "restaurant-handover",
+            supplierHandoverOtp: order?.supplierHandoverOtp || String(Math.floor(100000 + Math.random() * 900000)),
+            supplierHandoverRole: "base-kitchen",
+            supplierName: kitchens.find((k) => k.id === activeKitchenId)?.name || activeKitchenId,
+            supplierId: activeKitchenId,
             baseKitchenReadyAt: FieldValue.serverTimestamp(),
-            statusLog: FieldValue.arrayUnion({ status: "preparing", at: new Date().toISOString(), note: "Base kitchen marked order ready for delivery handover" }),
+            statusLog: FieldValue.arrayUnion({ status: "restaurant-handover", at: new Date().toISOString(), note: "Base kitchen is ready to hand over to rake manager" }),
             updatedAt: FieldValue.serverTimestamp()
           });
-          toast("Order marked ready for delivery handover.");
+          toast("Order marked ready for rake manager handover. OTP is visible in Rake Manager App.");
         }
+        if (complete) {
+          const order = customerOrders.find((entry) => entry.id === complete.dataset.bkCompleteHandover);
+          const otp = prompt("Enter OTP shown on Rake Manager App");
+          if (!otp || String(otp).trim() !== String(order?.supplierHandoverOtp || "")) return toast("OTP does not match.");
+          await db.collection("customerOrders").doc(order.id).update({
+            status: "supplier-delivered-to-rake",
+            supplierHandoverOtpStatus: "verified",
+            supplierDeliveredToRakeAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "supplier-delivered-to-rake", at: new Date().toISOString(), note: "Base kitchen completed handover to rake manager" }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Handover closed. Rake manager can now assign passenger delivery.");
+        }
+      });
+
+      $("bkDashboardList").addEventListener("click", async (event) => {
+        const save = event.target.closest("[data-bk-save-feedback]");
+        if (!save) return;
+        const note = document.querySelector(`[data-bk-feedback-remark="${save.dataset.bkSaveFeedback}"]`)?.value.trim() || "";
+        await db.collection("feedbacks").doc(save.dataset.bkSaveFeedback).update({
+          supplierRemark: note,
+          supplierRemarkBy: kitchens.find((k) => k.id === activeKitchenId)?.name || "base-kitchen",
+          supplierRemarkVisibleToCustomer: false,
+          supplierRemarkAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        toast("Private supplier remark saved for Rake Manager and Customer Care.");
       });
 
       function renderDisputes() {
@@ -580,6 +678,7 @@
         renderDisputes();
         renderCatalogRequests();
         renderCustomerOrders();
+        renderDashboard();
       }
 
       onLive("indents", (rows) => {
@@ -607,6 +706,7 @@
         customerOrders = rows;
         renderAll();
       }, "createdAt", "desc", 250);
+      onLive("feedbacks", (rows) => { feedbacks = rows; renderAll(); }, "timestamp", "desc", 250);
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { catalogRequests = rows; renderAll(); }, "createdAt", "desc", 250);
     });
   </script>

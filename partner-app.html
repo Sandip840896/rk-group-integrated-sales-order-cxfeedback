@@ -16,12 +16,22 @@
 <body>
   <main class="main stack">
     <div class="tabs">
+      <button class="tab-btn" data-tab="dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</button>
       <button class="tab-btn" data-tab="enlist"><i data-lucide="clipboard-list"></i> Vendor Enlistment</button>
       <button class="tab-btn" data-tab="catalog"><i data-lucide="utensils"></i> Catalog Request</button>
       <button class="tab-btn" data-tab="status"><i data-lucide="activity"></i> Request Status</button>
     </div>
 
-    <section class="panel pad stack" data-tab-panel="enlist">
+    <section class="panel pad stack" data-tab-panel="dashboard">
+      <div class="row mobile-stack">
+        <label class="field grow"><span>Partner Phone</span><input class="input" id="dashboardPhone" inputmode="tel"></label>
+        <button class="btn secondary" id="loadDashboardBtn"><i data-lucide="search"></i> Load Dashboard</button>
+      </div>
+      <div id="partnerDashboardMetrics" class="grid four"></div>
+      <div id="partnerDashboardList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="enlist">
       <div class="section-title"><div><h2>Partner Vendor Enlistment</h2><p>Restaurant details will go to Control Tower for approval.</p></div></div>
       <form id="partnerForm" class="stack">
         <div class="grid two">
@@ -61,6 +71,7 @@
       <div class="row mobile-stack">
         <label class="field grow"><span>Phone</span><input class="input" id="statusPhone" inputmode="tel"></label>
         <button class="btn secondary" id="loadStatusBtn"><i data-lucide="search"></i> Search</button>
+        <button class="btn danger" id="switchOffPartnerBtn"><i data-lucide="power"></i> Switch Off Service</button>
       </div>
       <div id="statusList" class="list"></div>
     </section>
@@ -70,11 +81,98 @@
     window.addEventListener("DOMContentLoaded", async () => {
       appHeader("Meals On Wheels Partner App", "Restaurant enlistment and food catalog submission");
       lucide.createIcons();
-      wireTabs("enlist");
+      wireTabs("dashboard");
       await ensureSeedData();
       $("partnerMealSlots").innerHTML = mealSlots.map((slot, idx) => `<label class="check-pill"><input type="checkbox" name="mealSlots" value="${escapeHtml(slot)}" ${idx === 0 ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("");
       $("partnerCuisine").innerHTML = cuisineOptions.map((cuisine) => `<option>${cuisine}</option>`).join("");
       let statusRows = [];
+      let partnerOrders = [];
+      let partnerFeedbacks = [];
+
+      function partnerPhone() {
+        return cleanPhone($("dashboardPhone").value || $("statusPhone").value || localStorage.getItem("rkPartnerPhone") || "");
+      }
+
+      function rowMatchesPartner(row, phone) {
+        if (!phone) return false;
+        return [row.phone, row.supplierPhone, row.partnerPhone].some((value) => cleanPhone(value) === phone);
+      }
+
+      function orderMatchesPartner(order, phone) {
+        if (!phone) return false;
+        const direct = [order.supplierPhone, order.partnerPhone].some((value) => cleanPhone(value) === phone);
+        const lineMatch = (order.items || []).some((line) => {
+          const source = String(line.fulfillmentSource || line.source || "").toLowerCase();
+          return source === "partner" && [line.supplierPhone, line.partnerPhone, line.phone].some((value) => cleanPhone(value) === phone);
+        });
+        const knownName = statusRows.find((row) => rowMatchesPartner(row, phone))?.restaurantName || "";
+        const nameMatch = knownName && (order.items || []).some((line) => String(line.supplierName || line.partnerName || "").toLowerCase() === knownName.toLowerCase());
+        return direct || lineMatch || nameMatch;
+      }
+
+      function visiblePartnerOrders() {
+        const phone = partnerPhone();
+        return partnerOrders.filter((order) => orderMatchesPartner(order, phone));
+      }
+
+      function visiblePartnerFeedbacks() {
+        const orders = visiblePartnerOrders();
+        const ids = new Set(orders.map((order) => String(order.id)));
+        return partnerFeedbacks.filter((fb) => ids.has(String(fb.orderId || "")) || orders.some((order) => String(order.orderNo || "") === String(fb.orderNo || "")));
+      }
+
+      function partnerName() {
+        const phone = partnerPhone();
+        return statusRows.find((row) => rowMatchesPartner(row, phone))?.restaurantName || statusRows.find((row) => rowMatchesPartner(row, phone))?.supplierName || phone || "RK Partner";
+      }
+
+      function renderDashboard() {
+        const phone = partnerPhone();
+        if (!phone) {
+          $("partnerDashboardMetrics").innerHTML = "";
+          $("partnerDashboardList").innerHTML = `<div class="empty">Enter partner phone to load restaurant orders and feedback.</div>`;
+          return;
+        }
+        const orders = visiblePartnerOrders();
+        const feedbacks = visiblePartnerFeedbacks();
+        const cancelled = orders.filter((order) => String(order.status || "").toLowerCase() === "cancelled");
+        const refunds = feedbacks.filter((fb) => Number(fb.refundAmount || 0) > 0 || String(fb.status || "").toLowerCase().includes("refund"));
+        $("partnerDashboardMetrics").innerHTML = [
+          ["Active Orders", orders.filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())).length],
+          ["Complaints", feedbacks.length],
+          ["Refunds", refunds.length],
+          ["Cancelled", cancelled.length]
+        ].map(([label, value]) => `<div class="metric"><b>${value}</b><span>${label}</span></div>`).join("");
+        const orderCards = orders.map((order) => {
+          const status = String(order.status || "new").toLowerCase();
+          return `<div class="item ${["new", "restaurant-accepted", "restaurant-preparing", "restaurant-handover"].includes(status) ? "urgent-item" : ""}">
+            <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
+            <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
+            <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${escapeHtml(order.deliveryWindow || "")}</p>
+            <p>${(order.items || []).filter((line) => String(line.fulfillmentSource || "").toLowerCase() === "partner").map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ") || (order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
+            ${status === "restaurant-handover" ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Rake Manager OTP:</b> ${escapeHtml(order.supplierHandoverOtp || "")}. Collect this OTP from rake manager after physical handover.</div>` : ""}
+            <div class="row wrap" style="margin-top:10px;">
+              ${status === "new" ? `<button class="btn" data-partner-accept-order="${order.id}"><i data-lucide="check"></i> Accept Restaurant Order</button>` : ""}
+              ${["accepted", "preparing", "restaurant-accepted", "restaurant-preparing"].includes(status) ? `<button class="btn secondary" data-partner-ready-order="${order.id}"><i data-lucide="package-check"></i> Ready for Rake Manager</button>` : ""}
+              ${status === "restaurant-handover" ? `<button class="btn" data-partner-complete-handover="${order.id}"><i data-lucide="key-round"></i> Close Handover with OTP</button>` : ""}
+            </div>
+          </div>`;
+        });
+        const feedbackCards = feedbacks.map((fb) => `<div class="item ${fb.ratingAlert ? "urgent-item" : ""}">
+          <div class="row between"><h3>${escapeHtml(fb.orderNo || fb.orderId || fb.id)}</h3>${statusBadge(fb.status || "open")}</div>
+          <p>${escapeHtml(fb.customer?.name || "")} | ${escapeHtml(fb.customer?.phone || "")} | Train ${escapeHtml(fb.customer?.train || fb.train || "")}</p>
+          <p><b>Ratings:</b> Food ${escapeHtml(fb.foodRating || "-")}/10 | Delivery ${escapeHtml(fb.deliveryRating || "-")}/10 | Overall ${escapeHtml(fb.overallRating || fb.rating || "-")}/10</p>
+          <p>${escapeHtml(fb.message || fb.feedback || "")}</p>
+          ${fb.proof?.dataUrl ? `<div class="media-proof">${String(fb.proof.type || "").startsWith("image/") ? `<img class="proof-img" src="${fb.proof.dataUrl}" alt="Customer proof">` : ""}</div>` : ""}
+          ${Number(fb.refundAmount || 0) > 0 ? `<div class="ack danger-soft" style="margin-top:10px;">Refund recorded: ${money(Number(fb.refundAmount || 0))}</div>` : ""}
+          <div class="row mobile-stack" style="margin-top:10px;">
+            <input class="input grow" placeholder="Private remark for rake manager and customer care" value="${escapeHtml(fb.supplierRemark || "")}" data-partner-feedback-remark="${fb.id}">
+            <button class="btn secondary" data-partner-save-feedback="${fb.id}"><i data-lucide="save"></i> Save Remark</button>
+          </div>
+        </div>`);
+        $("partnerDashboardList").innerHTML = [...orderCards, ...feedbackCards].join("") || `<div class="empty success">No restaurant order, complaint, refund or cancellation for this partner right now.</div>`;
+        lucide.createIcons();
+      }
 
       $("partnerForm").addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -94,6 +192,7 @@
           });
           localStorage.setItem("rkPartnerPhone", phone);
           $("statusPhone").value = phone;
+          $("dashboardPhone").value = phone;
           form.reset();
           finishSubmitState(form, "Submitted");
           toast("Partner request sent to Control Tower.");
@@ -136,6 +235,7 @@
             updatedAt: FieldValue.serverTimestamp()
           });
           localStorage.setItem("rkPartnerPhone", phone);
+          $("dashboardPhone").value = phone;
           form.reset();
           document.querySelectorAll("#partnerMealSlots input").forEach((box, idx) => { box.checked = idx === 0; });
           finishSubmitState(form, "Submitted");
@@ -219,6 +319,7 @@
         const phone = cleanPhone($("statusPhone").value);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         localStorage.setItem("rkPartnerPhone", phone);
+        $("dashboardPhone").value = phone;
         try {
           const partnerSnap = await db.collection("partners").where("phone", "==", phone).get();
           const catalogSnap = await db.collection("catalogRequests").where("supplierPhone", "==", phone).get();
@@ -226,6 +327,7 @@
             ...partnerSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
             ...catalogSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
           ]);
+          renderDashboard();
         } catch (error) {
           const partnerSnap = await db.collection("systemSettings").where("type", "==", "partner").get();
           const catalogSnap = await db.collection("systemSettings").where("type", "==", "catalogRequest").get();
@@ -233,9 +335,93 @@
             ...partnerSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((row) => cleanPhone(row.phone) === phone),
             ...catalogSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((row) => cleanPhone(row.supplierPhone) === phone)
           ]);
+          renderDashboard();
         }
       });
+      $("loadDashboardBtn").addEventListener("click", () => {
+        const phone = partnerPhone();
+        if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
+        localStorage.setItem("rkPartnerPhone", phone);
+        $("statusPhone").value = phone;
+        renderDashboard();
+      });
+      $("partnerDashboardList").addEventListener("click", async (event) => {
+        const accept = event.target.closest("[data-partner-accept-order]");
+        const ready = event.target.closest("[data-partner-ready-order]");
+        const complete = event.target.closest("[data-partner-complete-handover]");
+        const save = event.target.closest("[data-partner-save-feedback]");
+        if (accept) {
+          await db.collection("customerOrders").doc(accept.dataset.partnerAcceptOrder).update({
+            status: "restaurant-accepted",
+            supplierHandoverRole: "partner",
+            supplierName: partnerName(),
+            supplierPhone: partnerPhone(),
+            statusLog: FieldValue.arrayUnion({ status: "restaurant-accepted", at: new Date().toISOString(), note: "Accepted by RK Partner" }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Restaurant order accepted.");
+        }
+        if (ready) {
+          const order = partnerOrders.find((entry) => entry.id === ready.dataset.partnerReadyOrder);
+          await db.collection("customerOrders").doc(ready.dataset.partnerReadyOrder).update({
+            status: "restaurant-handover",
+            supplierHandoverOtp: order?.supplierHandoverOtp || String(Math.floor(100000 + Math.random() * 900000)),
+            supplierHandoverRole: "partner",
+            supplierName: partnerName(),
+            supplierPhone: partnerPhone(),
+            partnerReadyAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "restaurant-handover", at: new Date().toISOString(), note: "RK Partner is ready to hand over to rake manager" }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Order marked ready for rake manager handover. OTP is visible in Rake Manager App.");
+        }
+        if (complete) {
+          const order = partnerOrders.find((entry) => entry.id === complete.dataset.partnerCompleteHandover);
+          const otp = prompt("Enter OTP shown on Rake Manager App");
+          if (!otp || String(otp).trim() !== String(order?.supplierHandoverOtp || "")) return toast("OTP does not match.");
+          await db.collection("customerOrders").doc(order.id).update({
+            status: "supplier-delivered-to-rake",
+            supplierHandoverOtpStatus: "verified",
+            supplierDeliveredToRakeAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "supplier-delivered-to-rake", at: new Date().toISOString(), note: "RK Partner completed handover to rake manager" }),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Handover closed. Rake manager can now assign passenger delivery.");
+        }
+        if (save) {
+          const note = document.querySelector(`[data-partner-feedback-remark="${save.dataset.partnerSaveFeedback}"]`)?.value.trim() || "";
+          await db.collection("feedbacks").doc(save.dataset.partnerSaveFeedback).update({
+            supplierRemark: note,
+            supplierRemarkBy: partnerName(),
+            supplierRemarkVisibleToCustomer: false,
+            supplierRemarkAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Private partner remark saved for Rake Manager and Customer Care.");
+        }
+      });
+      $("switchOffPartnerBtn").addEventListener("click", async () => {
+        const phone = cleanPhone($("statusPhone").value || localStorage.getItem("rkPartnerPhone"));
+        if (phone.length !== 10) return toast("Enter partner phone first.");
+        const reason = prompt("Reason for switching off restaurant service", "Restaurant temporarily unavailable.");
+        if (!reason) return;
+        await db.collection("serviceSwitches").doc(`partner__${phone}`).set({
+          active: false,
+          app: "partner-app",
+          sourceType: "partner",
+          supplierPhone: phone,
+          phone,
+          name: statusRows.find((row) => cleanPhone(row.phone || row.supplierPhone) === phone)?.restaurantName || phone,
+          reason,
+          updatedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        toast("Restaurant service switched off and Control Tower notified.");
+      });
       $("statusPhone").value = localStorage.getItem("rkPartnerPhone") || "";
+      $("dashboardPhone").value = localStorage.getItem("rkPartnerPhone") || "";
+      onLive("customerOrders", (rows) => { partnerOrders = rows; renderDashboard(); }, "createdAt", "desc", 250);
+      onLive("feedbacks", (rows) => { partnerFeedbacks = rows; renderDashboard(); }, "timestamp", "desc", 250);
     });
   </script>
 </body>
