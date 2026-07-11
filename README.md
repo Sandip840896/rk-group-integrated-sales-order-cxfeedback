@@ -1,6 +1,6 @@
 # RK Group Integrated Sales, Order and CX Feedback
 
-Developer and support: Sandip Nandi, 8584833366, sandipnandi2000@gmail.com
+Developer and support: Sandip Nandi, 858483366, sandipnandi2000@gmail.com
 
 This is a live Firebase + GitHub Pages prototype for RK Group railway catering operations.
 

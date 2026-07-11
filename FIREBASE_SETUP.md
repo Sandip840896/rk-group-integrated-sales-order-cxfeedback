@@ -29,6 +29,8 @@ Developer and support: Sandip Nandi, 858483366, sandipnandi2000@gmail.com
 - `cashPurchases` - local outside purchase by train manager
 - `storeInwards` - store/warehouse inward records
 - `staffSales` - onboard sales person sale entry
+- `supplierInvoices` - Base Kitchen and RK Partner payment claims with approval status
+- `paymentAdvices` - CFO-approved instructions for the payment department
 - `adminUsers` - prototype app login and access roles
 - `systemSettings` - seed marker for default master data
 

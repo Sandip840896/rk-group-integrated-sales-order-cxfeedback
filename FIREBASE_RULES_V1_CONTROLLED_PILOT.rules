@@ -58,6 +58,14 @@ service cloud.firestore {
       allow read, create, update: if true;
       allow delete: if false;
     }
+    match /supplierInvoices/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /paymentAdvices/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
     match /systemSettings/{docId} {
       allow read, create, update: if true;
       allow delete: if false;
