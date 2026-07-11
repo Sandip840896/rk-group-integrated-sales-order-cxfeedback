@@ -37,8 +37,9 @@
 
     <div class="tabs">
       <button class="tab-btn" data-tab="dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</button>
+      <button class="tab-btn" data-tab="incoming"><i data-lucide="inbox"></i> Incoming Orders <span class="tab-badge hidden" id="careIncomingBadge">0</span></button>
       <button class="tab-btn" data-tab="orders"><i data-lucide="receipt-text"></i> Orders</button>
-      <button class="tab-btn" data-tab="complaints"><i data-lucide="messages-square"></i> Complaints</button>
+      <button class="tab-btn" data-tab="complaints"><i data-lucide="messages-square"></i> Complaints <span class="tab-badge hidden" id="careComplaintBadge">0</span></button>
     </div>
 
     <section class="panel pad stack" data-tab-panel="dashboard">
@@ -49,6 +50,11 @@
     <section class="panel pad stack hidden" data-tab-panel="orders">
       <div class="section-title"><div><h2>Customer Orders</h2><p>View passenger, train, supplier and delivery detail.</p></div></div>
       <div id="careOrderList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="incoming">
+      <div class="section-title"><div><h2>Incoming Customer Orders</h2><p>New orders blink here until customer care or operations accepts them.</p></div></div>
+      <div id="careIncomingOrderList" class="list"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="complaints">
@@ -108,12 +114,23 @@
         $("careComplaints").textContent = openComplaints.length;
         $("careEscalated").textContent = escalated.length;
         $("careResolved").textContent = resolvedToday.length;
+        setCareTabBadge("careIncomingBadge", orders.filter((order) => String(order.status || "").toLowerCase() === "new").length);
+        setCareTabBadge("careComplaintBadge", openComplaints.length);
         if (isLoggedIn()) {
           const ids = new Set(escalated.map((row) => row.id));
           const incoming = [...ids].filter((id) => !seenEscalations.has(id));
           if (seenEscalations.size && incoming.length) playBuzz(`${incoming.length} customer care escalation.`);
           seenEscalations = ids;
         }
+      }
+
+      function setCareTabBadge(id, count) {
+        const badge = $(id);
+        if (!badge) return;
+        badge.textContent = count;
+        badge.classList.toggle("hidden", !count);
+        const tab = badge.closest("[data-tab]");
+        if (tab) tab.classList.toggle("tab-alert", count > 0);
       }
 
       function orderCard(order) {
@@ -153,6 +170,8 @@
 
       function render() {
         renderMetrics();
+        const incomingOrders = orders.filter((order) => String(order.status || "").toLowerCase() === "new");
+        $("careIncomingOrderList").innerHTML = incomingOrders.map(orderCard).join("") || `<div class="empty success">No incoming order waiting for action.</div>`;
         $("careOrderList").innerHTML = orders.map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
         $("careComplaintList").innerHTML = feedbacks.map(complaintCard).join("") || `<div class="empty">No complaint or feedback yet.</div>`;
         const escalatedOrders = orders.filter(orderEscalated);

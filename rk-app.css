@@ -12,6 +12,35 @@
   --shadow: 0 14px 40px rgba(26, 39, 64, 0.12);
 }
 
+/* CFO Office */
+.cfo-body { background: #f3f6f4; }
+.cfo-main { max-width: 1500px; }
+.cfo-hero { display:flex; justify-content:space-between; gap:24px; align-items:center; padding:28px 30px; border-radius:22px; color:#fff; background:linear-gradient(120deg,#083c32,#0a5a49 65%,#b68124); box-shadow:0 16px 40px rgba(8,60,50,.18); }
+.cfo-hero h2 { margin:4px 0 8px; font-size:clamp(26px,3vw,40px); }
+.cfo-hero p { margin:0; color:rgba(255,255,255,.78); }
+.cfo-period { min-width:210px; display:flex; gap:12px; align-items:center; padding:14px 16px; border:1px solid rgba(255,255,255,.22); border-radius:14px; background:rgba(255,255,255,.1); }
+.cfo-period small,.cfo-period b { display:block; }
+.cfo-kpis .metric { border:1px solid #dce7e2; border-radius:18px; background:#fff; box-shadow:0 8px 24px rgba(24,61,49,.06); }
+.cfo-kpis .metric span { order:-1; color:#697b74; font-weight:700; }
+.cfo-kpis .metric small { color:#819089; }
+.cfo-shell { grid-template-columns:220px minmax(0,1fr); align-items:start; }
+.cfo-tabs { position:sticky; top:16px; border-radius:18px; background:#123c33; padding:10px; }
+.cfo-tabs { display:grid; grid-template-columns:1fr; gap:6px; }
+.cfo-tabs .tab-btn { width:100%; justify-content:flex-start; white-space:normal; }
+.cfo-main, .cfo-shell, .cfo-shell > *, .cfo-kpis > * { min-width:0; }
+.cfo-tabs .tab-btn { color:#d8e8e2; border-color:transparent; }
+.cfo-tabs .tab-btn.active { color:#113d34; background:#fff; }
+.cfo-section-row .bar-track span { background:linear-gradient(90deg,#0c725a,#d19b37); }
+.cfo-claim-meta { display:flex; flex-wrap:wrap; gap:10px 22px; margin:10px 0 16px; color:#61736c; }
+.cfo-claim-meta span { display:inline-flex; align-items:center; gap:7px; }
+.cfo-claim-meta svg { width:16px; }
+.cfo-approval-card { padding:20px; border-left:4px solid #b68124; background:#fff; }
+.claim-value { font-size:24px; font-weight:800; color:#0a5a49; }
+.cfo-bank-grid { margin-bottom:16px; padding:16px; border-radius:14px; background:#f5f8f6; }
+.cfo-empty { text-align:center; padding:42px 20px; }
+.cfo-empty svg { width:42px; height:42px; color:#0a725a; }
+@media(max-width:800px){.cfo-hero{align-items:flex-start;flex-direction:column}.cfo-period{width:100%}.cfo-shell{grid-template-columns:1fr}.cfo-tabs{position:static;display:flex;overflow:auto}.cfo-tabs .tab-btn{min-width:max-content}.cfo-bank-grid{grid-template-columns:1fr}.cfo-approval-card .row.between{align-items:flex-start;gap:12px}}
+
 * { box-sizing: border-box; }
 
 body {
@@ -922,10 +951,8 @@ a {
 .control-vertical-tabs {
   align-items: stretch;
   flex-direction: column;
-  float: left;
-  width: min(245px, 28vw);
   max-height: calc(100vh - 98px);
-  margin: 0 18px 18px 0;
+  margin: 0;
   padding: 4px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -937,6 +964,17 @@ a {
   border-radius: 8px;
 }
 
+.management-shell {
+  display: grid;
+  grid-template-columns: minmax(210px, 360px) minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.management-content {
+  min-width: 0;
+}
+
 .manager-vertical-tabs .tab-btn,
 .control-vertical-tabs .tab-btn {
   justify-content: flex-start;
@@ -944,9 +982,53 @@ a {
   min-height: 44px;
 }
 
-.main:has(.manager-vertical-tabs) [data-tab-panel],
-.main:has(.control-vertical-tabs) [data-tab-panel] {
-  margin-left: min(263px, calc(28vw + 18px));
+.management-shell [data-tab-panel] {
+  margin-left: 0;
+}
+
+.tab-btn.tab-alert {
+  animation: tabPulse 1s ease-in-out infinite;
+}
+
+@keyframes tabPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(194, 65, 12, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.22);
+    background: #fff7ed;
+    color: #9a3412;
+  }
+}
+
+.tab-btn.active.tab-alert {
+  background: var(--danger);
+  color: #fff;
+}
+
+.picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 4px;
+}
+
+.soft-panel {
+  background: #f8fafc;
+  border-color: rgba(137, 151, 176, 0.26);
+}
+
+.supplier-portal .manager-vertical-tabs {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.72)),
+    url("Branding/Social media Cover page.png") center / cover no-repeat;
+}
+
+.supplier-portal .panel {
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(8px);
 }
 
 .icon-btn {
@@ -1818,7 +1900,6 @@ th {
 
   .manager-vertical-tabs,
   .control-vertical-tabs {
-    float: none;
     flex-direction: row;
     width: 100%;
     max-height: none;
@@ -1827,14 +1908,18 @@ th {
     position: static;
   }
 
+  .management-shell {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
   .manager-vertical-tabs .tab-btn,
   .control-vertical-tabs .tab-btn {
     justify-content: center;
     width: auto;
   }
 
-  .main:has(.manager-vertical-tabs) [data-tab-panel],
-  .main:has(.control-vertical-tabs) [data-tab-panel] {
+  .management-shell [data-tab-panel] {
     margin-left: 0;
   }
 

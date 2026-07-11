@@ -12,15 +12,21 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script defer src="rk-common.js"></script>
+  <script defer src="route-master-data.js"></script>
 </head>
 <body>
-  <main class="main stack">
-    <div class="tabs">
-      <button class="tab-btn" data-tab="dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</button>
-      <button class="tab-btn" data-tab="enlist"><i data-lucide="clipboard-list"></i> Vendor Enlistment</button>
-      <button class="tab-btn" data-tab="catalog"><i data-lucide="utensils"></i> Catalog Request</button>
-      <button class="tab-btn" data-tab="status"><i data-lucide="activity"></i> Request Status</button>
-    </div>
+  <main class="main stack supplier-portal">
+    <div class="management-shell">
+      <div class="tabs manager-vertical-tabs" id="partnerTabs">
+        <button class="tab-btn" data-tab="dashboard" data-partner-tab><i data-lucide="layout-dashboard"></i> Dashboard</button>
+        <button class="tab-btn" data-tab="incoming" data-partner-tab><i data-lucide="inbox"></i> Incoming Orders <span class="tab-badge hidden" id="partnerIncomingBadge">0</span></button>
+        <button class="tab-btn" data-tab="complaints" data-partner-tab><i data-lucide="messages-square"></i> Complaints <span class="tab-badge hidden" id="partnerComplaintBadge">0</span></button>
+        <button class="tab-btn" data-tab="accounting" data-partner-tab><i data-lucide="indian-rupee"></i> Accounting</button>
+        <button class="tab-btn" data-tab="catalog" data-partner-tab><i data-lucide="utensils"></i> Catalog Request</button>
+        <button class="tab-btn" data-tab="status" data-partner-tab><i data-lucide="activity"></i> Request Status</button>
+        <button class="tab-btn" data-tab="enlist" id="partnerRegisterTab"><i data-lucide="clipboard-list"></i> Vendor Enlistment</button>
+      </div>
+      <div class="management-content">
 
     <section class="panel pad stack" data-tab-panel="dashboard">
       <div class="row mobile-stack">
@@ -31,16 +37,47 @@
       <div id="partnerDashboardList" class="list"></div>
     </section>
 
+    <section class="panel pad stack hidden" data-tab-panel="incoming">
+      <div class="section-title"><div><h2>Incoming Restaurant Orders</h2><p>Accept, prepare and complete handover to rake manager from here.</p></div></div>
+      <div id="partnerIncomingList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="complaints">
+      <div class="section-title"><div><h2>Partner Complaints and Feedback</h2><p>Private supplier remarks are visible to Rake Manager and Customer Care only.</p></div></div>
+      <div id="partnerComplaintList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="accounting">
+      <div class="section-title"><div><h2>Accounting and Payment Claim</h2><p>Date-wise, train-wise and product-wise sales with claim invoice to RK Group.</p></div></div>
+      <div class="grid three">
+        <label class="field"><span>From Date</span><input class="input" id="partnerAccFrom" type="date"></label>
+        <label class="field"><span>To Date</span><input class="input" id="partnerAccTo" type="date"></label>
+        <label class="field"><span>Month Filter</span><input class="input" id="partnerAccMonth" type="month"></label>
+      </div>
+      <div class="row wrap">
+        <button class="btn secondary" id="partnerTodaySalesBtn" type="button"><i data-lucide="calendar-days"></i> Today</button>
+        <button class="btn secondary" id="partnerMonthSalesBtn" type="button"><i data-lucide="calendar-range"></i> This Month</button>
+        <button class="btn" id="partnerClaimBtn" type="button"><i data-lucide="file-plus-2"></i> Create Payment Claim</button>
+      </div>
+      <div id="partnerAccountingMetrics" class="grid four"></div>
+      <div class="grid two">
+        <div class="panel pad stack soft-panel"><h3>Train Wise Sales</h3><div id="partnerTrainSales" class="list"></div></div>
+        <div class="panel pad stack soft-panel"><h3>Product Wise Sales</h3><div id="partnerProductSales" class="list"></div></div>
+      </div>
+      <div class="table-wrap" id="partnerDaySales"></div>
+    </section>
+
     <section class="panel pad stack hidden" data-tab-panel="enlist">
       <div class="section-title"><div><h2>Partner Vendor Enlistment</h2><p>Restaurant details will go to Control Tower for approval.</p></div></div>
       <form id="partnerForm" class="stack">
         <div class="grid two">
           <label class="field"><span>Restaurant Name</span><input class="input" name="restaurantName" required></label>
-          <label class="field"><span>Nearest Station</span><input class="input" name="station" required placeholder="Station name / code"></label>
+          <label class="field"><span>Nearest Station</span><input class="input" name="station" required list="partnerStationOptions" placeholder="Search station name / code"><datalist id="partnerStationOptions"></datalist></label>
           <label class="field"><span>Owner / Manager</span><input class="input" name="ownerName" required></label>
           <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel"></label>
           <label class="field"><span>Email</span><input class="input" name="email" type="email"></label>
           <label class="field"><span>FSSAI / License No</span><input class="input" name="licenseNo"></label>
+          <label class="field"><span>FSSAI / License Upload</span><input class="input" name="licenseFile" type="file" accept="image/*,.pdf,application/pdf"></label>
         </div>
         <label class="field"><span>Full Address</span><textarea class="textarea" name="address" required></textarea></label>
         <button class="btn" type="submit"><i data-lucide="send"></i> Submit for Approval</button>
@@ -75,6 +112,8 @@
       </div>
       <div id="statusList" class="list"></div>
     </section>
+      </div>
+    </div>
   </main>
 
   <script>
@@ -88,9 +127,24 @@
       let statusRows = [];
       let partnerOrders = [];
       let partnerFeedbacks = [];
+      let trainRoutes = [];
+      const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
 
       function partnerPhone() {
         return cleanPhone($("dashboardPhone").value || $("statusPhone").value || localStorage.getItem("rkPartnerPhone") || "");
+      }
+
+      function hasPartnerRegistration() {
+        return partnerPhone().length === 10;
+      }
+
+      function renderPartnerAccess() {
+        const registered = hasPartnerRegistration();
+        document.querySelectorAll("[data-partner-tab]").forEach((btn) => btn.classList.toggle("hidden", !registered));
+        $("partnerRegisterTab").classList.toggle("hidden", registered);
+        if (!registered) showTab("enlist");
+        else if (document.querySelector("[data-tab-panel='enlist']")?.classList.contains("hidden") === false) showTab("dashboard");
+        lucide.createIcons();
       }
 
       function rowMatchesPartner(row, phone) {
@@ -115,6 +169,10 @@
         return partnerOrders.filter((order) => orderMatchesPartner(order, phone));
       }
 
+      function payablePartnerOrders() {
+        return visiblePartnerOrders().filter((order) => ["supplier-delivered-to-rake", "out-for-delivery", "delivered"].includes(String(order.status || "").toLowerCase()));
+      }
+
       function visiblePartnerFeedbacks() {
         const orders = visiblePartnerOrders();
         const ids = new Set(orders.map((order) => String(order.id)));
@@ -126,11 +184,51 @@
         return statusRows.find((row) => rowMatchesPartner(row, phone))?.restaurantName || statusRows.find((row) => rowMatchesPartner(row, phone))?.supplierName || phone || "RK Partner";
       }
 
+      function stationRows() {
+        const stationMap = new Map();
+        const addStop = (stop) => {
+          const code = String(stop.code || "").trim();
+          const station = String(stop.station || "").trim();
+          if (!station && !code) return;
+          const key = `${code}|${station}`.toLowerCase();
+          stationMap.set(key, { code, station });
+        };
+        Object.values(gitanjaliRouteStops || {}).flat().forEach(addStop);
+        indianRailRoutes.forEach((route) => (route.stops || []).forEach(addStop));
+        trainRoutes.forEach((route) => (route.stops || []).forEach(addStop));
+        return [...stationMap.values()].sort((a, b) => `${a.station} ${a.code}`.localeCompare(`${b.station} ${b.code}`));
+      }
+
+      function renderStationOptions() {
+        $("partnerStationOptions").innerHTML = stationRows()
+          .map((stop) => `<option value="${escapeHtml(`${stop.station}${stop.code ? ` (${stop.code})` : ""}`)}"></option>`)
+          .join("");
+      }
+
+      async function readPartnerDocument(file) {
+        if (!file) return null;
+        if (String(file.type || "").startsWith("image/")) {
+          return { name: file.name, type: file.type, dataUrl: await compressImage(file, 900, 0.72) };
+        }
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        return { name: file.name, type: file.type || "application/pdf", dataUrl };
+      }
+
       function renderDashboard() {
         const phone = partnerPhone();
         if (!phone) {
           $("partnerDashboardMetrics").innerHTML = "";
           $("partnerDashboardList").innerHTML = `<div class="empty">Enter partner phone to load restaurant orders and feedback.</div>`;
+          $("partnerIncomingList").innerHTML = `<div class="empty">Enter partner phone to load incoming orders.</div>`;
+          $("partnerComplaintList").innerHTML = `<div class="empty">Enter partner phone to load complaints.</div>`;
+          setPartnerTabBadge("partnerIncomingBadge", 0);
+          setPartnerTabBadge("partnerComplaintBadge", 0);
+          renderAccounting();
           return;
         }
         const orders = visiblePartnerOrders();
@@ -171,19 +269,137 @@
           </div>
         </div>`);
         $("partnerDashboardList").innerHTML = [...orderCards, ...feedbackCards].join("") || `<div class="empty success">No restaurant order, complaint, refund or cancellation for this partner right now.</div>`;
+        const incomingCards = orderCards.filter((_, idx) => !["delivered", "cancelled", "supplier-delivered-to-rake"].includes(String(orders[idx].status || "").toLowerCase()));
+        $("partnerIncomingList").innerHTML = incomingCards.join("") || `<div class="empty success">No incoming order needs partner action right now.</div>`;
+        $("partnerComplaintList").innerHTML = feedbackCards.join("") || `<div class="empty success">No complaint or feedback for this partner right now.</div>`;
+        setPartnerTabBadge("partnerIncomingBadge", incomingCards.length);
+        setPartnerTabBadge("partnerComplaintBadge", feedbacks.filter((fb) => !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length);
+        renderAccounting();
         lucide.createIcons();
+      }
+
+      function orderBusinessDate(order) {
+        return dateFromAny(order.supplierDeliveredToRakeAt || order.deliveredAt || order.updatedAt || order.createdAt) || new Date();
+      }
+
+      function dateInputValue(date) {
+        return date.toISOString().slice(0, 10);
+      }
+
+      function accountingRange() {
+        const month = $("partnerAccMonth").value;
+        let from = $("partnerAccFrom").value;
+        let to = $("partnerAccTo").value;
+        if (month && (!from || !to)) {
+          const [year, monthIndex] = month.split("-").map(Number);
+          from = `${month}-01`;
+          to = new Date(year, monthIndex, 0).toISOString().slice(0, 10);
+        }
+        return { from, to };
+      }
+
+      function partnerSalesLines() {
+        const { from, to } = accountingRange();
+        return payablePartnerOrders().flatMap((order) => {
+          const date = orderBusinessDate(order);
+          const day = dateInputValue(date);
+          if (from && day < from) return [];
+          if (to && day > to) return [];
+          return (order.items || [])
+            .filter((line) => String(line.fulfillmentSource || line.source || "").toLowerCase() === "partner")
+            .map((line) => {
+              const qty = Number(line.qty || 0);
+              const amount = qty * Number(line.price ?? line.sellingPrice ?? 0);
+              return {
+                orderId: order.id,
+                orderNo: order.orderNo || order.id,
+                date: day,
+                train: order.train || "",
+                trainName: order.trainName || "",
+                product: line.name || "Item",
+                qty,
+                amount
+              };
+            });
+        });
+      }
+
+      function groupSales(lines, keyFn) {
+        return lines.reduce((map, line) => {
+          const key = keyFn(line);
+          map[key] ||= { key, qty: 0, amount: 0 };
+          map[key].qty += Number(line.qty || 0);
+          map[key].amount += Number(line.amount || 0);
+          return map;
+        }, {});
+      }
+
+      function renderAccounting() {
+        const lines = partnerSalesLines();
+        const totalQty = lines.reduce((sum, line) => sum + line.qty, 0);
+        const totalAmount = lines.reduce((sum, line) => sum + line.amount, 0);
+        const orderCount = new Set(lines.map((line) => line.orderId)).size;
+        $("partnerAccountingMetrics").innerHTML = [
+          ["Orders", orderCount],
+          ["Qty", totalQty],
+          ["Sales", money(totalAmount)],
+          ["Claimable", money(totalAmount)]
+        ].map(([label, value]) => `<div class="metric"><b>${value}</b><span>${label}</span></div>`).join("");
+        const trainRows = Object.values(groupSales(lines, (line) => `${line.train} ${line.trainName}`.trim() || "Unknown train")).sort((a, b) => b.amount - a.amount);
+        $("partnerTrainSales").innerHTML = trainRows.map((row) => `<div class="item"><div class="row between"><h3>${escapeHtml(row.key)}</h3><b>${money(row.amount)}</b></div><p>Qty ${row.qty}</p></div>`).join("") || `<div class="empty">No train sales in selected period.</div>`;
+        const productRows = Object.values(groupSales(lines, (line) => line.product)).sort((a, b) => b.amount - a.amount);
+        $("partnerProductSales").innerHTML = productRows.map((row) => `<div class="item"><div class="row between"><h3>${escapeHtml(row.key)}</h3><b>${money(row.amount)}</b></div><p>Qty ${row.qty}</p></div>`).join("") || `<div class="empty">No product sales in selected period.</div>`;
+        const dayRows = Object.values(groupSales(lines, (line) => line.date)).sort((a, b) => a.key.localeCompare(b.key));
+        $("partnerDaySales").innerHTML = `<table><thead><tr><th>Date</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${dayRows.map((row) => `<tr><td>${escapeHtml(row.key)}</td><td>${row.qty}</td><td>${money(row.amount)}</td></tr>`).join("") || `<tr><td colspan="3">No day-wise sales in selected period.</td></tr>`}</tbody></table>`;
+      }
+
+      async function createPartnerClaim() {
+        const lines = partnerSalesLines();
+        if (!partnerPhone()) return toast("Enter partner phone first.");
+        if (!lines.length) return toast("No payable sales found for selected period.");
+        const { from, to } = accountingRange();
+        const totalQty = lines.reduce((sum, line) => sum + line.qty, 0);
+        const totalAmount = lines.reduce((sum, line) => sum + line.amount, 0);
+        await db.collection("supplierInvoices").add({
+          invoiceNo: shortId("RKPI"),
+          supplierType: "partner",
+          supplierName: partnerName(),
+          supplierPhone: partnerPhone(),
+          periodFrom: from || lines[0]?.date || "",
+          periodTo: to || lines[lines.length - 1]?.date || "",
+          totalQty,
+          totalAmount,
+          orderIds: [...new Set(lines.map((line) => line.orderId))],
+          lines,
+          status: "submitted",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        toast("Payment claim invoice created for RK Group.");
+      }
+
+      function setPartnerTabBadge(id, count) {
+        const badge = $(id);
+        if (!badge) return;
+        badge.textContent = count;
+        badge.classList.toggle("hidden", !count);
+        const tab = badge.closest("[data-tab]");
+        if (tab) tab.classList.toggle("tab-alert", count > 0);
       }
 
       $("partnerForm").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
+        delete data.licenseFile;
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         setSubmitState(form, "saving", "Submitting...");
         try {
+          const licenseProof = await readPartnerDocument(form.licenseFile.files[0]);
           await compatAdd("partners", "partner", {
             ...data,
+            licenseProof,
             phone,
             status: "pending",
             source: "partner-app",
@@ -195,6 +411,7 @@
           $("dashboardPhone").value = phone;
           form.reset();
           finishSubmitState(form, "Submitted");
+          renderPartnerAccess();
           toast("Partner request sent to Control Tower.");
         } catch (error) {
           console.error(error);
@@ -343,9 +560,10 @@
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         localStorage.setItem("rkPartnerPhone", phone);
         $("statusPhone").value = phone;
+        renderPartnerAccess();
         renderDashboard();
       });
-      $("partnerDashboardList").addEventListener("click", async (event) => {
+      async function handlePartnerOpsClick(event) {
         const accept = event.target.closest("[data-partner-accept-order]");
         const ready = event.target.closest("[data-partner-ready-order]");
         const complete = event.target.closest("[data-partner-complete-handover]");
@@ -389,7 +607,7 @@
           toast("Handover closed. Rake manager can now assign passenger delivery.");
         }
         if (save) {
-          const note = document.querySelector(`[data-partner-feedback-remark="${save.dataset.partnerSaveFeedback}"]`)?.value.trim() || "";
+          const note = save.closest(".item")?.querySelector(`[data-partner-feedback-remark="${save.dataset.partnerSaveFeedback}"]`)?.value.trim() || "";
           await db.collection("feedbacks").doc(save.dataset.partnerSaveFeedback).update({
             supplierRemark: note,
             supplierRemarkBy: partnerName(),
@@ -399,7 +617,26 @@
           });
           toast("Private partner remark saved for Rake Manager and Customer Care.");
         }
+      }
+      $("partnerDashboardList").addEventListener("click", handlePartnerOpsClick);
+      $("partnerIncomingList").addEventListener("click", handlePartnerOpsClick);
+      $("partnerComplaintList").addEventListener("click", handlePartnerOpsClick);
+      ["partnerAccFrom", "partnerAccTo", "partnerAccMonth"].forEach((id) => $(id).addEventListener("change", renderAccounting));
+      $("partnerTodaySalesBtn").addEventListener("click", () => {
+        const today = dateInputValue(new Date());
+        $("partnerAccFrom").value = today;
+        $("partnerAccTo").value = today;
+        $("partnerAccMonth").value = "";
+        renderAccounting();
       });
+      $("partnerMonthSalesBtn").addEventListener("click", () => {
+        const now = new Date();
+        $("partnerAccMonth").value = now.toISOString().slice(0, 7);
+        $("partnerAccFrom").value = "";
+        $("partnerAccTo").value = "";
+        renderAccounting();
+      });
+      $("partnerClaimBtn").addEventListener("click", createPartnerClaim);
       $("switchOffPartnerBtn").addEventListener("click", async () => {
         const phone = cleanPhone($("statusPhone").value || localStorage.getItem("rkPartnerPhone"));
         if (phone.length !== 10) return toast("Enter partner phone first.");
@@ -420,8 +657,11 @@
       });
       $("statusPhone").value = localStorage.getItem("rkPartnerPhone") || "";
       $("dashboardPhone").value = localStorage.getItem("rkPartnerPhone") || "";
+      renderPartnerAccess();
+      renderStationOptions();
       onLive("customerOrders", (rows) => { partnerOrders = rows; renderDashboard(); }, "createdAt", "desc", 250);
       onLive("feedbacks", (rows) => { partnerFeedbacks = rows; renderDashboard(); }, "timestamp", "desc", 250);
+      onLive("trainRoutes", (rows) => { trainRoutes = rows; renderStationOptions(); }, "updatedAt", "desc", 300);
     });
   </script>
 </body>

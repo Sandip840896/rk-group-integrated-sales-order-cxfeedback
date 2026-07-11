@@ -23,15 +23,17 @@
       <div class="metric"><b id="mLiveItems">0</b><span>Live catalog items</span></div>
     </div>
 
-    <div class="tabs control-vertical-tabs">
-      <button class="tab-btn" data-tab="catalog"><i data-lucide="badge-check"></i> Catalog Approval</button>
-      <button class="tab-btn" data-tab="masters"><i data-lucide="database"></i> Master Rectification</button>
-      <button class="tab-btn" data-tab="partners"><i data-lucide="store"></i> Partner Onboarding</button>
-      <button class="tab-btn" data-tab="riders"><i data-lucide="bike"></i> Rider Approval</button>
-      <button class="tab-btn" data-tab="marketing"><i data-lucide="badge-percent"></i> Marketing</button>
-      <button class="tab-btn" data-tab="service"><i data-lucide="power"></i> Restaurant On-Off</button>
-      <button class="tab-btn" data-tab="route"><i data-lucide="rail-symbol"></i> Train Route</button>
-    </div>
+    <div class="management-shell">
+      <div class="tabs control-vertical-tabs">
+        <button class="tab-btn" data-tab="catalog"><i data-lucide="badge-check"></i> Catalog Approval <span class="tab-badge hidden" id="catalogTabBadge">0</span></button>
+        <button class="tab-btn" data-tab="masters"><i data-lucide="database"></i> Master Rectification</button>
+        <button class="tab-btn" data-tab="partners"><i data-lucide="store"></i> Partner Onboarding <span class="tab-badge hidden" id="partnerTabBadge">0</span></button>
+        <button class="tab-btn" data-tab="riders"><i data-lucide="bike"></i> Rider Approval <span class="tab-badge hidden" id="riderTabBadge">0</span></button>
+        <button class="tab-btn" data-tab="marketing"><i data-lucide="badge-percent"></i> Marketing</button>
+        <button class="tab-btn" data-tab="service"><i data-lucide="power"></i> Restaurant On-Off <span class="tab-badge hidden" id="serviceTabBadge">0</span></button>
+        <button class="tab-btn" data-tab="route"><i data-lucide="rail-symbol"></i> Train Route</button>
+      </div>
+      <div class="management-content">
 
     <section class="panel pad stack" data-tab-panel="catalog">
       <div class="section-title">
@@ -73,8 +75,14 @@
         <div><h2>Marketing Control</h2><p>Set free-delivery value, delivery/processing/high-demand charges, offer remarks and coupon discount.</p></div>
       </div>
       <form id="marketingForm" class="stack">
+        <div class="panel pad stack soft-panel">
+          <div class="row mobile-stack">
+            <label class="check-pill"><input type="checkbox" id="marketingAllTrains" checked> Apply to all trains</label>
+            <label class="field grow"><span>Search Train</span><input class="input" id="marketingTrainSearch" placeholder="Search train number, name or yard"></label>
+          </div>
+          <div id="marketingTrainPicker" class="picker-list"></div>
+        </div>
         <div class="grid two">
-          <label class="field"><span>Apply Train</span><input class="input" name="train" placeholder="All or train number" value="All"></label>
           <label class="field"><span>Free Delivery Minimum</span><input class="input" name="freeDeliveryMin" type="number" value="150"></label>
           <label class="field"><span>Delivery Charge Below Minimum</span><input class="input" name="deliveryChargeBelowMin" type="number" value="20"></label>
           <label class="field"><span>Processing Charge</span><input class="input" name="processingCharge" type="number" value="20"></label>
@@ -116,6 +124,8 @@
       </div>
       <div id="routeList" class="table-wrap"></div>
     </section>
+      </div>
+    </div>
   </main>
 
   <script>
@@ -134,6 +144,7 @@
       let trainRoutes = [];
       let marketingSettings = [];
       let serviceSwitches = [];
+      let marketingSelectedTrains = new Set();
       const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
 
       const seedRouteCatalogue = {
@@ -242,6 +253,44 @@
         const pendingStatus = (row) => String(row.status || row.approvalStatus || "pending").toLowerCase() === "pending";
         $("mPartners").textContent = partners.filter(pendingStatus).length + riders.filter(pendingStatus).length;
         $("mLiveItems").textContent = menuItems.length;
+        renderControlTabBadges();
+      }
+
+      function setTabBadge(id, count) {
+        const badge = $(id);
+        if (!badge) return;
+        badge.textContent = count;
+        badge.classList.toggle("hidden", !count);
+        const tab = badge.closest("[data-tab]");
+        if (tab) tab.classList.toggle("tab-alert", count > 0);
+      }
+
+      function renderControlTabBadges() {
+        const pendingStatus = (row) => String(row.status || row.approvalStatus || "pending").toLowerCase() === "pending";
+        setTabBadge("catalogTabBadge", requests.filter((row) => ["pending", "resubmitted"].includes(String(row.status || "").toLowerCase())).length);
+        setTabBadge("partnerTabBadge", partners.filter(pendingStatus).length);
+        setTabBadge("riderTabBadge", riders.filter(pendingStatus).length);
+        setTabBadge("serviceTabBadge", serviceSwitches.filter((row) => row.active === false).length);
+      }
+
+      function trainKey(train) {
+        return String(train.trainNumber || train.id || "").trim();
+      }
+
+      function marketingTrainRows() {
+        const query = String($("marketingTrainSearch").value || "").toLowerCase().trim();
+        return activeTrainMasters()
+          .filter((train) => !query || trainLabel(train).toLowerCase().includes(query))
+          .slice(0, 160);
+      }
+
+      function renderMarketingTrainPicker() {
+        const all = $("marketingAllTrains").checked;
+        const rows = marketingTrainRows();
+        $("marketingTrainPicker").innerHTML = rows.map((train) => {
+          const key = trainKey(train);
+          return `<label class="check-pill train-pick"><input type="checkbox" data-marketing-train="${escapeHtml(key)}" ${all || marketingSelectedTrains.has(key) ? "checked" : ""} ${all ? "disabled" : ""}> ${escapeHtml(trainLabel(train))}</label>`;
+        }).join("") || `<div class="empty">No train found. Add train in Train Route / train master first.</div>`;
       }
 
       function renderCatalog() {
@@ -357,6 +406,11 @@
             <div class="row between"><h3>${escapeHtml(partner.restaurantName || partner.name || partner.id)}</h3>${statusBadge(partner.status || "pending")}</div>
             <p>${escapeHtml(partner.station || "")} | ${escapeHtml(partner.ownerName || "")} | ${escapeHtml(partner.phone || "")}</p>
             <p>${escapeHtml(partner.address || "")}</p>
+            ${partner.licenseNo ? `<p><b>FSSAI / License:</b> ${escapeHtml(partner.licenseNo)}</p>` : ""}
+            ${partner.licenseProof?.dataUrl ? `<details class="status-details" open>
+              <summary><i data-lucide="file-check-2"></i> FSSAI / License proof</summary>
+              ${String(partner.licenseProof.type || "").startsWith("image/") ? `<img class="proof-img" src="${partner.licenseProof.dataUrl}" alt="License proof">` : `<a class="btn secondary" href="${partner.licenseProof.dataUrl}" target="_blank" rel="noopener"><i data-lucide="file-text"></i> Open ${escapeHtml(partner.licenseProof.name || "License PDF")}</a>`}
+            </details>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               ${partner.status === "pending" ? `
                 <button class="btn" data-approve-partner="${partner.id}"><i data-lucide="check"></i> Approve Partner</button>
@@ -407,15 +461,20 @@
 
       function renderMarketing() {
         const row = marketingSettings.find((entry) => entry.id === "default") || {};
+        const trainConfigs = row.trainConfigs || [];
+        marketingSelectedTrains = new Set(trainConfigs.map((config) => String(config.train || "").trim()).filter(Boolean));
+        $("marketingAllTrains").checked = !marketingSelectedTrains.size;
         $("marketingForm").freeDeliveryMin.value = Number(row.freeDeliveryMin || 150);
         $("marketingForm").deliveryChargeBelowMin.value = Number(row.deliveryChargeBelowMin || 20);
         $("marketingForm").processingCharge.value = Number(row.processingCharge || 20);
         $("marketingForm").highDemandCharge.value = Number(row.highDemandCharge || 0);
+        renderMarketingTrainPicker();
         const coupons = row.coupons || [];
         $("marketingList").innerHTML = `
           <div class="item">
-            <div class="row between"><h3>Global Cart Charges</h3><span class="badge info">default</span></div>
+            <div class="row between"><h3>Cart Charges</h3><span class="badge info">${marketingSelectedTrains.size ? `${marketingSelectedTrains.size} trains` : "all trains"}</span></div>
             <p>Free delivery above ${money(row.freeDeliveryMin || 150)} | Delivery ${money(row.deliveryChargeBelowMin || 20)} | Processing ${money(row.processingCharge || 20)} | High demand ${money(row.highDemandCharge || 0)}</p>
+            ${marketingSelectedTrains.size ? `<p><b>Selected trains:</b> ${[...marketingSelectedTrains].map(escapeHtml).join(", ")}</p>` : `<p><b>Selected trains:</b> All train master records</p>`}
             <p><b>Coupons:</b> ${coupons.map((coupon) => `${escapeHtml(coupon.code)} ${coupon.type === "percent" ? `${coupon.value}%` : money(coupon.value)} ${coupon.active === false ? "(inactive)" : ""}`).join(", ") || "No coupon configured"}</p>
           </div>`;
       }
@@ -664,6 +723,9 @@
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
+        const selectedTrains = $("marketingAllTrains").checked
+          ? []
+          : [...document.querySelectorAll("[data-marketing-train]:checked")].map((box) => box.dataset.marketingTrain).filter(Boolean);
         const coupon = data.couponCode ? {
           code: String(data.couponCode || "").trim().toUpperCase(),
           type: data.couponType || "percent",
@@ -676,17 +738,31 @@
           processingCharge: Number(data.processingCharge || 20),
           highDemandCharge: Number(data.highDemandCharge || 0),
           coupons: coupon ? [coupon] : [],
-          trainConfigs: String(data.train || "All").toLowerCase() === "all" ? [] : [{
-            train: data.train,
+          trainConfigs: selectedTrains.map((train) => ({
+            train,
             freeDeliveryMin: Number(data.freeDeliveryMin || 150),
             deliveryChargeBelowMin: Number(data.deliveryChargeBelowMin || 20),
             processingCharge: Number(data.processingCharge || 20),
             highDemandCharge: Number(data.highDemandCharge || 0)
-          }],
+          })),
           updatedAt: FieldValue.serverTimestamp()
         };
         await db.collection("marketingSettings").doc("default").set(payload, { merge: true });
         toast("Marketing settings saved.");
+      });
+
+      $("marketingAllTrains").addEventListener("change", () => {
+        if ($("marketingAllTrains").checked) marketingSelectedTrains.clear();
+        renderMarketingTrainPicker();
+      });
+      $("marketingTrainSearch").addEventListener("input", renderMarketingTrainPicker);
+      $("marketingTrainPicker").addEventListener("change", (event) => {
+        const box = event.target.closest("[data-marketing-train]");
+        if (!box) return;
+        $("marketingAllTrains").checked = false;
+        if (box.checked) marketingSelectedTrains.add(box.dataset.marketingTrain);
+        else marketingSelectedTrains.delete(box.dataset.marketingTrain);
+        renderMarketingTrainPicker();
       });
 
       $("serviceSwitchList").addEventListener("click", async (event) => {
@@ -783,12 +859,12 @@
       onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); renderMasters(); }, "createdAt", "desc", 250);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { riders = rows; renderRiders(); }, "updatedAt", "desc", 250);
       onLive("marketingSettings", (rows) => { marketingSettings = rows; renderMarketing(); }, "updatedAt", "desc", 50);
-      onLive("serviceSwitches", (rows) => { serviceSwitches = rows; renderServiceSwitches(); }, "updatedAt", "desc", 200);
+      onLive("serviceSwitches", (rows) => { serviceSwitches = rows; renderServiceSwitches(); renderControlTabBadges(); }, "updatedAt", "desc", 200);
       renderMasters();
       renderRouteTrainSelect();
       onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); renderMasters(); }, "name", "asc", 300);
       onLive("baseKitchens", (rows) => { kitchens = rows; renderMasters(); }, "name", "asc", 300);
-      onLive("trainMasters", (rows) => { trainMasters = rows.filter((train) => train.active !== false); renderRouteTrainSelect(); }, "trainNumber", "asc", 300);
+      onLive("trainMasters", (rows) => { trainMasters = rows.filter((train) => train.active !== false); renderRouteTrainSelect(); renderMarketingTrainPicker(); }, "trainNumber", "asc", 300);
       onLive("trainRoutes", (rows) => { trainRoutes = rows; renderRoute(); }, "updatedAt", "desc", 300);
     });
   </script>

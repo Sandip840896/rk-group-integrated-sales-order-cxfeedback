@@ -53,6 +53,11 @@
         <div id="paymentList" class="list"></div>
       </section>
     </div>
+
+    <section class="panel pad stack">
+      <div class="section-title"><div><h2>Supplier Payment Claims</h2><p>Verify every claim before forwarding it to the CFO for final approval.</p></div></div>
+      <div id="supplierInvoiceList" class="list"></div>
+    </section>
   </main>
 
   <script>
@@ -62,7 +67,7 @@
       await ensureSeedData();
 
       const state = {
-        orders: [], feedbacks: [], kitchens: [], trains: [], partners: [], deliveryPartners: [], catalogRequests: []
+        orders: [], feedbacks: [], kitchens: [], trains: [], partners: [], deliveryPartners: [], catalogRequests: [], supplierInvoices: []
       };
 
       function pct(num, den) {
@@ -127,7 +132,61 @@
         $("paymentList").innerHTML = `
           <div class="item"><div class="row between"><h3>COD Active</h3><span class="badge ok">${codOrders.length} orders</span></div><p>${money(codValue)} to collect on delivery.</p></div>
           <div class="item"><div class="row between"><h3>Online</h3><span class="badge warn">${onlineOrders.length} orders</span></div><p>${money(onlineValue)}. Online payment is planned for next version.</p></div>`;
+
+        $("supplierInvoiceList").innerHTML = state.supplierInvoices.map((invoice) => {
+          const byProduct = (invoice.lines || []).reduce((map, line) => {
+            const key = line.product || "Item";
+            map[key] ||= { qty: 0, amount: 0 };
+            map[key].qty += Number(line.qty || 0);
+            map[key].amount += Number(line.amount || 0);
+            return map;
+          }, {});
+          return `<div class="item">
+            <div class="row between"><h3>${escapeHtml(invoice.invoiceNo || invoice.id)}</h3>${statusBadge(invoice.status || "submitted")}</div>
+            <p><b>${escapeHtml(String(invoice.supplierType || "").replace(/-/g, " "))}:</b> ${escapeHtml(invoice.supplierName || invoice.supplierPhone || invoice.supplierId || "")}</p>
+            <p>${escapeHtml(invoice.periodFrom || "")} to ${escapeHtml(invoice.periodTo || "")} | Qty ${Number(invoice.totalQty || 0)} | Claim ${money(invoice.totalAmount || 0)}</p>
+            <details class="status-details">
+              <summary><i data-lucide="receipt-text"></i> Sales detail</summary>
+              <div class="table-wrap" style="margin-top:10px;">
+                <table>
+                  <thead><tr><th>Product</th><th>Qty</th><th>Amount</th></tr></thead>
+                  <tbody>${Object.entries(byProduct).map(([product, row]) => `<tr><td>${escapeHtml(product)}</td><td>${row.qty}</td><td>${money(row.amount)}</td></tr>`).join("")}</tbody>
+                </table>
+              </div>
+            </details>
+            ${String(invoice.status || "submitted") === "submitted" ? `<div class="row wrap" style="margin-top:10px;">
+              <button class="btn" data-forward-cfo="${invoice.id}"><i data-lucide="shield-check"></i> Verify & Forward to CFO</button>
+              <button class="btn danger" data-return-claim="${invoice.id}"><i data-lucide="undo-2"></i> Return to Supplier</button>
+            </div>` : String(invoice.status || "") === "central-approved" ? `<div class="ack success" style="margin-top:10px;">Checked by Central Command and awaiting CFO decision.</div>` : ""}
+          </div>`;
+        }).join("") || `<div class="empty">No partner or base kitchen payment claim yet.</div>`;
+        lucide.createIcons();
       }
+
+      $("supplierInvoiceList").addEventListener("click", async (event) => {
+        const forward = event.target.closest("[data-forward-cfo]");
+        const returned = event.target.closest("[data-return-claim]");
+        if (forward) {
+          await db.collection("supplierInvoices").doc(forward.dataset.forwardCfo).update({
+            status: "central-approved",
+            centralCommandApprovedAt: FieldValue.serverTimestamp(),
+            centralCommandApprovedBy: "Central Command",
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          return toast("Claim verified and forwarded to CFO.");
+        }
+        if (returned) {
+          const reason = window.prompt("Reason for returning this claim to the supplier:");
+          if (!reason) return;
+          await db.collection("supplierInvoices").doc(returned.dataset.returnClaim).update({
+            status: "returned",
+            returnReason: reason.trim(),
+            returnedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Claim returned to supplier.");
+        }
+      });
 
       onLive("customerOrders", (rows) => { state.orders = rows; render(); }, "createdAt", "desc", 500);
       onLive("feedbacks", (rows) => { state.feedbacks = rows; render(); }, "timestamp", "desc", 500);
@@ -135,6 +194,7 @@
       onLiveCompat("partners", "partner", (rows) => { state.partners = rows; render(); }, "createdAt", "desc", 500);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { state.deliveryPartners = rows; render(); }, "updatedAt", "desc", 500);
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { state.catalogRequests = rows; render(); }, "createdAt", "desc", 500);
+      onLive("supplierInvoices", (rows) => { state.supplierInvoices = rows; render(); }, "createdAt", "desc", 500);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         state.trains = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         render();

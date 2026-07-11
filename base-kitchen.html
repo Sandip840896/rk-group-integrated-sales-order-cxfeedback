@@ -14,7 +14,7 @@
   <script defer src="rk-common.js"></script>
 </head>
 <body>
-  <main class="main">
+  <main class="main supplier-portal">
     <div class="panel pad stack">
       <div class="section-title">
         <div><h2>Choose Base Kitchen</h2><p>Only indents sent to the selected kitchen will appear.</p></div>
@@ -34,14 +34,17 @@
       <div class="metric"><b id="bkDisputes">0</b><span>Disputes</span></div>
     </div>
 
-    <div class="tabs" style="margin-top:14px;">
-      <button class="tab-btn" data-tab="incoming"><i data-lucide="inbox"></i> Incoming Indents</button>
-      <button class="tab-btn" data-tab="customer"><i data-lucide="receipt-text"></i> Customer Orders</button>
-      <button class="tab-btn" data-tab="dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</button>
-      <button class="tab-btn" data-tab="catalog"><i data-lucide="utensils"></i> Catalog Requests</button>
-      <button class="tab-btn" data-tab="invoice"><i data-lucide="file-plus-2"></i> Invoices</button>
-      <button class="tab-btn" data-tab="dispute"><i data-lucide="alert-triangle"></i> Disputes</button>
-    </div>
+    <div class="management-shell" style="margin-top:14px;">
+      <div class="tabs manager-vertical-tabs">
+        <button class="tab-btn" data-tab="incoming"><i data-lucide="inbox"></i> Incoming Indents</button>
+        <button class="tab-btn" data-tab="customer"><i data-lucide="receipt-text"></i> Customer Orders</button>
+        <button class="tab-btn" data-tab="dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</button>
+        <button class="tab-btn" data-tab="accounting"><i data-lucide="indian-rupee"></i> Accounting</button>
+        <button class="tab-btn" data-tab="catalog"><i data-lucide="utensils"></i> Catalog Requests</button>
+        <button class="tab-btn" data-tab="invoice"><i data-lucide="file-plus-2"></i> Invoices</button>
+        <button class="tab-btn" data-tab="dispute"><i data-lucide="alert-triangle"></i> Disputes</button>
+      </div>
+      <div class="management-content">
 
     <section class="panel pad stack" data-tab-panel="incoming">
       <div class="section-title"><div><h2>Indent Processing</h2><p>Edit approved quantity or set quantity to zero if item is unavailable.</p></div></div>
@@ -57,6 +60,26 @@
       <div class="section-title"><div><h2>Base Kitchen Dashboard</h2><p>Complaints, refund notes, cancellations and customer food feedback for this kitchen.</p></div></div>
       <div id="bkDashboardMetrics" class="grid four"></div>
       <div id="bkDashboardList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="accounting">
+      <div class="section-title"><div><h2>Accounting and Payment Claim</h2><p>Date-wise, train-wise and product-wise sales with claim invoice to RK Group.</p></div></div>
+      <div class="grid three">
+        <label class="field"><span>From Date</span><input class="input" id="bkAccFrom" type="date"></label>
+        <label class="field"><span>To Date</span><input class="input" id="bkAccTo" type="date"></label>
+        <label class="field"><span>Month Filter</span><input class="input" id="bkAccMonth" type="month"></label>
+      </div>
+      <div class="row wrap">
+        <button class="btn secondary" id="bkTodaySalesBtn" type="button"><i data-lucide="calendar-days"></i> Today</button>
+        <button class="btn secondary" id="bkMonthSalesBtn" type="button"><i data-lucide="calendar-range"></i> This Month</button>
+        <button class="btn" id="bkClaimBtn" type="button"><i data-lucide="file-plus-2"></i> Create Payment Claim</button>
+      </div>
+      <div id="bkAccountingMetrics" class="grid four"></div>
+      <div class="grid two">
+        <div class="panel pad stack soft-panel"><h3>Train Wise Sales</h3><div id="bkTrainSales" class="list"></div></div>
+        <div class="panel pad stack soft-panel"><h3>Product Wise Sales</h3><div id="bkProductSales" class="list"></div></div>
+      </div>
+      <div class="table-wrap" id="bkDaySales"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="catalog">
@@ -88,6 +111,8 @@
       <div class="section-title"><div><h2>Delivery Disputes</h2><p>Disputes include note and photo proof when uploaded.</p></div></div>
       <div id="bkDisputeList" class="list"></div>
     </section>
+      </div>
+    </div>
   </main>
 
   <div class="modal-backdrop hidden" id="bkRiderModal">
@@ -188,6 +213,111 @@
           const ownLine = (order.items || []).some((line) => String(line.baseKitchenId || line.supplierId || "") === activeKitchenId || String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen");
           return (source === "base-kitchen" || source === "mixed" || ownLine) && (ownOrder || ownLine);
         });
+      }
+
+      function payableKitchenOrders() {
+        return visibleCustomerOrders().filter((order) => ["supplier-delivered-to-rake", "out-for-delivery", "delivered"].includes(String(order.status || "").toLowerCase()));
+      }
+
+      function orderBusinessDate(order) {
+        return dateFromAny(order.supplierDeliveredToRakeAt || order.deliveredAt || order.updatedAt || order.createdAt) || new Date();
+      }
+
+      function dateInputValue(date) {
+        return date.toISOString().slice(0, 10);
+      }
+
+      function bkAccountingRange() {
+        const month = $("bkAccMonth").value;
+        let from = $("bkAccFrom").value;
+        let to = $("bkAccTo").value;
+        if (month && (!from || !to)) {
+          const [year, monthIndex] = month.split("-").map(Number);
+          from = `${month}-01`;
+          to = new Date(year, monthIndex, 0).toISOString().slice(0, 10);
+        }
+        return { from, to };
+      }
+
+      function kitchenSalesLines() {
+        const { from, to } = bkAccountingRange();
+        return payableKitchenOrders().flatMap((order) => {
+          const date = orderBusinessDate(order);
+          const day = dateInputValue(date);
+          if (from && day < from) return [];
+          if (to && day > to) return [];
+          return (order.items || [])
+            .filter((line) => String(line.fulfillmentSource || line.source || "").toLowerCase() === "base-kitchen" || String(line.baseKitchenId || line.supplierId || "") === activeKitchenId)
+            .map((line) => {
+              const qty = Number(line.qty || 0);
+              const amount = qty * Number(line.price ?? line.sellingPrice ?? 0);
+              return {
+                orderId: order.id,
+                orderNo: order.orderNo || order.id,
+                date: day,
+                train: order.train || "",
+                trainName: order.trainName || "",
+                product: line.name || "Item",
+                qty,
+                amount
+              };
+            });
+        });
+      }
+
+      function groupSales(lines, keyFn) {
+        return lines.reduce((map, line) => {
+          const key = keyFn(line);
+          map[key] ||= { key, qty: 0, amount: 0 };
+          map[key].qty += Number(line.qty || 0);
+          map[key].amount += Number(line.amount || 0);
+          return map;
+        }, {});
+      }
+
+      function renderAccounting() {
+        const lines = kitchenSalesLines();
+        const totalQty = lines.reduce((sum, line) => sum + line.qty, 0);
+        const totalAmount = lines.reduce((sum, line) => sum + line.amount, 0);
+        const orderCount = new Set(lines.map((line) => line.orderId)).size;
+        $("bkAccountingMetrics").innerHTML = [
+          ["Orders", orderCount],
+          ["Qty", totalQty],
+          ["Sales", money(totalAmount)],
+          ["Claimable", money(totalAmount)]
+        ].map(([label, value]) => `<div class="metric"><b>${value}</b><span>${label}</span></div>`).join("");
+        const trainRows = Object.values(groupSales(lines, (line) => `${line.train} ${line.trainName}`.trim() || "Unknown train")).sort((a, b) => b.amount - a.amount);
+        $("bkTrainSales").innerHTML = trainRows.map((row) => `<div class="item"><div class="row between"><h3>${escapeHtml(row.key)}</h3><b>${money(row.amount)}</b></div><p>Qty ${row.qty}</p></div>`).join("") || `<div class="empty">No train sales in selected period.</div>`;
+        const productRows = Object.values(groupSales(lines, (line) => line.product)).sort((a, b) => b.amount - a.amount);
+        $("bkProductSales").innerHTML = productRows.map((row) => `<div class="item"><div class="row between"><h3>${escapeHtml(row.key)}</h3><b>${money(row.amount)}</b></div><p>Qty ${row.qty}</p></div>`).join("") || `<div class="empty">No product sales in selected period.</div>`;
+        const dayRows = Object.values(groupSales(lines, (line) => line.date)).sort((a, b) => a.key.localeCompare(b.key));
+        $("bkDaySales").innerHTML = `<table><thead><tr><th>Date</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${dayRows.map((row) => `<tr><td>${escapeHtml(row.key)}</td><td>${row.qty}</td><td>${money(row.amount)}</td></tr>`).join("") || `<tr><td colspan="3">No day-wise sales in selected period.</td></tr>`}</tbody></table>`;
+      }
+
+      async function createKitchenClaim() {
+        if (!activeKitchenId) return toast("Select base kitchen first.");
+        const lines = kitchenSalesLines();
+        if (!lines.length) return toast("No payable sales found for selected period.");
+        const { from, to } = bkAccountingRange();
+        const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
+        const totalQty = lines.reduce((sum, line) => sum + line.qty, 0);
+        const totalAmount = lines.reduce((sum, line) => sum + line.amount, 0);
+        await db.collection("supplierInvoices").add({
+          invoiceNo: shortId("RKBI"),
+          supplierType: "base-kitchen",
+          supplierId: activeKitchenId,
+          supplierName: kitchen?.name || activeKitchenId,
+          periodFrom: from || lines[0]?.date || "",
+          periodTo: to || lines[lines.length - 1]?.date || "",
+          totalQty,
+          totalAmount,
+          orderIds: [...new Set(lines.map((line) => line.orderId))],
+          lines,
+          status: "submitted",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        toast("Payment claim invoice created for RK Group.");
       }
 
       function approvedKitchenRiders() {
@@ -498,6 +628,23 @@
         toast("Private supplier remark saved for Rake Manager and Customer Care.");
       });
 
+      ["bkAccFrom", "bkAccTo", "bkAccMonth"].forEach((id) => $(id).addEventListener("change", renderAccounting));
+      $("bkTodaySalesBtn").addEventListener("click", () => {
+        const today = dateInputValue(new Date());
+        $("bkAccFrom").value = today;
+        $("bkAccTo").value = today;
+        $("bkAccMonth").value = "";
+        renderAccounting();
+      });
+      $("bkMonthSalesBtn").addEventListener("click", () => {
+        const now = new Date();
+        $("bkAccMonth").value = now.toISOString().slice(0, 7);
+        $("bkAccFrom").value = "";
+        $("bkAccTo").value = "";
+        renderAccounting();
+      });
+      $("bkClaimBtn").addEventListener("click", createKitchenClaim);
+
       function renderDisputes() {
         const rows = visibleInvoices().filter((invoice) => invoice.status === "disputed");
         $("bkDisputeList").innerHTML = rows.map((invoice) => `
@@ -679,6 +826,7 @@
         renderCatalogRequests();
         renderCustomerOrders();
         renderDashboard();
+        renderAccounting();
       }
 
       onLive("indents", (rows) => {

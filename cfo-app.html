@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meals On Wheels CFO Office</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rk-app.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="rk-common.js"></script>
+</head>
+<body class="cfo-body">
+  <main class="main stack cfo-main">
+    <section class="cfo-hero">
+      <div><p class="eyebrow">Finance command desk</p><h2>Business performance at a glance</h2><p>Sales, contribution margin and supplier payments across Meals On Wheels operations.</p></div>
+      <div class="cfo-period"><i data-lucide="calendar-range"></i><div><small>Reporting period</small><b id="periodLabel">All live business</b></div></div>
+    </section>
+
+    <div class="grid four cfo-kpis">
+      <div class="metric"><span>Gross sales</span><b id="grossSales">Rs 0</b><small id="orderCount">0 business orders</small></div>
+      <div class="metric"><span>Contribution margin</span><b id="marginAmount">Rs 0</b><small id="marginPercent">0% of sales</small></div>
+      <div class="metric"><span>Awaiting CFO</span><b id="pendingValue">Rs 0</b><small id="pendingCount">0 payment requests</small></div>
+      <div class="metric"><span>Approved advice</span><b id="approvedValue">Rs 0</b><small id="approvedCount">0 ready for payment</small></div>
+    </div>
+
+    <div class="management-shell cfo-shell">
+      <aside class="management-tabs cfo-tabs">
+        <button class="tab-btn active" data-tab="overview"><i data-lucide="chart-no-axes-combined"></i> Overview</button>
+        <button class="tab-btn" data-tab="approvals"><i data-lucide="badge-indian-rupee"></i> Final Approval <span id="approvalBadge" class="tab-count hidden">0</span></button>
+        <button class="tab-btn" data-tab="advice"><i data-lucide="scroll-text"></i> Payment Advice</button>
+      </aside>
+      <div class="management-content stack">
+        <section data-tab-panel="overview" class="stack">
+          <div class="grid two">
+            <div class="panel pad stack"><div class="section-title"><div><h2>Sales by Business Section</h2><p>Revenue and margin contribution by fulfilment channel.</p></div></div><div id="sectionPerformance" class="list"></div></div>
+            <div class="panel pad stack"><div class="section-title"><div><h2>Finance Pulse</h2><p>Collections, supplier exposure and operating signals.</p></div></div><div id="financePulse" class="list"></div></div>
+          </div>
+          <div class="panel pad stack"><div class="section-title"><div><h2>Top Revenue Products</h2><p>Products ranked by gross sales with estimated contribution.</p></div></div><div class="table-wrap" id="productTable"></div></div>
+        </section>
+        <section data-tab-panel="approvals" class="panel pad stack hidden">
+          <div class="section-title"><div><h2>CFO Final Payment Approval</h2><p>Only claims verified by Central Command appear here. Confirm banking information before approval.</p></div></div>
+          <div id="approvalList" class="list"></div>
+        </section>
+        <section data-tab-panel="advice" class="panel pad stack hidden">
+          <div class="section-title"><div><h2>Approved Payment Advice</h2><p>Final instruction list for the payment department to initiate bank transfers.</p></div></div>
+          <div class="table-wrap" id="adviceTable"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+  <script>
+  window.addEventListener("DOMContentLoaded", async () => {
+    appHeader("Meals On Wheels CFO Office", "Executive finance dashboard and final payment control");
+    lucide.createIcons(); await ensureSeedData();
+    document.querySelectorAll("[data-tab]").forEach((button) => button.addEventListener("click", () => {
+      document.querySelectorAll("[data-tab]").forEach((entry) => entry.classList.toggle("active", entry === button));
+      document.querySelectorAll("[data-tab-panel]").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.tabPanel !== button.dataset.tab));
+      lucide.createIcons();
+    }));
+    const state = { orders: [], staffSales: [], claims: [], advices: [] };
+    const n = (v) => Number(v || 0);
+    const status = (v) => String(v || "").toLowerCase();
+    function orderCost(order) { return (order.items || []).reduce((s, l) => s + n(l.qty) * costPriceOf(l), 0); }
+    function sourceOf(line) { const s = status(line.fulfillmentSource || line.source); return s === "partner" ? "RK Partners" : s === "base-kitchen" ? "Base Kitchens" : "Onboard Pantry"; }
+    function render() {
+      const orders = state.orders.filter(o => status(o.status) !== "cancelled");
+      const orderSales = orders.reduce((s,o) => s+n(o.total),0), staffSales = state.staffSales.reduce((s,o)=>s+n(o.total || o.amountReceived),0);
+      const totalSales = orderSales + staffSales;
+      const totalCost = orders.reduce((s,o)=>s+orderCost(o),0) + state.staffSales.reduce((s,o)=>s+n(o.qty)*n(o.costPrice),0);
+      const margin = totalSales-totalCost, marginPct = totalSales ? margin/totalSales*100 : 0;
+      const pending = state.claims.filter(c=>status(c.status)==="central-approved");
+      $("grossSales").textContent=money(totalSales); $("orderCount").textContent=`${orders.length + state.staffSales.length} business orders`;
+      $("marginAmount").textContent=money(margin); $("marginPercent").textContent=`${marginPct.toFixed(1)}% of sales`;
+      $("pendingValue").textContent=money(pending.reduce((s,c)=>s+n(c.totalAmount),0)); $("pendingCount").textContent=`${pending.length} payment requests`;
+      $("approvedValue").textContent=money(state.advices.reduce((s,a)=>s+n(a.amount),0)); $("approvedCount").textContent=`${state.advices.length} ready for payment`;
+      $("approvalBadge").textContent=pending.length; $("approvalBadge").classList.toggle("hidden", !pending.length);
+      const sections={"Onboard Pantry":{sale:staffSales,cost:state.staffSales.reduce((s,o)=>s+n(o.qty)*n(o.costPrice),0)},"Base Kitchens":{sale:0,cost:0},"RK Partners":{sale:0,cost:0}};
+      orders.forEach(o=>(o.items||[]).forEach(l=>{const k=sourceOf(l), sale=n(l.qty)*n(l.price ?? l.sellingPrice); sections[k].sale+=sale; sections[k].cost+=n(l.qty)*costPriceOf(l);}));
+      const max=Math.max(1,...Object.values(sections).map(x=>x.sale));
+      $("sectionPerformance").innerHTML=Object.entries(sections).map(([name,r])=>`<div class="item cfo-section-row"><div class="row between"><h3>${name}</h3><b>${money(r.sale)}</b></div><div class="bar-track"><span style="width:${r.sale/max*100}%"></span></div><p>Margin ${money(r.sale-r.cost)} · ${r.sale ? ((r.sale-r.cost)/r.sale*100).toFixed(1):0}%</p></div>`).join("");
+      const online=orders.filter(o=>status(o.paymentMode)==="online").reduce((s,o)=>s+n(o.total),0), cod=orderSales-online;
+      $("financePulse").innerHTML=`<div class="item"><div class="row between"><h3>Cash / COD Sales</h3><b>${money(cod)}</b></div><p>Collection exposure requiring reconciliation.</p></div><div class="item"><div class="row between"><h3>Online Sales</h3><b>${money(online)}</b></div><p>Digitally collected order value.</p></div><div class="item"><div class="row between"><h3>Supplier Claims Submitted</h3><b>${money(state.claims.reduce((s,c)=>s+n(c.totalAmount),0))}</b></div><p>${state.claims.length} total claims in the finance pipeline.</p></div>`;
+      const products={}; orders.forEach(o=>(o.items||[]).forEach(l=>{const k=l.name||"Item"; products[k]||={qty:0,sale:0,cost:0}; products[k].qty+=n(l.qty); products[k].sale+=n(l.qty)*n(l.price??l.sellingPrice); products[k].cost+=n(l.qty)*costPriceOf(l);}));
+      $("productTable").innerHTML=`<table><thead><tr><th>Product</th><th>Qty</th><th>Sales</th><th>Margin</th><th>Margin %</th></tr></thead><tbody>${Object.entries(products).sort((a,b)=>b[1].sale-a[1].sale).slice(0,12).map(([k,r])=>`<tr><td><b>${escapeHtml(k)}</b></td><td>${r.qty}</td><td>${money(r.sale)}</td><td>${money(r.sale-r.cost)}</td><td>${r.sale?((r.sale-r.cost)/r.sale*100).toFixed(1):0}%</td></tr>`).join("")||`<tr><td colspan="5">No sales recorded yet.</td></tr>`}</tbody></table>`;
+      renderApprovals(pending); renderAdvice(); lucide.createIcons();
+    }
+    function renderApprovals(rows) {
+      $("approvalList").innerHTML=rows.map(c=>`<article class="item cfo-approval-card"><div class="row between"><div><p class="eyebrow">${escapeHtml(c.invoiceNo||c.id)}</p><h3>${escapeHtml(c.supplierName||c.supplierPhone||"Supplier")}</h3></div><div class="claim-value">${money(c.totalAmount)}</div></div><div class="cfo-claim-meta"><span><i data-lucide="building-2"></i>${escapeHtml(String(c.supplierType||"supplier").replace(/-/g," "))}</span><span><i data-lucide="calendar"></i>${escapeHtml(c.periodFrom||"")} – ${escapeHtml(c.periodTo||"")}</span><span><i data-lucide="package-check"></i>${n(c.totalQty)} items</span></div><div class="grid two cfo-bank-grid"><label class="field"><span>Account holder</span><input class="input" data-bank="holder" data-claim="${c.id}" value="${escapeHtml(c.bankAccountHolder||c.supplierName||"")}"></label><label class="field"><span>Bank name</span><input class="input" data-bank="bank" data-claim="${c.id}" value="${escapeHtml(c.bankName||"")}" placeholder="Bank name"></label><label class="field"><span>Account number</span><input class="input" data-bank="account" data-claim="${c.id}" value="${escapeHtml(c.bankAccountNumber||"")}" placeholder="Account number"></label><label class="field"><span>IFSC code</span><input class="input" data-bank="ifsc" data-claim="${c.id}" value="${escapeHtml(c.bankIfsc||"")}" placeholder="IFSC"></label></div><div class="row wrap"><button class="btn" data-cfo-approve="${c.id}"><i data-lucide="circle-check-big"></i> Approve & Create Payment Advice</button><button class="btn danger" data-cfo-hold="${c.id}"><i data-lucide="circle-pause"></i> Put on Hold</button></div></article>`).join("")||`<div class="empty cfo-empty"><i data-lucide="badge-check"></i><h3>No approval pending</h3><p>Claims will appear after Central Command verification.</p></div>`;
+    }
+    function renderAdvice(){ $("adviceTable").innerHTML=`<table><thead><tr><th>Advice No.</th><th>Party</th><th>Bank Details</th><th>Amount</th><th>Status</th><th>Approved</th></tr></thead><tbody>${state.advices.map(a=>`<tr><td><b>${escapeHtml(a.adviceNo||a.id)}</b><br><small>${escapeHtml(a.invoiceNo||"")}</small></td><td>${escapeHtml(a.partyName||"")}<br><small>${escapeHtml(a.partyType||"")}</small></td><td>${escapeHtml(a.bankName||"")}<br><small>${escapeHtml(a.accountNumber||"")} · ${escapeHtml(a.ifsc||"")}</small></td><td><b>${money(a.amount)}</b></td><td><span class="badge ok">Approved for payment</span></td><td>${nowLabel(a.approvedAt||a.createdAt)}</td></tr>`).join("")||`<tr><td colspan="6">No CFO-approved payment advice yet.</td></tr>`}</tbody></table>`; }
+    $("approvalList").addEventListener("click",async e=>{const approve=e.target.closest("[data-cfo-approve]"), hold=e.target.closest("[data-cfo-hold]"); if(hold){const note=prompt("Reason for putting this request on hold:");if(!note)return;await db.collection("supplierInvoices").doc(hold.dataset.cfoHold).update({status:"cfo-hold",cfoNote:note,updatedAt:FieldValue.serverTimestamp()});return toast("Payment request placed on hold.");} if(!approve)return; const id=approve.dataset.cfoApprove, claim=state.claims.find(c=>c.id===id); const get=k=>document.querySelector(`[data-bank="${k}"][data-claim="${id}"]`).value.trim(); const bank={holder:get("holder"),bank:get("bank"),account:get("account"),ifsc:get("ifsc").toUpperCase()}; if(Object.values(bank).some(v=>!v))return toast("Complete all bank details before final approval."); if(!confirm(`Approve ${money(claim.totalAmount)} for ${claim.supplierName||"this supplier"}?`))return; const adviceRef=db.collection("paymentAdvices").doc(), adviceNo=shortId("MWPA"); const batch=db.batch(); batch.set(adviceRef,{adviceNo,invoiceId:id,invoiceNo:claim.invoiceNo||id,partyId:claim.supplierId||"",partyName:claim.supplierName||claim.supplierPhone||"Supplier",partyType:claim.supplierType||"supplier",amount:n(claim.totalAmount),periodFrom:claim.periodFrom||"",periodTo:claim.periodTo||"",totalQty:n(claim.totalQty),bankAccountHolder:bank.holder,bankName:bank.bank,accountNumber:bank.account,ifsc:bank.ifsc,status:"approved-for-payment",approvedBy:"Chief Financial Officer",approvedAt:FieldValue.serverTimestamp(),createdAt:FieldValue.serverTimestamp()}); batch.update(db.collection("supplierInvoices").doc(id),{status:"cfo-approved",paymentAdviceId:adviceRef.id,paymentAdviceNo:adviceNo,bankAccountHolder:bank.holder,bankName:bank.bank,bankAccountNumber:bank.account,bankIfsc:bank.ifsc,cfoApprovedBy:"Chief Financial Officer",cfoApprovedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()}); await batch.commit(); toast(`Payment advice ${adviceNo} created.`); });
+    onLive("customerOrders",r=>{state.orders=r;render();},"createdAt","desc",1000); onLive("staffSales",r=>{state.staffSales=r;render();},"createdAt","desc",1000); onLive("supplierInvoices",r=>{state.claims=r;render();},"createdAt","desc",1000); onLive("paymentAdvices",r=>{state.advices=r;render();},"approvedAt","desc",1000); render();
+  });
+  </script>
+</body></html>
