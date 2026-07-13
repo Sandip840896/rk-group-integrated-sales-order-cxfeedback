@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script defer src="rk-common.js?v=20260713-identity2"></script>
 </head>
@@ -405,12 +406,12 @@
       let kitchenMasterSearchTerm = "";
       let adminUsers = [];
       let accessUsers = [];
-      let currentUser = JSON.parse(sessionStorage.getItem("rkCurrentUser") || "null");
+      const storedUser = JSON.parse(sessionStorage.getItem("rkCurrentUser") || "null");
+      let currentUser = storedUser?.role === "super-admin" ? null : storedUser;
+      if (storedUser?.role === "super-admin") sessionStorage.removeItem("rkCurrentUser");
       let seenOrders = new Set();
       let seenFeedbacks = new Set();
       const pendingIndentItems = [];
-      const SUPER_ADMIN_EMAIL = "sandipnandi2000@gmail.com";
-      const SUPER_ADMIN_PASSWORD = "Sanju@1234";
 
       $("masterCategory").innerHTML = mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${slot}"> ${slot}</label>`).join("");
       document.querySelector("#masterCategory input")?.setAttribute("checked", "checked");
@@ -428,12 +429,33 @@
         }
       }
 
-      $("loginBtn").addEventListener("click", () => {
+      $("loginBtn").addEventListener("click", async () => {
         const email = $("loginEmail").value.trim().toLowerCase();
         const password = $("loginPassword").value;
-        if (email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD) {
-          currentUser = { email, name: "Sandip Nandi", role: "super-admin", access: "all", accessScope: "all", accessValue: "" };
-        } else {
+        if (!email || !password) return toast("Enter your email ID and password.");
+        $("loginBtn").disabled = true;
+        try {
+          const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+          const profileSnapshot = await db.collection("adminUsers").doc(credential.user.uid).get();
+          const profile = profileSnapshot.exists ? profileSnapshot.data() : null;
+          if (!profile || profile.active !== true || profile.role !== "super-admin") {
+            await firebase.auth().signOut();
+            toast("This Firebase account is not an active Super Admin.");
+            return;
+          }
+          currentUser = {
+            uid: credential.user.uid,
+            email: credential.user.email,
+            name: profile.name || credential.user.email,
+            role: "super-admin",
+            access: "all",
+            allowedApps: ["all"],
+            permissionLevel: "admin",
+            accessScope: "all",
+            accessValue: ""
+          };
+        } catch (authError) {
+          if (firebase.auth().currentUser) await firebase.auth().signOut();
           const found = [...adminUsers, ...accessUsers].find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && user.active !== false);
           if (!found) {
             toast("Login failed. Please check ID and password.");
@@ -454,6 +476,8 @@
             accessScope: found.accessScope || (String(found.access || "").toLowerCase() === "all" ? "all" : ""),
             accessValue: found.accessValue || ""
           };
+        } finally {
+          $("loginBtn").disabled = false;
         }
         sessionStorage.setItem("rkCurrentUser", JSON.stringify(currentUser));
         $("loginPassword").value = "";
@@ -463,7 +487,8 @@
       });
       $("rakeForgotPasswordBtn").addEventListener("click", () => openPasswordResetRequest("rake-manager"));
 
-      $("logoutBtn").addEventListener("click", () => {
+      $("logoutBtn").addEventListener("click", async () => {
+        if (firebase.auth().currentUser) await firebase.auth().signOut();
         currentUser = null;
         sessionStorage.removeItem("rkCurrentUser");
         updateLoginUi();
@@ -471,6 +496,34 @@
         showTab("overview");
       });
       updateLoginUi();
+
+      firebase.auth().onAuthStateChanged(async (authUser) => {
+        if (!authUser || currentUser?.uid === authUser.uid) return;
+        try {
+          const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
+          const profile = snapshot.exists ? snapshot.data() : null;
+          if (!profile || profile.active !== true || profile.role !== "super-admin") {
+            await firebase.auth().signOut();
+            return;
+          }
+          currentUser = {
+            uid: authUser.uid,
+            email: authUser.email,
+            name: profile.name || authUser.email,
+            role: "super-admin",
+            access: "all",
+            allowedApps: ["all"],
+            permissionLevel: "admin",
+            accessScope: "all",
+            accessValue: ""
+          };
+          sessionStorage.setItem("rkCurrentUser", JSON.stringify(currentUser));
+          updateLoginUi();
+          refreshAccessViews();
+        } catch (error) {
+          await firebase.auth().signOut();
+        }
+      });
 
       function normalizeText(value) {
         return String(value || "").trim().toLowerCase();
