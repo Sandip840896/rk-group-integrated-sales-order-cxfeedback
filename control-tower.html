@@ -10,12 +10,27 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=20260713-identity2"></script>
+  <script defer src="rk-common.js?v=20260713-secure-auth1"></script>
   <script defer src="route-master-data.js"></script>
 </head>
 <body>
   <main class="main stack">
+    <section class="panel pad" id="controlTowerLoginPanel">
+      <div class="section-title">
+        <div><h2 id="controlTowerLoginTitle">Control Tower Secure Login</h2><p id="controlTowerLoginHint">Sign in with an approved Firebase account.</p></div>
+        <span class="badge warn" id="controlTowerLoginBadge">not logged in</span>
+      </div>
+      <div class="row mobile-stack">
+        <input class="input grow" id="controlTowerLoginEmail" type="email" placeholder="email id" autocomplete="username">
+        <input class="input grow" id="controlTowerLoginPassword" type="password" placeholder="password" autocomplete="current-password">
+        <button class="btn" id="controlTowerLoginBtn" type="button"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary hidden" id="controlTowerLogoutBtn" type="button"><i data-lucide="log-out"></i> Logout</button>
+      </div>
+    </section>
+
+    <div class="stack hidden" id="controlTowerSecureContent">
     <div class="grid four">
       <div class="metric"><b id="mPending">0</b><span>Pending approvals</span></div>
       <div class="metric"><b id="mApproved">0</b><span>Approved today</span></div>
@@ -32,7 +47,7 @@
         <button class="tab-btn" data-tab="riders"><i data-lucide="bike"></i> Rider Approval <span class="tab-badge hidden" id="riderTabBadge">0</span></button>
         <button class="tab-btn" data-tab="marketing"><i data-lucide="badge-percent"></i> Marketing</button>
         <button class="tab-btn" data-tab="service"><i data-lucide="power"></i> Restaurant On-Off <span class="tab-badge hidden" id="serviceTabBadge">0</span></button>
-        <button class="tab-btn" data-tab="route"><i data-lucide="rail-symbol"></i> Train Route</button>
+        <button class="tab-btn" data-tab="route"><i data-lucide="train-front"></i> Train Route</button>
       </div>
       <div class="management-content">
 
@@ -136,6 +151,7 @@
     </section>
       </div>
     </div>
+    </div>
   </main>
 
   <script>
@@ -143,6 +159,84 @@
       appHeader("Meals On Wheels Control Tower", "Quality approval, maker checker and route planning");
       lucide.createIcons();
       wireTabs("catalog");
+
+      const secureProfile = await new Promise((resolve) => {
+        let accessGranted = false;
+
+        function showLoggedOut(message = "Sign in with an approved Firebase account.") {
+          $("controlTowerLoginTitle").textContent = "Control Tower Secure Login";
+          $("controlTowerLoginHint").textContent = message;
+          $("controlTowerLoginBadge").textContent = "not logged in";
+          $("controlTowerLoginEmail").classList.remove("hidden");
+          $("controlTowerLoginPassword").classList.remove("hidden");
+          $("controlTowerLoginBtn").classList.remove("hidden");
+          $("controlTowerLogoutBtn").classList.add("hidden");
+          $("controlTowerSecureContent").classList.add("hidden");
+        }
+
+        function grantAccess(authUser, profile) {
+          if (accessGranted) return;
+          accessGranted = true;
+          $("controlTowerLoginTitle").textContent = "Meals On Wheels Control Tower";
+          $("controlTowerLoginHint").textContent = `Secure session active for ${profile.name || authUser.email}.`;
+          $("controlTowerLoginBadge").textContent = `${authUser.email} | ${profile.role}`;
+          $("controlTowerLoginEmail").classList.add("hidden");
+          $("controlTowerLoginPassword").classList.add("hidden");
+          $("controlTowerLoginBtn").classList.add("hidden");
+          $("controlTowerLogoutBtn").classList.remove("hidden");
+          $("controlTowerSecureContent").classList.remove("hidden");
+          resolve({ uid: authUser.uid, email: authUser.email, ...profile });
+        }
+
+        async function verifyAndGrant(authUser) {
+          const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
+          const profile = snapshot.exists ? snapshot.data() : null;
+          if (!profile || profile.active !== true || profile.role !== "super-admin") {
+            await firebase.auth().signOut();
+            showLoggedOut("This account does not have active Control Tower access.");
+            return false;
+          }
+          grantAccess(authUser, profile);
+          return true;
+        }
+
+        async function login() {
+          const email = $("controlTowerLoginEmail").value.trim().toLowerCase();
+          const password = $("controlTowerLoginPassword").value;
+          if (!email || !password) return toast("Enter your email ID and password.");
+          $("controlTowerLoginBtn").disabled = true;
+          try {
+            const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+            await verifyAndGrant(credential.user);
+            $("controlTowerLoginPassword").value = "";
+          } catch (error) {
+            const code = String(error?.code || "unknown-error").replace(/^auth\//, "");
+            showLoggedOut(`Secure login failed: ${code}.`);
+            toast(`Secure login failed: ${code}.`);
+          } finally {
+            $("controlTowerLoginBtn").disabled = false;
+          }
+        }
+
+        $("controlTowerLoginBtn").addEventListener("click", login);
+        $("controlTowerLoginPassword").addEventListener("keydown", (event) => {
+          if (event.key === "Enter") login();
+        });
+        $("controlTowerLogoutBtn").addEventListener("click", async () => {
+          await firebase.auth().signOut();
+          window.location.reload();
+        });
+        firebase.auth().onAuthStateChanged(async (authUser) => {
+          if (!authUser) return showLoggedOut();
+          try {
+            await verifyAndGrant(authUser);
+          } catch (error) {
+            await firebase.auth().signOut();
+            showLoggedOut("Unable to verify Control Tower access.");
+          }
+        });
+      });
+
       await ensureSeedData();
 
       let requests = [];
