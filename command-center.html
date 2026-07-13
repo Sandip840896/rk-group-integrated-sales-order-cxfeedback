@@ -458,7 +458,8 @@
           if (firebase.auth().currentUser) await firebase.auth().signOut();
           const found = [...adminUsers, ...accessUsers].find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && user.active !== false);
           if (!found) {
-            toast("Login failed. Please check ID and password.");
+            const authCode = String(authError?.code || "unknown-error").replace(/^auth\//, "");
+            toast(`Secure login failed: ${authCode}.`);
             return;
           }
           const allowedApps = Array.isArray(found.allowedApps) ? found.allowedApps : String(found.access || "").split(",").map((value) => value.trim()).filter(Boolean);
