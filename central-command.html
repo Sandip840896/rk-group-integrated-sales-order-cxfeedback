@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js"></script>
+  <script defer src="rk-common.js?v=20260713-identity2"></script>
 </head>
 <body>
   <main class="main stack">
@@ -63,6 +63,11 @@
       <div class="section-title"><div><h2>Registered Partner and Base Kitchen Login List</h2><p>Admin can review approved assignments and replace a supplier password.</p></div></div>
       <div id="adminSupplierCredentialTable" class="table-wrap"></div>
     </section>
+
+    <section class="panel pad stack">
+      <div class="section-title"><div><h2>Password Reset Requests</h2><p>Admin can reset the linked account password, contact the user manually, and close the request.</p></div></div>
+      <div id="adminPasswordResetQueue" class="list"></div>
+    </section>
   </main>
 
   <script>
@@ -72,7 +77,7 @@
       await ensureSeedData();
 
       const state = {
-        orders: [], feedbacks: [], kitchens: [], trains: [], partners: [], deliveryPartners: [], catalogRequests: [], supplierInvoices: []
+        orders: [], feedbacks: [], kitchens: [], trains: [], partners: [], deliveryPartners: [], catalogRequests: [], supplierInvoices: [], passwordResetRequests: []
       };
 
       function pct(num, den) {
@@ -173,10 +178,19 @@
           <thead><tr><th>Type</th><th>Registered Supplier</th><th>Login ID</th><th>Status</th><th>New Password</th><th>Action</th></tr></thead>
           <tbody>${suppliers.map((row) => `<tr>
             <td>${escapeHtml(row.supplierType)}</td><td>${escapeHtml(row.displayName)}</td><td>${escapeHtml(row.loginId || row.id)}</td>
-            <td>${statusBadge(row.approvalStatus || row.status || (row.active === false ? "pending" : "approved"))}</td>
+            <td>${statusBadge(registrationStatus(row, row.active === false ? "pending" : "approved"))}</td>
             <td><input class="input" type="password" data-admin-password="${row.supplierType === "Partner" ? "partner" : "kitchen"}:${row.id}" placeholder="Enter new password"></td>
             <td><button class="btn secondary" data-admin-save-password="${row.supplierType === "Partner" ? "partner" : "kitchen"}:${row.id}"><i data-lucide="key-round"></i> Update</button></td>
           </tr>`).join("")}</tbody></table>`;
+        $("adminPasswordResetQueue").innerHTML = state.passwordResetRequests.map((request) => {
+          const status = registrationStatus(request);
+          return `<div class="item"><div class="row between"><h3>${escapeHtml(request.name || request.phone || request.id)}</h3>${statusBadge(status)}</div>
+            <p>${escapeHtml(String(request.userType || "user").replace(/-/g, " "))} | ${escapeHtml(request.phone || "")}${request.loginId ? ` | Login ID ${escapeHtml(request.loginId)}` : ""}</p>
+            <div class="row wrap" style="margin-top:10px;">
+              ${status === "pending" ? `<button class="btn" data-admin-reset-request="${request.id}"><i data-lucide="key-round"></i> Reset Password</button>` : ""}
+              ${status === "reset-completed" ? `<button class="btn secondary" data-admin-mark-informed="${request.id}"><i data-lucide="phone-call"></i> Mark User Informed</button>` : ""}
+            </div></div>`;
+        }).join("") || `<div class="empty">No password reset request.</div>`;
         lucide.createIcons();
       }
 
@@ -195,6 +209,27 @@
         }
         input.value = "";
         toast("Supplier password updated by Admin.");
+      });
+
+      $("adminPasswordResetQueue").addEventListener("click", async (event) => {
+        const reset = event.target.closest("[data-admin-reset-request]");
+        const informed = event.target.closest("[data-admin-mark-informed]");
+        if (reset) {
+          const request = state.passwordResetRequests.find((row) => row.id === reset.dataset.adminResetRequest);
+          const password = prompt(`Enter the new password for ${request?.name || request?.phone}:`);
+          if (!request || !password || password.length < 4) return toast("Password must contain at least 4 characters.");
+          const source = request.registrationCompatSource || request.sourceCollection;
+          const collection = source === "systemSettings" ? "systemSettings" : request.userType === "partner" ? "partners" : request.userType === "base-kitchen" ? "baseKitchens" : request.userType === "rake-manager" || request.userType === "staff" ? "adminUsers" : source;
+          if (!collection || !request.registrationId) return toast("Registration link is missing. Use the registered supplier table or Admin App.");
+          await db.collection(collection).doc(request.registrationId).update({ password, updatedAt: FieldValue.serverTimestamp() });
+          await compatUpdate(request, "passwordResetRequests", { status: "reset-completed", resetAt: FieldValue.serverTimestamp(), resetBy: "Admin" });
+          toast("Password reset. Contact the user manually, then mark informed.");
+        }
+        if (informed) {
+          const request = state.passwordResetRequests.find((row) => row.id === informed.dataset.adminMarkInformed);
+          await compatUpdate(request, "passwordResetRequests", { status: "informed", informedAt: FieldValue.serverTimestamp(), informedBy: "Admin" });
+          toast("Request marked informed.");
+        }
       });
 
       $("supplierInvoiceList").addEventListener("click", async (event) => {
@@ -229,6 +264,7 @@
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { state.deliveryPartners = rows; render(); }, "updatedAt", "desc", 500);
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { state.catalogRequests = rows; render(); }, "createdAt", "desc", 500);
       onLive("supplierInvoices", (rows) => { state.supplierInvoices = rows; render(); }, "createdAt", "desc", 500);
+      onLiveCompat("passwordResetRequests", "passwordResetRequest", (rows) => { state.passwordResetRequests = rows; render(); }, "createdAt", "desc", 500);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         state.trains = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         render();

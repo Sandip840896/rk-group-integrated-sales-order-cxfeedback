@@ -485,6 +485,173 @@ function statusBadge(status) {
   return `<span class="badge ${tone}">${escapeHtml(s.replace(/-/g, " "))}</span>`;
 }
 
+function registrationStatus(row, fallback = "pending") {
+  return String(row?.approvalStatus || row?.status || fallback).toLowerCase();
+}
+
+const registrationPhoneSources = [
+  { collection: "partners", type: "partner", phoneField: "phone", nameFields: ["restaurantName", "name"], loginField: "loginId" },
+  { collection: "baseKitchens", type: "base-kitchen", phoneField: "phone", nameFields: ["name"], loginField: "loginId" },
+  { collection: "deliveryPartners", type: "delivery-partner", phoneField: "phone", nameFields: ["name"], loginField: "loginId" },
+  { collection: "adminUsers", type: "staff", phoneField: "phone", nameFields: ["name", "email"], loginField: "email" },
+  { collection: "customerOrders", type: "customer", phoneField: "customer.phone", nameFields: ["customer.name"], loginField: "" }
+];
+
+function nestedValue(row, path) {
+  return String(path || "").split(".").reduce((value, key) => value?.[key], row);
+}
+
+function normalizedPhoneIdentity(row, source) {
+  const name = source.nameFields.map((field) => nestedValue(row, field)).find(Boolean) || "Registered user";
+  return {
+    id: row.id,
+    sourceCollection: source.collection,
+    userType: source.collection === "adminUsers" && row.role ? String(row.role) : source.type,
+    phone: cleanPhone(nestedValue(row, source.phoneField)),
+    name: String(name),
+    loginId: source.loginField ? String(nestedValue(row, source.loginField) || "") : "",
+    status: registrationStatus(row, source.type === "customer" ? "active" : "pending"),
+    compatSource: row.compatSource || source.collection
+  };
+}
+
+async function findRegistrationByPhone(phone) {
+  const clean = cleanPhone(phone);
+  if (clean.length !== 10) return [];
+  const results = [];
+  const registryDoc = await db.collection("systemSettings").doc(compatDocId("phoneIdentity", clean)).get().catch(() => null);
+  if (registryDoc?.exists) {
+    const data = registryDoc.data();
+    results.push({ id: registryDoc.id, ...data, phone: clean, registry: true });
+  }
+  for (const source of registrationPhoneSources) {
+    try {
+      const snap = await db.collection(source.collection).where(source.phoneField, "==", clean).limit(10).get();
+      snap.docs.forEach((doc) => results.push(normalizedPhoneIdentity({ id: doc.id, ...doc.data() }, source)));
+    } catch (error) {
+      console.warn(`Phone lookup skipped for ${source.collection}`, error);
+    }
+  }
+  try {
+    const fallback = await db.collection("systemSettings").where("phone", "==", clean).limit(30).get();
+    fallback.docs.forEach((doc) => {
+      const data = doc.data();
+      if (!["partner", "baseKitchen", "deliveryPartner", "phoneIdentity"].includes(String(data.type || ""))) return;
+      results.push({
+        id: doc.id,
+        sourceCollection: "systemSettings",
+        compatSource: "systemSettings",
+        userType: data.userType || (data.type === "baseKitchen" ? "base-kitchen" : data.type === "deliveryPartner" ? "delivery-partner" : data.type),
+        phone: clean,
+        name: data.name || data.restaurantName || "Registered user",
+        loginId: data.loginId || "",
+        status: registrationStatus(data),
+        registry: data.type === "phoneIdentity"
+      });
+    });
+  } catch (error) {
+    console.warn("Fallback phone lookup skipped", error);
+  }
+  const unique = new Map();
+  results.forEach((row) => unique.set(`${row.sourceCollection || row.compatSource}:${row.id}:${row.userType}`, row));
+  return [...unique.values()];
+}
+
+async function assertUniqueRegistrationPhone(phone, options = {}) {
+  const clean = cleanPhone(phone);
+  if (clean.length !== 10) throw new Error("Enter a valid 10 digit phone number.");
+  const matches = await findRegistrationByPhone(clean);
+  const blocking = matches.find((row) => {
+    if (options.allowSameType && row.userType === options.userType) return false;
+    if (options.recordId && (row.id === options.recordId || row.registrationId === options.recordId)) return false;
+    return true;
+  });
+  if (blocking) throw new Error(`This phone number is already registered for ${blocking.name} (${String(blocking.userType || "user").replace(/-/g, " ")}). Use Login or Forgot Password instead.`);
+  return matches;
+}
+
+async function registerPhoneIdentity(phone, payload = {}) {
+  const clean = cleanPhone(phone);
+  await db.collection("systemSettings").doc(compatDocId("phoneIdentity", clean)).set({
+    type: "phoneIdentity",
+    phone: clean,
+    userType: payload.userType || "user",
+    name: payload.name || "Registered user",
+    loginId: payload.loginId || "",
+    registrationId: payload.registrationId || "",
+    sourceCollection: payload.sourceCollection || "",
+    status: payload.status || "registered",
+    updatedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
+async function readUploadedDocument(file, maxImageSize = 900) {
+  if (!file) return null;
+  if (String(file.type || "").startsWith("image/")) {
+    return { name: file.name, type: file.type, dataUrl: await compressImage(file, maxImageSize, 0.72) };
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  return { name: file.name, type: file.type || "application/pdf", dataUrl };
+}
+
+function openPasswordResetRequest(userType = "user") {
+  document.getElementById("passwordResetModal")?.remove();
+  const backdrop = document.createElement("div");
+  backdrop.id = "passwordResetModal";
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `<div class="modal stack">
+    <div class="section-title"><div><h2>Forgot Password</h2><p>Verify the registered phone. Control Tower or Admin will reset the password and inform you manually.</p></div><button class="icon-btn" type="button" data-close-password-reset><i data-lucide="x"></i></button></div>
+    <label class="field"><span>Registered Phone Number</span><input class="input" id="passwordResetPhone" inputmode="tel" maxlength="10" placeholder="10 digit phone"></label>
+    <button class="btn secondary" type="button" id="findPasswordResetUser"><i data-lucide="search"></i> Find Registration</button>
+    <div id="passwordResetUserDetail" class="hidden"></div>
+    <button class="btn hidden" type="button" id="submitPasswordResetRequest"><i data-lucide="send"></i> Send Reset Request</button>
+  </div>`;
+  document.body.appendChild(backdrop);
+  let selected = null;
+  const close = () => backdrop.remove();
+  backdrop.querySelector("[data-close-password-reset]").addEventListener("click", close);
+  backdrop.addEventListener("click", (event) => { if (event.target === backdrop) close(); });
+  backdrop.querySelector("#findPasswordResetUser").addEventListener("click", async () => {
+    const phone = cleanPhone(backdrop.querySelector("#passwordResetPhone").value);
+    if (phone.length !== 10) return toast("Enter a valid 10 digit registered phone.");
+    const rows = await findRegistrationByPhone(phone);
+    selected = rows.find((row) => row.userType === userType && !row.registry)
+      || rows.find((row) => !row.registry)
+      || rows[0];
+    if (!selected) return toast("No registration found for this phone number.");
+    const detail = backdrop.querySelector("#passwordResetUserDetail");
+    detail.className = "item";
+    detail.innerHTML = `<h3>${escapeHtml(selected.name || "Registered user")}</h3><p>${escapeHtml(String(selected.userType || userType).replace(/-/g, " "))} | ${escapeHtml(phone)}</p>${selected.loginId ? `<p><b>Login ID:</b> ${escapeHtml(selected.loginId)}</p>` : ""}<p><b>Status:</b> ${escapeHtml(selected.status || "registered")}</p>`;
+    backdrop.querySelector("#submitPasswordResetRequest").classList.remove("hidden");
+    lucide?.createIcons?.();
+  });
+  backdrop.querySelector("#submitPasswordResetRequest").addEventListener("click", async () => {
+    if (!selected) return;
+    await compatAdd("passwordResetRequests", "passwordResetRequest", {
+      phone: cleanPhone(selected.phone),
+      name: selected.name || "Registered user",
+      userType: selected.userType || userType,
+      loginId: selected.loginId || "",
+      registrationId: selected.id || "",
+      sourceCollection: selected.sourceCollection || selected.compatSource || "",
+      registrationCompatSource: selected.compatSource || selected.sourceCollection || "",
+      status: "pending",
+      requestedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    close();
+    toast("Password reset request sent. Control Tower or Admin will contact you after resetting it.");
+  });
+  lucide?.createIcons?.();
+}
+
 function canCustomerChangeOrder(order) {
   const status = String(order?.status || "").toLowerCase();
   if (!["new", "accepted"].includes(status)) return false;

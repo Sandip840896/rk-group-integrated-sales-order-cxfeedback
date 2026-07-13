@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js"></script>
+  <script defer src="rk-common.js?v=20260713-identity2"></script>
 </head>
 <body>
   <main class="main supplier-portal">
@@ -25,6 +25,7 @@
         <input class="input grow" id="bkLoginPassword" type="password" placeholder="Password">
         <button class="btn" id="saveKitchenBtn"><i data-lucide="log-in"></i> Login</button>
         <button class="btn secondary" id="newKitchenRegistrationBtn" type="button"><i data-lucide="clipboard-list"></i> New User</button>
+        <button class="btn secondary" id="bkForgotPasswordBtn" type="button"><i data-lucide="key-round"></i> Forgot Password</button>
         <button class="btn secondary hidden" id="bkLogoutBtn"><i data-lucide="log-out"></i> Logout</button>
         <button class="btn danger" id="switchOffKitchenBtn"><i data-lucide="power"></i> Switch Off Service</button>
       </div>
@@ -41,6 +42,10 @@
           <label class="field"><span>City / Station</span><input class="input" name="city" required></label>
           <label class="field"><span>Owner / Manager</span><input class="input" name="ownerName" required></label>
           <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel"></label>
+          <label class="field"><span>FSSAI License No</span><input class="input" name="fssaiLicenseNo" required></label>
+          <label class="field"><span>FSSAI License Upload</span><input class="input" name="fssaiLicenseFile" required type="file" accept="image/*,.pdf,application/pdf"></label>
+          <label class="field"><span>Trade License No</span><input class="input" name="tradeLicenseNo" required></label>
+          <label class="field"><span>Trade License Upload</span><input class="input" name="tradeLicenseFile" required type="file" accept="image/*,.pdf,application/pdf"></label>
         </div>
         <label class="field"><span>Full Address</span><textarea class="textarea" name="address" required></textarea></label>
         <button class="btn" type="submit"><i data-lucide="send"></i> Submit for Approval</button>
@@ -205,12 +210,12 @@
 
       $("saveKitchenBtn").addEventListener("click", () => {
         const loginId = $("bkLoginId").value.trim().toLowerCase();
-        const kitchen = kitchens.find((entry) => String(entry.loginId || entry.id || "").trim().toLowerCase() === loginId);
+        const password = $("bkLoginPassword").value;
+        const candidates = kitchens.filter((entry) => String(entry.loginId || entry.id || "").trim().toLowerCase() === loginId);
+        const kitchen = candidates.find((entry) => kitchenCredentialValid(entry, loginId, password) && registrationStatus(entry, entry.active === false ? "pending" : "approved") === "approved")
+          || candidates.find((entry) => kitchenCredentialValid(entry, loginId, password));
         if (!kitchen) return showKitchenLoginMessage("Invalid Base Kitchen Login ID or Password.", "danger");
-        if (!kitchenCredentialValid(kitchen, $("bkLoginId").value, $("bkLoginPassword").value)) {
-          return showKitchenLoginMessage("Invalid Base Kitchen Login ID or Password.", "danger");
-        }
-        const approvalStatus = String(kitchen.approvalStatus || kitchen.status || (kitchen.active === false ? "pending" : "approved")).toLowerCase();
+        const approvalStatus = registrationStatus(kitchen, kitchen.active === false ? "pending" : "approved");
         if (approvalStatus !== "approved") return showKitchenLoginMessage(`Registration is ${approvalStatus}. Control Tower approval is required.`, "warn");
         activeKitchenId = kitchen.id;
         bkSession = { id: activeKitchenId, name: kitchen.name || activeKitchenId, loginId: $("bkLoginId").value.trim().toLowerCase() };
@@ -225,21 +230,30 @@
       $("newKitchenRegistrationBtn").addEventListener("click", () => {
         $("bkRegistrationPanel").classList.toggle("hidden");
       });
+      $("bkForgotPasswordBtn").addEventListener("click", () => openPasswordResetRequest("base-kitchen"));
 
       $("bkRegistrationForm").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
+        delete data.fssaiLicenseFile;
+        delete data.tradeLicenseFile;
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         const loginId = String(data.loginId || "").trim().toLowerCase();
         if (kitchens.some((row) => String(row.loginId || "").toLowerCase() === loginId)) return toast("This Login ID is already registered.");
         setSubmitState(form, "saving", "Submitting...");
         try {
-          await db.collection("baseKitchens").add({
+          await assertUniqueRegistrationPhone(phone, { userType: "base-kitchen" });
+          const fssaiLicenseProof = await readUploadedDocument(form.fssaiLicenseFile.files[0]);
+          const tradeLicenseProof = await readUploadedDocument(form.tradeLicenseFile.files[0]);
+          if (!fssaiLicenseProof || !tradeLicenseProof) throw new Error("FSSAI License and Trade License uploads are mandatory.");
+          const created = await db.collection("baseKitchens").add({
             ...data,
             loginId,
             phone,
+            fssaiLicenseProof,
+            tradeLicenseProof,
             active: false,
             status: "pending",
             approvalStatus: "pending",
@@ -247,6 +261,7 @@
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
+          await registerPhoneIdentity(phone, { userType: "base-kitchen", name: data.name, loginId, registrationId: created.id, sourceCollection: "baseKitchens", status: "pending" });
           form.reset();
           finishSubmitState(form, "Submitted");
           $("bkRegistrationPanel").classList.add("hidden");
@@ -254,7 +269,7 @@
         } catch (error) {
           console.error(error);
           setSubmitState(form, "idle");
-          toast(firebaseAccessMessage("baseKitchens", error));
+          toast(String(error?.message || "").toLowerCase().includes("permission") ? firebaseAccessMessage("baseKitchens", error) : error.message);
         }
       });
 
@@ -417,7 +432,7 @@
       function approvedKitchenRiders() {
         const query = bkRiderSearchTerm.toLowerCase().trim();
         return deliveryPartners
-          .filter((rider) => String(rider.status || "").toLowerCase() === "approved")
+          .filter((rider) => registrationStatus(rider) === "approved")
           .filter((rider) => String(rider.assignmentType || "").toLowerCase() === "base-kitchen")
           .filter((rider) => String(rider.baseKitchenId || rider.assignmentId || "") === String(activeKitchenId))
           .filter((rider) => `${rider.name || ""} ${rider.phone || ""} ${rider.vehicleNo || ""}`.toLowerCase().includes(query));

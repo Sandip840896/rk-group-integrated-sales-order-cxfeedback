@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js"></script>
+  <script defer src="rk-common.js?v=20260713-identity2"></script>
 </head>
 <body>
   <main class="main stack">
@@ -193,12 +193,19 @@
           if (!data.accessValue) return toast("Attach one train to this rake manager.");
         }
         const id = firebaseDocId(String(data.email || "").toLowerCase());
+        const phone = cleanPhone(data.phone || "");
+        if (phone.length !== 10) return toast("Enter a valid unique 10 digit mobile number.");
+        try {
+          await assertUniqueRegistrationPhone(phone, { userType: data.role || "staff", recordId: id });
+        } catch (error) {
+          return toast(error.message);
+        }
         setSubmitState(form, "saving", "Saving...");
         await db.collection("adminUsers").doc(id).set({
           email: String(data.email || "").toLowerCase(),
           password: data.password || "",
           name: data.name || "",
-          phone: cleanPhone(data.phone || ""),
+          phone,
           role: data.role || "viewer",
           allowedApps,
           access: allowedApps.join(","),
@@ -212,6 +219,7 @@
           updatedAt: FieldValue.serverTimestamp(),
           createdAt: FieldValue.serverTimestamp()
         }, { merge: true });
+        await registerPhoneIdentity(phone, { userType: data.role === "rake-manager" ? "rake-manager" : "staff", name: data.name || data.email, loginId: String(data.email || "").toLowerCase(), registrationId: id, sourceCollection: "adminUsers", status: data.active === "true" ? "approved" : "inactive" });
         finishSubmitState(form, "User Saved");
         form.reset();
         applyRoleDefaults();

@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js"></script>
+  <script defer src="rk-common.js?v=20260713-identity2"></script>
 </head>
 <body>
   <div class="customer-utility-dock">
@@ -272,6 +272,7 @@
         if (phone.length !== 10) return toast("Enter valid 10 digit mobile.");
         setSubmitState(form, "saving", "Submitting...");
         try {
+          await assertUniqueRegistrationPhone(phone, { userType: "delivery-partner" });
           const photo = await compressImage(form.photoFile.files[0], 520, 0.7);
           const kyc = await compressImage(form.kycFile.files[0], 760, 0.7);
           const profilePayload = {
@@ -290,7 +291,7 @@
             updatedAt: FieldValue.serverTimestamp(),
             createdAt: FieldValue.serverTimestamp()
           };
-          await compatSet("deliveryPartners", "deliveryPartner", phone, {
+          const created = await compatSet("deliveryPartners", "deliveryPartner", phone, {
             ...profilePayload
           }, { merge: true });
           await db.collection("systemSettings").doc(compatDocId("deliveryPartner", phone)).set({
@@ -300,6 +301,7 @@
             compatFallback: true,
             updatedAt: FieldValue.serverTimestamp()
           }, { merge: true });
+          await registerPhoneIdentity(phone, { userType: "delivery-partner", name: data.name, registrationId: created.id, sourceCollection: created.collectionName, status: "pending" });
           localStorage.setItem("rkDeliveryPhone", phone);
           $("deliveryPhone").value = phone;
           form.reset();
@@ -308,7 +310,7 @@
         } catch (error) {
           console.error(error);
           setSubmitState(form, "idle");
-          toast(firebaseAccessMessage("deliveryPartners", error));
+          toast(String(error?.message || "").toLowerCase().includes("permission") ? firebaseAccessMessage("deliveryPartners", error) : error.message);
         }
       });
 
@@ -402,7 +404,7 @@
       onLive("customerOrders", (rows) => { orders = rows; renderOpen(); renderMine(); renderEarnings(); }, "createdAt", "desc", 250);
       onLive("trainMasters", (rows) => { trainMasters = rows.filter((row) => row.active !== false); renderAssignmentOptions(); }, "trainNumber", "asc", 250);
       onLive("baseKitchens", (rows) => { baseKitchens = rows.filter((row) => row.active !== false); renderAssignmentOptions(); }, "name", "asc", 250);
-      onLiveCompat("partners", "partner", (rows) => { partners = rows.filter((row) => row.active !== false && String(row.status || row.approvalStatus || "approved").toLowerCase() !== "rejected"); renderAssignmentOptions(); }, "updatedAt", "desc", 250);
+      onLiveCompat("partners", "partner", (rows) => { partners = rows.filter((row) => row.active !== false && registrationStatus(row, "approved") !== "rejected"); renderAssignmentOptions(); }, "updatedAt", "desc", 250);
     });
   </script>
 </body>

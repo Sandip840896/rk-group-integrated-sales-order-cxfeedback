@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=mow-20260703-management"></script>
+  <script defer src="rk-common.js?v=20260713-identity2"></script>
 </head>
 <body>
   <div class="brand-splash" id="brandSplash" aria-label="Meals On Wheels opening cover">
@@ -24,15 +24,50 @@
       </div>
     </div>
   </div>
-  <div class="customer-utility-dock" id="customerUtilityDock">
-    <label><i data-lucide="languages"></i><select id="languageSelect" aria-label="Language">
-      <option value="en">English</option>
-      <option value="hi">Hindi</option>
-      <option value="bn">Bengali</option>
-    </select></label>
-    <a id="callRakeLink" href="tel:858483366"><i data-lucide="phone-call"></i> <span data-i18n="call">Call</span></a>
-  </div>
   <main class="main mobile-main customer-order-first">
+    <header class="customer-app-header">
+      <button class="customer-menu-toggle" id="openCustomerMenuBtn" type="button" aria-label="Open customer menu" aria-controls="customerNavDrawer" aria-expanded="false">
+        <i data-lucide="menu"></i>
+      </button>
+      <div class="customer-header-brand">
+        <div class="logo">MW</div>
+        <div>
+          <h1>Meals On Wheels</h1>
+          <p data-i18n="brand_subtitle">Bharosa Purana, Swaad Naya. Fresh meals delivered to your seat.</p>
+        </div>
+      </div>
+      <div class="customer-header-actions" id="customerUtilityDock">
+        <label><i data-lucide="languages"></i><select id="languageSelect" aria-label="Language">
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+          <option value="bn">Bengali</option>
+        </select></label>
+        <a id="callRakeLink" href="tel:858483366" title="Call Rake Manager"><i data-lucide="phone-call"></i><span data-i18n="call">Call</span></a>
+      </div>
+    </header>
+    <div class="customer-drawer-backdrop hidden" id="customerDrawerBackdrop"></div>
+    <aside class="customer-nav-drawer" id="customerNavDrawer" aria-hidden="true">
+      <div class="drawer-profile">
+        <div class="logo">MW</div>
+        <div>
+          <h2>Meals On Wheels</h2>
+          <p id="drawerPassengerSummary">Add journey details to start ordering.</p>
+        </div>
+        <button class="icon-btn" id="closeCustomerMenuBtn" type="button" title="Close menu"><i data-lucide="x"></i></button>
+      </div>
+      <nav class="customer-drawer-nav" aria-label="Customer menu">
+        <button class="active" data-tab="order" data-drawer-nav="order" type="button"><i data-lucide="utensils"></i><span>Order Food</span></button>
+        <button data-tab="track" data-drawer-nav="track" type="button"><i data-lucide="map-pin"></i><span>Track Order</span><small id="drawerActiveOrderBadge" class="drawer-badge hidden">0</small></button>
+        <button data-tab="track" data-drawer-nav="payments" type="button"><i data-lucide="receipt-text"></i><span>Payment / Invoice History</span></button>
+        <button data-tab="track" data-drawer-nav="orders" type="button"><i data-lucide="clipboard-list"></i><span>Order History</span></button>
+        <button data-tab="feedback" data-drawer-nav="feedback" type="button"><i data-lucide="message-square"></i><span>Feedback & Complaints</span></button>
+        <button data-tab="faq" data-drawer-nav="faq" type="button"><i data-lucide="circle-help"></i><span>FAQ & Help</span></button>
+      </nav>
+      <div class="drawer-footer">
+        <b>Operated by RK Group</b>
+        <span>Authorised service support for onboard meal ordering.</span>
+      </div>
+    </aside>
     <section class="brand-cover-strip compact-customer-brand">
       <div class="brand-cover-copy">
         <div class="brand-mark">MEALS <span>ON</span> WHEELS</div>
@@ -91,11 +126,9 @@
       </div>
     </section>
 
-    <div class="tabs customer-tabs">
-      <button class="tab-btn" data-tab="order"><i data-lucide="utensils"></i> <span data-i18n="tab_order">Order Food</span></button>
-      <button class="tab-btn" data-tab="feedback"><i data-lucide="message-square"></i> <span data-i18n="tab_feedback">Feedback</span></button>
-      <button class="tab-btn" data-tab="track"><i data-lucide="map-pin"></i> <span data-i18n="tab_track">Track</span></button>
-      <button class="tab-btn" data-tab="faq"><i data-lucide="circle-help"></i> <span data-i18n="tab_faq">FAQ</span></button>
+    <div class="customer-current-view">
+      <span><i data-lucide="utensils"></i> <b id="customerCurrentViewLabel">Order Food</b></span>
+      <button class="btn secondary compact-btn" id="openCustomerMenuInlineBtn" type="button"><i data-lucide="menu"></i> Menu</button>
     </div>
 
     <section class="panel pad stack customer-panel" data-tab-panel="order">
@@ -353,6 +386,17 @@
       let unsubscribeFeedbackPhoneTrack = null;
       let unsubscribeFeedbackNestedTrack = null;
       let unsubscribeFeedbackDocTracks = [];
+      const customerViewLabels = {
+        order: "Order Food",
+        track: "Track Order",
+        feedback: "Feedback & Complaints",
+        faq: "FAQ & Help"
+      };
+      const baseShowTab = window.showTab;
+      window.showTab = function customerShowTab(name) {
+        baseShowTab(name);
+        updateCustomerNavigation(name);
+      };
       $("mealFilter").innerHTML = ["All", ...mealSlots].map((m) => `<option>${m}</option>`).join("");
       $("complaintNature").innerHTML = complaintNatures.map((nature) => `<option>${escapeHtml(nature)}</option>`).join("");
 
@@ -801,6 +845,47 @@
         return i18n[currentLang()][key] || i18n.en[key] || key;
       }
 
+      function updateDrawerSummary(data = passenger()) {
+        const hasJourney = data.phone && data.train && data.coach && data.seat;
+        $("drawerPassengerSummary").textContent = hasJourney
+          ? `${data.train}${data.trainName ? ` ${data.trainName}` : ""} | ${data.coach}/${data.seat} | ${data.phone}`
+          : textFor("passenger_missing");
+      }
+
+      function updateDrawerBadges() {
+        const activeOrders = trackedOrders.filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())).length;
+        $("drawerActiveOrderBadge").classList.toggle("hidden", activeOrders === 0);
+        $("drawerActiveOrderBadge").textContent = String(activeOrders);
+      }
+
+      function updateCustomerNavigation(name) {
+        const label = customerViewLabels[name] || customerViewLabels.order;
+        $("customerCurrentViewLabel").textContent = label;
+        document.querySelectorAll("[data-drawer-nav]").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.tab === name && !["orders", "payments"].includes(btn.dataset.drawerNav));
+        });
+        document.querySelectorAll("[data-drawer-nav='orders'], [data-drawer-nav='payments']").forEach((btn) => {
+          btn.classList.toggle("active", name === "track" && btn.dataset.drawerNav === sessionStorage.getItem("mowLastDrawerNav"));
+        });
+        updateDrawerSummary();
+        updateDrawerBadges();
+      }
+
+      function openCustomerDrawer() {
+        $("customerNavDrawer").classList.add("open");
+        $("customerDrawerBackdrop").classList.remove("hidden");
+        $("customerNavDrawer").setAttribute("aria-hidden", "false");
+        $("openCustomerMenuBtn").setAttribute("aria-expanded", "true");
+        updateCustomerNavigation(document.querySelector("[data-tab-panel]:not(.hidden)")?.dataset.tabPanel || "order");
+      }
+
+      function closeCustomerDrawer() {
+        $("customerNavDrawer").classList.remove("open");
+        $("customerDrawerBackdrop").classList.add("hidden");
+        $("customerNavDrawer").setAttribute("aria-hidden", "true");
+        $("openCustomerMenuBtn").setAttribute("aria-expanded", "false");
+      }
+
       function applyLanguage() {
         document.documentElement.lang = currentLang();
         document.querySelectorAll("[data-i18n]").forEach((node) => {
@@ -811,6 +896,7 @@
         renderPassengerSummary();
         renderMenu();
         if (trackedFeedbacks.length || trackedOrders.length) renderTracking();
+        updateCustomerNavigation(document.querySelector("[data-tab-panel]:not(.hidden)")?.dataset.tabPanel || "order");
         lucide.createIcons();
       }
 
@@ -1189,6 +1275,7 @@
         $("passengerSummary").textContent = enough
           ? `${displayName} | ${data.train}${data.rakeNumber ? ` Rake ${data.rakeNumber}` : ""} | ${data.coach}/${data.seat} | PNR ${data.pnr}`
           : textFor("passenger_missing");
+        updateDrawerSummary(data);
       }
 
       function openPassengerModal() {
@@ -1202,21 +1289,44 @@
       function validatePassenger() {
         if (!$("customerForm").reportValidity()) {
           openPassengerModal();
+          document.querySelectorAll("#customerForm input:invalid, #customerForm select:invalid").forEach((input) => {
+            input.closest(".field")?.classList.add("invalid");
+          });
           return null;
         }
         const data = passenger();
         if (data.phone.length !== 10) {
+          const phoneInput = document.querySelector("#customerForm [name='phone']");
+          phoneInput?.closest(".field")?.classList.add("invalid");
+          phoneInput?.focus();
+          openPassengerModal();
           toast(textFor("valid_phone"));
           return null;
         }
         if (data.pnr.length !== 10) {
+          const pnrInput = document.querySelector("#customerForm [name='pnr']");
+          pnrInput?.closest(".field")?.classList.add("invalid");
+          pnrInput?.focus();
+          openPassengerModal();
           toast(textFor("valid_pnr"));
           return null;
         }
+        document.querySelectorAll("#customerForm .field.invalid").forEach((field) => field.classList.remove("invalid"));
         localStorage.setItem("rkPassenger", JSON.stringify(data));
         $("trackPhone").value = data.phone;
         renderPassengerSummary(data);
         return data;
+      }
+
+      async function saveUniqueCustomerIdentity(customer) {
+        await assertUniqueRegistrationPhone(customer.phone, { userType: "customer", allowSameType: true });
+        await registerPhoneIdentity(customer.phone, {
+          userType: "customer",
+          name: customer.name || "Passenger",
+          registrationId: firebaseDocId(customer.phone),
+          sourceCollection: "customer-app",
+          status: "active"
+        });
       }
 
       function feedbackCustomer(form, relatedOrder) {
@@ -1386,6 +1496,7 @@
         $("cartCount").textContent = `${count} ${count === 1 ? textFor("item") : textFor("items")}`;
         $("cartTotal").textContent = money(total);
         $("placeOrderBtn").disabled = count === 0;
+        document.querySelector(".cart-bar")?.classList.toggle("show", count > 0);
       }
 
       function renderCartReview() {
@@ -1503,33 +1614,84 @@
         document.querySelectorAll("[data-menu-preference]").forEach((node) => node.classList.toggle("active", node === btn));
         renderMenu();
       });
-      $("savePassengerBtn").addEventListener("click", () => {
-        if (validatePassenger()) toast("Passenger details saved.");
+      $("savePassengerBtn").addEventListener("click", async () => {
+        const customer = validatePassenger();
+        if (!customer) return;
+        try {
+          await saveUniqueCustomerIdentity(customer);
+          toast("Passenger details saved. This phone is now your unique customer identity.");
+        } catch (error) {
+          toast(error.message);
+        }
       });
       $("openPassengerBtn").addEventListener("click", openPassengerModal);
       $("closePassengerBtn").addEventListener("click", closePassengerModal);
-      $("savePassengerModalBtn").addEventListener("click", () => {
-        if (validatePassenger()) {
+      $("savePassengerModalBtn").addEventListener("click", async () => {
+        const customer = validatePassenger();
+        if (customer) {
+          try {
+            await saveUniqueCustomerIdentity(customer);
+          } catch (error) {
+            return toast(error.message);
+          }
           closePassengerModal();
           toast("Passenger details saved.");
         }
       });
 
       function openProductDetail(item) {
+        const slots = itemMealSlots(item);
+        const source = menuSourceOf(item);
+        const tags = [
+          item.type || item.diet,
+          sourceLabel(source),
+          item.bestseller || item.topSelling ? "Top selling" : "",
+          item.highDemand ? "High demand" : "",
+          item.cuisine || "",
+          slots.join(", ")
+        ].filter(Boolean);
+        const detailFacts = [
+          ["Price", money(sellingPriceOf(item))],
+          ["MRP", Number(item.mrp || item.listPrice || 0) > sellingPriceOf(item) ? money(item.mrp || item.listPrice) : ""],
+          ["Prep", item.prepTime || item.prep || item.prepMinutes ? `${item.prepTime || item.prep || item.prepMinutes} min` : ""],
+          ["ETA", item.deliveryEta || item.delivery_eta || item.deliveryWindow || ""],
+          ["Serves", item.serves || item.portion || ""],
+          ["Stock", String(Number(item.stockQty || item.stock || 0))]
+        ].filter(([, value]) => value);
         $("productDetailTitle").textContent = item.name || "Food Detail";
-        $("productDetailMeta").textContent = `${sourceLabel(menuSourceOf(item))} | ${itemMealSlots(item).join(", ")} | ${money(sellingPriceOf(item))}`;
+        $("productDetailMeta").textContent = `${sourceLabel(source)} | ${slots.join(", ")} | ${money(sellingPriceOf(item))}`;
         $("productDetailBody").innerHTML = `
           ${item.itemImage ? `<img class="product-detail-img" src="${item.itemImage}" alt="${escapeHtml(item.name)}">` : ""}
-          <div class="item">
+          <div class="product-detail-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>
+          <div class="item product-detail-card">
             <div class="row between"><h3>${escapeHtml(item.name || "")}</h3><b>${money(sellingPriceOf(item))}</b></div>
-            <p>${escapeHtml(item.description || "Fresh food item available from Meals On Wheels approved catalog.")}</p>
-            <p><b>Source:</b> ${escapeHtml(sourceLabel(menuSourceOf(item)))} ${item.supplierName || item.baseKitchenName ? `| ${escapeHtml(item.supplierName || item.baseKitchenName)}` : ""}</p>
-            <p><b>Type:</b> ${escapeHtml(item.type || "veg")} | <b>Stock:</b> ${Number(item.stockQty || 0)}</p>
+            <p>${escapeHtml(item.description || item.detail || "Fresh food item available from Meals On Wheels approved catalog.")}</p>
+            <div class="product-detail-facts">${detailFacts.map(([label, value]) => `<div><small>${escapeHtml(label)}</small><b>${escapeHtml(String(value))}</b></div>`).join("")}</div>
+            <p><b>Source:</b> ${escapeHtml(sourceLabel(source))}${item.supplierName || item.baseKitchenName ? ` | ${escapeHtml(item.supplierName || item.baseKitchenName)}` : ""}</p>
+            ${item.allergens || item.ingredients ? `<p><b>${item.allergens ? "Allergens" : "Ingredients"}:</b> ${escapeHtml(item.allergens || item.ingredients)}</p>` : ""}
+            <button class="btn grow" data-detail-add="${escapeHtml(item.id)}"><i data-lucide="plus"></i> Add to Cart</button>
           </div>`;
         $("productDetailModal").classList.remove("hidden");
+        lucide.createIcons();
       }
 
       $("closeProductDetailBtn").addEventListener("click", () => $("productDetailModal").classList.add("hidden"));
+      $("productDetailModal").addEventListener("click", (event) => {
+        const add = event.target.closest("[data-detail-add]");
+        if (!add) return;
+        const item = menuItems.find((entry) => entry.id === add.dataset.detailAdd);
+        if (!item) return;
+        const current = cart.get(item.id) || { ...item, qty: 0 };
+        const maxQty = maxQtyForItem(item);
+        if (current.qty >= maxQty) {
+          toast(`Maximum ${maxQty} unit(s) available for this item.`);
+          return;
+        }
+        current.qty += 1;
+        cart.set(item.id, current);
+        $("productDetailModal").classList.add("hidden");
+        renderMenu();
+      });
 
       $("cartReviewList").addEventListener("click", (event) => {
         const plus = event.target.closest("[data-review-plus]");
@@ -1573,6 +1735,11 @@
       $("confirmOrderBtn").addEventListener("click", async () => {
         const customer = validatePassenger();
         if (!customer) return;
+        try {
+          await saveUniqueCustomerIdentity(customer);
+        } catch (error) {
+          return toast(error.message);
+        }
         const confirmBtn = $("confirmOrderBtn");
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = `<i data-lucide="loader-2"></i> Placing`;
@@ -1946,6 +2113,7 @@
         if (activeOtpOrder) showDeliveryOtpOverlay(activeOtpOrder);
         const deliveredWithoutFeedback = trackedOrders.find((order) => String(order.status || "").toLowerCase() === "delivered" && !trackedFeedbacks.some((fb) => fb.orderId === order.id));
         if (deliveredWithoutFeedback) promptDeliveredFeedback(deliveredWithoutFeedback);
+        updateDrawerBadges();
         lucide.createIcons();
       }
 
@@ -2120,6 +2288,37 @@
       $("languageSelect").addEventListener("change", () => {
         localStorage.setItem("mowLanguage", $("languageSelect").value);
         applyLanguage();
+      });
+      $("openCustomerMenuBtn").addEventListener("click", openCustomerDrawer);
+      $("openCustomerMenuInlineBtn").addEventListener("click", openCustomerDrawer);
+      $("closeCustomerMenuBtn").addEventListener("click", closeCustomerDrawer);
+      $("customerDrawerBackdrop").addEventListener("click", closeCustomerDrawer);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeCustomerDrawer();
+      });
+      $("customerNavDrawer").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-drawer-nav]");
+        if (!btn) return;
+        sessionStorage.setItem("mowLastDrawerNav", btn.dataset.drawerNav || btn.dataset.tab || "order");
+        updateCustomerNavigation(btn.dataset.tab);
+        closeCustomerDrawer();
+        if (btn.dataset.tab === "track") loadTracking();
+        if (btn.dataset.tab === "feedback") renderFeedbackOrderOptions();
+        document.querySelector(`[data-tab-panel="${btn.dataset.tab}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      document.querySelectorAll("#customerForm input[inputmode='tel'], #feedbackForm input[inputmode='tel']").forEach((input) => {
+        input.addEventListener("input", () => {
+          input.value = cleanPhone(input.value);
+          input.closest(".field")?.classList.toggle("valid", input.value.length === 10);
+          input.closest(".field")?.classList.toggle("invalid", input.value.length > 0 && input.value.length !== 10);
+        });
+      });
+      document.querySelectorAll("#customerForm input[inputmode='numeric'], #feedbackForm input[inputmode='numeric']").forEach((input) => {
+        input.addEventListener("input", () => {
+          input.value = cleanPnr(input.value);
+          input.closest(".field")?.classList.toggle("valid", input.value.length > 0 && input.value.length === 10);
+          input.closest(".field")?.classList.toggle("invalid", input.value.length > 0 && input.value.length !== 10);
+        });
       });
       $("submissionType").dispatchEvent(new Event("change"));
       $("closeDeliveryOtpBtn").addEventListener("click", () => $("deliveryOtpModal").classList.add("hidden"));

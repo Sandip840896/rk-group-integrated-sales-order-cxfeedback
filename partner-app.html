@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js"></script>
+  <script defer src="rk-common.js?v=20260713-identity2"></script>
   <script defer src="route-master-data.js"></script>
 </head>
 <body>
@@ -28,6 +28,7 @@
       <div class="row wrap">
         <button class="btn" id="partnerLoginBtn" type="button"><i data-lucide="log-in"></i> Login</button>
         <button class="btn secondary" id="newPartnerRegistrationBtn" type="button"><i data-lucide="clipboard-list"></i> New Registration</button>
+        <button class="btn secondary" id="partnerForgotPasswordBtn" type="button"><i data-lucide="key-round"></i> Forgot Password</button>
         <button class="btn danger hidden" id="partnerLogoutBtn" type="button"><i data-lucide="log-out"></i> Logout</button>
       </div>
       <div class="ack hidden" id="partnerAccessMessage"></div>
@@ -93,8 +94,10 @@
           <label class="field"><span>Owner / Manager</span><input class="input" name="ownerName" required></label>
           <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel"></label>
           <label class="field"><span>Email</span><input class="input" name="email" type="email"></label>
-          <label class="field"><span>FSSAI / License No</span><input class="input" name="licenseNo"></label>
-          <label class="field"><span>FSSAI / License Upload</span><input class="input" name="licenseFile" type="file" accept="image/*,.pdf,application/pdf"></label>
+          <label class="field"><span>FSSAI License No</span><input class="input" name="fssaiLicenseNo" required></label>
+          <label class="field"><span>FSSAI License Upload</span><input class="input" name="fssaiLicenseFile" required type="file" accept="image/*,.pdf,application/pdf"></label>
+          <label class="field"><span>Trade License No</span><input class="input" name="tradeLicenseNo" required></label>
+          <label class="field"><span>Trade License Upload</span><input class="input" name="tradeLicenseFile" required type="file" accept="image/*,.pdf,application/pdf"></label>
         </div>
         <label class="field"><span>Full Address</span><textarea class="textarea" name="address" required></textarea></label>
         <button class="btn" type="submit"><i data-lucide="send"></i> Submit for Approval</button>
@@ -178,24 +181,33 @@
         $("partnerAccessMessage").classList.remove("hidden");
       }
 
-      async function findPartnerByLogin(loginId) {
+      async function findPartnersByLogin(loginId) {
         const cleanId = String(loginId || "").trim().toLowerCase();
+        const rows = [];
         try {
           const snap = await db.collection("partners").where("loginId", "==", cleanId).get();
-          return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))[0] || null;
+          rows.push(...snap.docs.map((doc) => ({ id: doc.id, compatSource: "partners", ...doc.data() })));
         } catch (error) {
-          const snap = await db.collection("systemSettings").where("type", "==", "partner").get();
-          return snap.docs.map((doc) => ({ id: doc.id, compatSource: "systemSettings", ...doc.data() })).find((row) => String(row.loginId || "").toLowerCase() === cleanId) || null;
+          console.warn("Primary partner lookup unavailable", error);
         }
+        try {
+          const snap = await db.collection("systemSettings").where("type", "==", "partner").get();
+          rows.push(...snap.docs.map((doc) => ({ id: doc.id, compatSource: "systemSettings", ...doc.data() })).filter((row) => String(row.loginId || "").toLowerCase() === cleanId));
+        } catch (error) {
+          console.warn("Fallback partner lookup unavailable", error);
+        }
+        return rows.sort((a, b) => (registrationStatus(b) === "approved" ? 1 : 0) - (registrationStatus(a) === "approved" ? 1 : 0));
       }
 
       async function loginPartner() {
         const loginId = $("partnerLoginId").value.trim().toLowerCase();
         const password = $("partnerLoginPassword").value;
         if (!loginId || !password) return showAccessMessage("Enter Login ID and Password.", "danger");
-        const partner = await findPartnerByLogin(loginId);
-        if (!partner || String(partner.password || "") !== password) return showAccessMessage("Invalid partner Login ID or Password.", "danger");
-        const status = String(partner.status || partner.approvalStatus || "pending").toLowerCase();
+        const candidates = await findPartnersByLogin(loginId);
+        const partner = candidates.find((row) => String(row.password || "") === password && registrationStatus(row) === "approved")
+          || candidates.find((row) => String(row.password || "") === password);
+        if (!partner) return showAccessMessage("Invalid partner Login ID or Password.", "danger");
+        const status = registrationStatus(partner);
         if (status !== "approved") {
           return showAccessMessage(`Your enlistment is ${status}. Control Tower approval is required before login.`, "warn");
         }
@@ -463,17 +475,26 @@
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
-        delete data.licenseFile;
+        delete data.fssaiLicenseFile;
+        delete data.tradeLicenseFile;
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         setSubmitState(form, "saving", "Submitting...");
         try {
-          const licenseProof = await readPartnerDocument(form.licenseFile.files[0]);
+          await assertUniqueRegistrationPhone(phone, { userType: "partner" });
           const loginId = String(data.loginId || "").trim().toLowerCase();
-          await compatAdd("partners", "partner", {
+          const existingLogin = await findPartnersByLogin(loginId);
+          if (existingLogin.length) throw new Error("This Login ID is already registered. Use Login or Forgot Password.");
+          const fssaiLicenseProof = await readUploadedDocument(form.fssaiLicenseFile.files[0]);
+          const tradeLicenseProof = await readUploadedDocument(form.tradeLicenseFile.files[0]);
+          if (!fssaiLicenseProof || !tradeLicenseProof) throw new Error("FSSAI License and Trade License uploads are mandatory.");
+          const created = await compatAdd("partners", "partner", {
             ...data,
             loginId,
-            licenseProof,
+            licenseNo: data.fssaiLicenseNo,
+            licenseProof: fssaiLicenseProof,
+            fssaiLicenseProof,
+            tradeLicenseProof,
             phone,
             status: "pending",
             approvalStatus: "pending",
@@ -481,6 +502,7 @@
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
+          await registerPhoneIdentity(phone, { userType: "partner", name: data.restaurantName, loginId, registrationId: created.id, sourceCollection: created.collectionName, status: "pending" });
           form.reset();
           finishSubmitState(form, "Submitted");
           $("partnerRegistrationPanel").classList.add("hidden");
@@ -490,7 +512,7 @@
         } catch (error) {
           console.error(error);
           setSubmitState(form, "idle");
-          toast(firebaseAccessMessage("partners", error));
+          toast(String(error?.message || "").toLowerCase().includes("permission") ? firebaseAccessMessage("partners", error) : error.message);
         }
       });
 
@@ -731,6 +753,7 @@
         toast("Restaurant service switched off and Control Tower notified.");
       });
       $("partnerLoginBtn").addEventListener("click", loginPartner);
+      $("partnerForgotPasswordBtn").addEventListener("click", () => openPasswordResetRequest("partner"));
       $("partnerLoginPassword").addEventListener("keydown", (event) => { if (event.key === "Enter") loginPartner(); });
       $("newPartnerRegistrationBtn").addEventListener("click", () => {
         partnerSession = null;

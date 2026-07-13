@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js"></script>
+  <script defer src="rk-common.js?v=20260713-identity2"></script>
 </head>
 <body>
   <div class="customer-utility-dock">
@@ -28,6 +28,7 @@
         <input class="input grow" id="loginEmail" type="email" placeholder="email id">
         <input class="input grow" id="loginPassword" type="password" placeholder="password">
         <button class="btn" id="loginBtn"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary" id="rakeForgotPasswordBtn" type="button"><i data-lucide="key-round"></i> Forgot Password</button>
         <button class="btn secondary hidden" id="logoutBtn"><i data-lucide="log-out"></i> Logout</button>
       </div>
     </section>
@@ -460,6 +461,7 @@
         refreshAccessViews();
         toast(`Logged in as ${currentUser.role}.`);
       });
+      $("rakeForgotPasswordBtn").addEventListener("click", () => openPasswordResetRequest("rake-manager"));
 
       $("logoutBtn").addEventListener("click", () => {
         currentUser = null;
@@ -710,7 +712,7 @@
       }
 
       function riderMatchesOrder(rider, order) {
-        if (String(rider.status || "").toLowerCase() !== "approved") return false;
+        if (registrationStatus(rider) !== "approved") return false;
         const type = String(rider.assignmentType || "").toLowerCase();
         if (type === "train") {
           const sameTrain = trainMatches([rider.train, rider.assignmentId, rider.assignmentLabel, rider.trainName], [order.train, order.trainName]);
