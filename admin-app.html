@@ -10,11 +10,26 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=20260713-identity2"></script>
+  <script defer src="rk-common.js?v=20260713-secure-auth1"></script>
 </head>
 <body>
   <main class="main stack">
+    <section class="panel pad" id="adminSecureLoginPanel">
+      <div class="section-title">
+        <div><h2 id="adminSecureLoginTitle">Admin Console Secure Login</h2><p id="adminSecureLoginHint">Sign in with an approved Firebase account.</p></div>
+        <span class="badge warn" id="adminSecureLoginBadge">not logged in</span>
+      </div>
+      <div class="row mobile-stack">
+        <input class="input grow" id="adminSecureLoginEmail" type="email" placeholder="email id" autocomplete="username">
+        <input class="input grow" id="adminSecureLoginPassword" type="password" placeholder="password" autocomplete="current-password">
+        <button class="btn" id="adminSecureLoginBtn" type="button"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary hidden" id="adminSecureLogoutBtn" type="button"><i data-lucide="log-out"></i> Logout</button>
+      </div>
+    </section>
+
+    <div class="stack hidden" id="adminSecureContent">
     <section class="customer-hero">
       <div>
         <p class="eyebrow">Meals On Wheels access control</p>
@@ -102,12 +117,91 @@
       </div>
       <div id="adminUserAccessList" class="list"></div>
     </section>
+    </div>
   </main>
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
       appHeader("Meals On Wheels Admin Console", "Staff ID, password and rights management");
       lucide.createIcons();
+
+      await new Promise((resolve) => {
+        let accessGranted = false;
+
+        function showLoggedOut(message = "Sign in with an approved Firebase account.") {
+          $("adminSecureLoginTitle").textContent = "Admin Console Secure Login";
+          $("adminSecureLoginHint").textContent = message;
+          $("adminSecureLoginBadge").textContent = "not logged in";
+          $("adminSecureLoginEmail").classList.remove("hidden");
+          $("adminSecureLoginPassword").classList.remove("hidden");
+          $("adminSecureLoginBtn").classList.remove("hidden");
+          $("adminSecureLogoutBtn").classList.add("hidden");
+          $("adminSecureContent").classList.add("hidden");
+        }
+
+        function grantAccess(authUser, profile) {
+          if (accessGranted) return;
+          accessGranted = true;
+          $("adminSecureLoginTitle").textContent = "Meals On Wheels Admin Console";
+          $("adminSecureLoginHint").textContent = `Secure session active for ${profile.name || authUser.email}.`;
+          $("adminSecureLoginBadge").textContent = `${authUser.email} | ${profile.role}`;
+          $("adminSecureLoginEmail").classList.add("hidden");
+          $("adminSecureLoginPassword").classList.add("hidden");
+          $("adminSecureLoginBtn").classList.add("hidden");
+          $("adminSecureLogoutBtn").classList.remove("hidden");
+          $("adminSecureContent").classList.remove("hidden");
+          resolve();
+        }
+
+        async function verifyAndGrant(authUser) {
+          const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
+          const profile = snapshot.exists ? snapshot.data() : null;
+          if (!profile || profile.active !== true || profile.role !== "super-admin") {
+            await firebase.auth().signOut();
+            showLoggedOut("This account does not have active Admin Console access.");
+            return false;
+          }
+          grantAccess(authUser, profile);
+          return true;
+        }
+
+        async function login() {
+          const email = $("adminSecureLoginEmail").value.trim().toLowerCase();
+          const password = $("adminSecureLoginPassword").value;
+          if (!email || !password) return toast("Enter your email ID and password.");
+          $("adminSecureLoginBtn").disabled = true;
+          try {
+            const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+            await verifyAndGrant(credential.user);
+            $("adminSecureLoginPassword").value = "";
+          } catch (error) {
+            const code = String(error?.code || "unknown-error").replace(/^auth\//, "");
+            showLoggedOut(`Secure login failed: ${code}.`);
+            toast(`Secure login failed: ${code}.`);
+          } finally {
+            $("adminSecureLoginBtn").disabled = false;
+          }
+        }
+
+        $("adminSecureLoginBtn").addEventListener("click", login);
+        $("adminSecureLoginPassword").addEventListener("keydown", (event) => {
+          if (event.key === "Enter") login();
+        });
+        $("adminSecureLogoutBtn").addEventListener("click", async () => {
+          await firebase.auth().signOut();
+          window.location.reload();
+        });
+        firebase.auth().onAuthStateChanged(async (authUser) => {
+          if (!authUser) return showLoggedOut();
+          try {
+            await verifyAndGrant(authUser);
+          } catch (error) {
+            await firebase.auth().signOut();
+            showLoggedOut("Unable to verify Admin Console access.");
+          }
+        });
+      });
+
       await ensureSeedData();
 
       const appOptions = [
