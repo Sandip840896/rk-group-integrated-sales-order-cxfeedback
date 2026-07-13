@@ -1209,6 +1209,10 @@ a {
   gap: 18px;
 }
 
+.management-shell.partner-registration-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .management-content {
   min-width: 0;
 }

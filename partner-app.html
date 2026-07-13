@@ -21,7 +21,7 @@
         <div><h2>RK Partner Access</h2><p>Login after Control Tower approval, or submit a new restaurant enlistment request.</p></div>
         <span class="badge warn" id="partnerAccessBadge">not logged in</span>
       </div>
-      <div class="grid two">
+      <div class="grid two" id="partnerLoginFields">
         <label class="field"><span>Login ID</span><input class="input" id="partnerLoginId" autocomplete="username"></label>
         <label class="field"><span>Password</span><input class="input" id="partnerLoginPassword" type="password" autocomplete="current-password"></label>
       </div>
@@ -100,7 +100,10 @@
           <label class="field"><span>Trade License Upload</span><input class="input" name="tradeLicenseFile" required type="file" accept="image/*,.pdf,application/pdf"></label>
         </div>
         <label class="field"><span>Full Address</span><textarea class="textarea" name="address" required></textarea></label>
-        <button class="btn" type="submit"><i data-lucide="send"></i> Submit for Approval</button>
+        <div class="row wrap">
+          <button class="btn" type="submit"><i data-lucide="send"></i> Submit for Approval</button>
+          <button class="btn secondary" id="partnerRegistrationBackBtn" type="button"><i data-lucide="arrow-left"></i> Back to Login</button>
+        </div>
       </form>
     </section>
 
@@ -148,6 +151,7 @@
       let partnerFeedbacks = [];
       let trainRoutes = [];
       let partnerSession = JSON.parse(sessionStorage.getItem("rkPartnerSession") || "null");
+      let partnerAccessMode = partnerSession ? "authenticated" : "login";
       const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
 
       function partnerPhone() {
@@ -160,13 +164,24 @@
 
       function renderPartnerAccess() {
         const approved = isApprovedPartnerSession();
-        $("partnerAppShell").classList.toggle("hidden", !approved);
-        $("partnerRegistrationPanel").classList.add("hidden");
+        if (approved) partnerAccessMode = "authenticated";
+        const registering = !approved && partnerAccessMode === "registering";
+        $("partnerAccessPanel").classList.toggle("hidden", registering);
+        $("partnerAppShell").classList.toggle("hidden", !approved && !registering);
+        $("partnerAppShell").classList.toggle("partner-registration-only", registering);
+        $("partnerTabs").classList.toggle("hidden", registering);
+        $("partnerRegistrationPanel").classList.toggle("hidden", !registering);
+        $("partnerLoginFields").classList.toggle("hidden", approved);
+        $("partnerLoginBtn").classList.toggle("hidden", approved);
+        $("newPartnerRegistrationBtn").classList.toggle("hidden", approved);
+        $("partnerForgotPasswordBtn").classList.toggle("hidden", approved);
         $("partnerLogoutBtn").classList.toggle("hidden", !approved);
         document.querySelectorAll("[data-partner-tab]").forEach((btn) => btn.classList.toggle("hidden", !approved));
         $("partnerAccessBadge").textContent = approved ? `${partnerSession.loginId || partnerSession.phone} | approved` : "not logged in";
         $("partnerAccessBadge").className = approved ? "badge ok" : "badge warn";
-        if (approved) {
+        if (registering) {
+          showTab("enlist");
+        } else if (approved) {
           $("dashboardPhone").value = partnerSession.phone || "";
           $("statusPhone").value = partnerSession.phone || "";
           document.querySelector("#catalogForm [name='partnerPhone']").value = partnerSession.phone || "";
@@ -218,6 +233,7 @@
           restaurantName: partner.restaurantName || partner.name || "",
           status: "approved"
         };
+        partnerAccessMode = "authenticated";
         sessionStorage.setItem("rkPartnerSession", JSON.stringify(partnerSession));
         statusRows = [partner];
         renderPartnerAccess();
@@ -505,8 +521,10 @@
           await registerPhoneIdentity(phone, { userType: "partner", name: data.restaurantName, loginId, registrationId: created.id, sourceCollection: created.collectionName, status: "pending" });
           form.reset();
           finishSubmitState(form, "Submitted");
-          $("partnerRegistrationPanel").classList.add("hidden");
-          $("partnerAppShell").classList.add("hidden");
+          partnerAccessMode = "login";
+          $("partnerLoginId").value = loginId;
+          $("partnerLoginPassword").value = "";
+          renderPartnerAccess();
           showAccessMessage("Registration submitted. After Control Tower approval, login with the same ID and password.", "success");
           toast("Partner request sent to Control Tower.");
         } catch (error) {
@@ -758,14 +776,16 @@
       $("newPartnerRegistrationBtn").addEventListener("click", () => {
         partnerSession = null;
         sessionStorage.removeItem("rkPartnerSession");
-        $("partnerAppShell").classList.remove("hidden");
-        document.querySelectorAll("[data-partner-tab]").forEach((btn) => btn.classList.add("hidden"));
-        $("partnerRegistrationPanel").classList.remove("hidden");
-        showTab("enlist");
-        showAccessMessage("Fill registration details and create your Login ID and Password.", "warn");
+        partnerAccessMode = "registering";
+        renderPartnerAccess();
+      });
+      $("partnerRegistrationBackBtn").addEventListener("click", () => {
+        partnerAccessMode = "login";
+        renderPartnerAccess();
       });
       $("partnerLogoutBtn").addEventListener("click", () => {
         partnerSession = null;
+        partnerAccessMode = "login";
         sessionStorage.removeItem("rkPartnerSession");
         $("dashboardPhone").value = "";
         $("statusPhone").value = "";
