@@ -769,10 +769,40 @@
         </div>`;
       }
 
+      function supplierDispatchBatchCard(batchId, batchOrders) {
+        const first = batchOrders[0];
+        const accepted = batchOrders.every((order) => String(order.status || "").toLowerCase() === "supplier-rider-accepted");
+        const supplierName = first.baseKitchenName || first.supplierName || first.supplierDispatchUnitType || "Restaurant supplier";
+        const otp = first.supplierDispatchOtp || first.supplierHandoverOtp || "";
+        return `<div class="item urgent-item">
+          <div class="row between"><h3>Supplier Batch ${escapeHtml(batchId)}</h3>${statusBadge(accepted ? "rider accepted" : "rider assigned")}</div>
+          <p><b>Supplier:</b> ${escapeHtml(supplierName)} | <b>Train:</b> ${escapeHtml(first.train || "")}${first.trainName ? ` - ${escapeHtml(first.trainName)}` : ""}</p>
+          <p><b>Unit Rider:</b> ${escapeHtml(first.supplierDispatchRiderName || first.supplierDispatchRiderPhone || "Assigned")} | <b>Orders:</b> ${batchOrders.length}</p>
+          <p>${batchOrders.map((order) => escapeHtml(order.orderNo || order.id)).join(", ")}</p>
+          ${accepted && otp ? `<div class="otp-alert"><span>Single Batch Handover OTP</span><b>${escapeHtml(otp)}</b><small>Give this one OTP to the unit rider only after receiving every order in this batch.</small></div>` : `<div class="ack danger-soft" style="margin-top:10px;">Waiting for the assigned unit rider to accept this batch.</div>`}
+        </div>`;
+      }
+
       function renderRestaurantHandovers() {
         const rows = visibleRestaurantOrdersForAccess()
           .filter((order) => !["out-for-delivery", "delivered", "cancelled"].includes(String(order.status || "").toLowerCase()));
-        $("restaurantHandoverList").innerHTML = rows.map(restaurantHandoverCard).join("") || `<div class="empty">No restaurant handover pending right now.</div>`;
+        const grouped = new Map();
+        const individual = [];
+        rows.forEach((order) => {
+          const status = String(order.status || "").toLowerCase();
+          const batchId = order.supplierDispatchBatchId || "";
+          if (batchId && ["supplier-rider-assigned", "supplier-rider-accepted"].includes(status)) {
+            if (!grouped.has(batchId)) grouped.set(batchId, []);
+            grouped.get(batchId).push(order);
+          } else {
+            individual.push(order);
+          }
+        });
+        const cards = [
+          ...[...grouped.entries()].map(([batchId, batchOrders]) => supplierDispatchBatchCard(batchId, batchOrders)),
+          ...individual.map(restaurantHandoverCard)
+        ];
+        $("restaurantHandoverList").innerHTML = cards.join("") || `<div class="empty">No restaurant handover pending right now.</div>`;
         renderMetrics();
         lucide.createIcons();
       }

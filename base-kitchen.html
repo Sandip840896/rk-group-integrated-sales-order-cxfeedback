@@ -78,6 +78,10 @@
 
     <section class="panel pad stack hidden" data-tab-panel="customer">
       <div class="section-title"><div><h2>Customer Food Orders</h2><p>Base kitchen delivers restaurant orders to the rake manager. Passenger delivery starts after OTP handover.</p></div></div>
+      <div class="row wrap">
+        <span class="badge" id="bkSelectedOrderCount">0 selected</span>
+        <button class="btn" id="assignBkSelectedOrdersBtn" type="button"><i data-lucide="bike"></i> Assign Selected Orders to Rider</button>
+      </div>
       <div id="bkCustomerOrders" class="list"></div>
     </section>
 
@@ -174,6 +178,8 @@
       let trainMasters = [];
       const bkCatalogSelectedTrains = new Set();
       let pendingInvoiceIndentId = "";
+      let bkRiderMode = "invoice";
+      const selectedBkDispatchOrderIds = new Set();
       let bkRiderSearchTerm = "";
       let seenIndents = new Set();
       let seenCustomerOrders = new Set();
@@ -474,17 +480,75 @@
               </div>
               <span class="badge ok">approved</span>
             </div>
-            <button class="btn" data-bk-rider="${escapeHtml(rider.id)}"><i data-lucide="check"></i> Use This Rider</button>
+            <button class="btn" data-bk-rider="${escapeHtml(rider.id)}"><i data-lucide="check"></i> ${bkRiderMode === "orders" ? "Assign Selected Orders" : "Use This Rider"}</button>
           </div>`).join("") || `<div class="empty danger-soft">No approved rider is mapped to this base kitchen yet.</div>`;
         lucide.createIcons();
       }
 
       function openBkRiderModal(indentId) {
+        bkRiderMode = "invoice";
         pendingInvoiceIndentId = indentId;
         bkRiderSearchTerm = "";
         $("bkRiderSearch").value = "";
         renderBkRiderList();
         $("bkRiderModal").classList.remove("hidden");
+      }
+
+      function selectedBkDispatchOrders() {
+        return customerOrders.filter((order) => selectedBkDispatchOrderIds.has(order.id) && String(order.status || "").toLowerCase() === "supplier-ready-for-rider");
+      }
+
+      function updateBkSelectedCount() {
+        $("bkSelectedOrderCount").textContent = `${selectedBkDispatchOrders().length} selected`;
+      }
+
+      function openBkDispatchRiderModal() {
+        const rows = selectedBkDispatchOrders();
+        if (!rows.length) return toast("Select at least one ready order.");
+        const trains = new Set(rows.map((order) => String(order.train || "").trim().toLowerCase()));
+        if (trains.size !== 1 || trains.has("")) return toast("Select orders from one train only.");
+        bkRiderMode = "orders";
+        pendingInvoiceIndentId = "";
+        bkRiderSearchTerm = "";
+        $("bkRiderSearch").value = "";
+        renderBkRiderList();
+        $("bkRiderModal").classList.remove("hidden");
+      }
+
+      async function assignBkDispatchBatch(riderId) {
+        const rows = selectedBkDispatchOrders();
+        const rider = deliveryPartners.find((entry) => entry.id === riderId);
+        if (!rows.length || !rider) return toast("Select ready orders and an approved rider.");
+        const trains = new Set(rows.map((order) => String(order.train || "").trim().toLowerCase()));
+        if (trains.size !== 1) return toast("All selected orders must be from the same train.");
+        const batchId = shortId("BKD");
+        const handoverOtp = String(Math.floor(100000 + Math.random() * 900000));
+        const riderPhone = cleanPhone(rider.phone || rider.id);
+        const writeBatch = db.batch();
+        rows.forEach((order) => writeBatch.update(db.collection("customerOrders").doc(order.id), {
+          status: "supplier-rider-assigned",
+          supplierDispatchStatus: "assigned",
+          supplierDispatchBatchId: batchId,
+          supplierDispatchOtp: handoverOtp,
+          supplierDispatchOtpStatus: "active",
+          supplierDispatchRiderId: rider.id,
+          supplierDispatchRiderName: rider.name || "",
+          supplierDispatchRiderPhone: riderPhone,
+          supplierDispatchUnitType: "base-kitchen",
+          supplierDispatchUnitId: activeKitchenId,
+          supplierDispatchTrain: order.train || "",
+          supplierHandoverOtp: handoverOtp,
+          supplierHandoverRole: "base-kitchen",
+          supplierHandoverOtpStatus: "active",
+          supplierDispatchAssignedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          statusLog: FieldValue.arrayUnion({ status: "supplier-rider-assigned", at: new Date().toISOString(), note: `Base kitchen batch ${batchId} assigned to ${rider.name || riderPhone}` })
+        }));
+        await writeBatch.commit();
+        selectedBkDispatchOrderIds.clear();
+        updateBkSelectedCount();
+        $("bkRiderModal").classList.add("hidden");
+        toast(`${rows.length} order(s) assigned to one rider for Train ${rows[0].train || ""}.`);
       }
 
       async function createInvoiceWithRider(riderId) {
@@ -545,13 +609,19 @@
             <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
             <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${escapeHtml(order.deliveryWindow || "")}</p>
             <p>${(order.items || []).filter((line) => kitchenLineMatches(line)).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
+            ${String(order.status || "").toLowerCase() === "supplier-ready-for-rider" ? `<label class="check-pill"><input type="checkbox" data-bk-dispatch-order="${order.id}" ${selectedBkDispatchOrderIds.has(order.id) ? "checked" : ""}> Select for rider assignment</label>` : ""}
+            ${["supplier-rider-assigned", "supplier-rider-accepted"].includes(String(order.status || "").toLowerCase()) ? `<div class="ack success" style="margin-top:10px;"><b>Unit Rider:</b> ${escapeHtml(order.supplierDispatchRiderName || order.supplierDispatchRiderPhone || "Assigned")} | Batch ${escapeHtml(order.supplierDispatchBatchId || "")}</div>` : ""}
             ${String(order.status || "").toLowerCase() === "restaurant-handover" ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Rake Manager OTP:</b> ${escapeHtml(order.supplierHandoverOtp || "")}. Collect this OTP from rake manager after physical handover.</div>` : `<div class="ack ${String(order.status || "").toLowerCase() === "new" ? "danger-soft" : "success"}" style="margin-top:10px;">${escapeHtml(acceptanceClock(order))}</div>`}
             <div class="row wrap" style="margin-top:10px;">
               ${String(order.status || "").toLowerCase() === "new" ? `<button class="btn" data-bk-accept-order="${order.id}"><i data-lucide="check"></i> Accept Customer Order</button>` : ""}
-              ${["accepted", "preparing", "restaurant-accepted", "restaurant-preparing"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-bk-ready-order="${order.id}"><i data-lucide="package-check"></i> Ready for Rake Manager</button>` : ""}
+              ${["accepted", "preparing", "restaurant-accepted", "restaurant-preparing"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-bk-ready-order="${order.id}"><i data-lucide="package-check"></i> Ready for Unit Rider</button>` : ""}
               ${String(order.status || "").toLowerCase() === "restaurant-handover" ? `<button class="btn" data-bk-complete-handover="${order.id}"><i data-lucide="key-round"></i> Close Handover with OTP</button>` : ""}
             </div>
           </div>`).join("") || `<div class="empty">No customer order assigned to this base kitchen.</div>`;
+        [...selectedBkDispatchOrderIds].forEach((id) => {
+          if (!rows.some((order) => order.id === id && String(order.status || "").toLowerCase() === "supplier-ready-for-rider")) selectedBkDispatchOrderIds.delete(id);
+        });
+        updateBkSelectedCount();
         lucide.createIcons();
       }
 
@@ -679,8 +749,11 @@
       $("bkRiderList").addEventListener("click", async (event) => {
         const rider = event.target.closest("[data-bk-rider]");
         if (!rider) return;
-        await createInvoiceWithRider(rider.dataset.bkRider);
+        if (bkRiderMode === "orders") await assignBkDispatchBatch(rider.dataset.bkRider);
+        else await createInvoiceWithRider(rider.dataset.bkRider);
       });
+
+      $("assignBkSelectedOrdersBtn").addEventListener("click", openBkDispatchRiderModal);
 
       function renderInvoices() {
         const rows = visibleInvoices();
@@ -705,9 +778,15 @@
       });
 
       $("bkCustomerOrders").addEventListener("click", async (event) => {
+        const selection = event.target.closest("[data-bk-dispatch-order]");
         const accept = event.target.closest("[data-bk-accept-order]");
         const ready = event.target.closest("[data-bk-ready-order]");
         const complete = event.target.closest("[data-bk-complete-handover]");
+        if (selection) {
+          if (selection.checked) selectedBkDispatchOrderIds.add(selection.dataset.bkDispatchOrder);
+          else selectedBkDispatchOrderIds.delete(selection.dataset.bkDispatchOrder);
+          updateBkSelectedCount();
+        }
         if (accept) {
           await db.collection("customerOrders").doc(accept.dataset.bkAcceptOrder).update({
             status: "restaurant-accepted",
@@ -719,18 +798,17 @@
           toast("Customer order accepted by base kitchen.");
         }
         if (ready) {
-          const order = customerOrders.find((entry) => entry.id === ready.dataset.bkReadyOrder);
           await db.collection("customerOrders").doc(ready.dataset.bkReadyOrder).update({
-            status: "restaurant-handover",
-            supplierHandoverOtp: order?.supplierHandoverOtp || String(Math.floor(100000 + Math.random() * 900000)),
+            status: "supplier-ready-for-rider",
+            supplierDispatchStatus: "ready",
             supplierHandoverRole: "base-kitchen",
             supplierName: kitchens.find((k) => k.id === activeKitchenId)?.name || activeKitchenId,
             supplierId: activeKitchenId,
             baseKitchenReadyAt: FieldValue.serverTimestamp(),
-            statusLog: FieldValue.arrayUnion({ status: "restaurant-handover", at: new Date().toISOString(), note: "Base kitchen is ready to hand over to rake manager" }),
+            statusLog: FieldValue.arrayUnion({ status: "supplier-ready-for-rider", at: new Date().toISOString(), note: "Base kitchen order is ready for unit rider assignment" }),
             updatedAt: FieldValue.serverTimestamp()
           });
-          toast("Order marked ready for rake manager handover. OTP is visible in Rake Manager App.");
+          toast("Order is ready. Select one or more same-train orders and assign a unit rider.");
         }
         if (complete) {
           const order = customerOrders.find((entry) => entry.id === complete.dataset.bkCompleteHandover);

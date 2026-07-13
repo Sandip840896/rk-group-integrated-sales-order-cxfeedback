@@ -10,8 +10,9 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=20260713-identity2"></script>
+  <script defer src="rk-common.js?v=20260713-secure-auth1"></script>
 </head>
 <body>
   <div class="customer-utility-dock">
@@ -19,6 +20,25 @@
     <a href="tel:858483366"><i data-lucide="phone-call"></i> Call</a>
   </div>
   <main class="main mobile-main rider-main stack">
+    <section class="panel pad" id="deliveryAccessPanel">
+      <div class="section-title">
+        <div><h2>Delivery Partner Access</h2><p>Login after Control Tower approval, or submit a new rider registration.</p></div>
+        <span class="badge warn" id="deliveryAccessBadge">not logged in</span>
+      </div>
+      <div class="row mobile-stack" id="deliveryLoginFields">
+        <input class="input grow" id="deliveryLoginEmail" type="email" placeholder="approved email / login ID" autocomplete="username">
+        <input class="input grow" id="deliveryLoginPassword" type="password" placeholder="password" autocomplete="current-password">
+      </div>
+      <div class="row wrap">
+        <button class="btn" id="deliveryLoginBtn" type="button"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary" id="newDeliveryRegistrationBtn" type="button"><i data-lucide="clipboard-list"></i> New Registration</button>
+        <button class="btn secondary" id="deliveryForgotPasswordBtn" type="button"><i data-lucide="key-round"></i> Forgot Password</button>
+        <button class="btn danger hidden" id="deliveryLogoutBtn" type="button"><i data-lucide="log-out"></i> Logout</button>
+      </div>
+      <div class="ack hidden" id="deliveryAccessMessage"></div>
+    </section>
+
+    <div class="stack hidden" id="deliveryAppShell">
     <div class="tabs mobile-bottom-tabs">
       <button class="tab-btn" data-tab="profile"><i data-lucide="id-card"></i> Profile</button>
       <button class="tab-btn" data-tab="orders"><i data-lucide="package-check"></i> Jobs</button>
@@ -30,21 +50,23 @@
       <div class="section-title"><div><h2>Delivery Partner Enlistment</h2><p>Photo and KYC are compressed for pilot use. Move to Firebase Storage before wide launch.</p></div></div>
       <form id="deliveryForm" class="stack">
         <div class="grid two mobile-single">
+          <label class="field"><span>Rider Type</span><select class="select" name="assignmentType" id="assignmentType" required>
+            <option value="train">Train Rider</option>
+            <option value="base-kitchen">Base Kitchen Rider</option>
+            <option value="partner">RK Partner Rider</option>
+          </select></label>
+          <label class="field"><span>Login Email / ID</span><input class="input" name="loginId" type="email" required placeholder="rider@example.com"></label>
+          <label class="field"><span>Create Password</span><input class="input" name="password" type="password" minlength="8" required placeholder="Minimum 8 characters"></label>
           <label class="field"><span>Name</span><input class="input" name="name" required></label>
           <label class="field"><span>Mobile Number</span><input class="input" name="phone" required inputmode="tel"></label>
           <label class="field"><span>Mode</span><select class="select" name="vehicleType"><option>Bike</option><option>Van</option><option>By Foot</option><option>Train Pantry Staff</option></select></label>
           <label class="field"><span>Vehicle No</span><input class="input" name="vehicleNo" placeholder="Optional for foot/train"></label>
-          <label class="field"><span>Base Station / Kitchen</span><input class="input" name="baseLocation" required></label>
-          <label class="field"><span>Rider Mapping</span><select class="select" name="assignmentType" id="assignmentType" required>
-            <option value="train">Train Vendor / Train Rider</option>
-            <option value="base-kitchen">Base Kitchen Rider</option>
-            <option value="partner">RK Partner Rider</option>
-          </select></label>
+          <label class="field hidden" id="riderStationField"><span>Approved Station</span><select class="select" name="stationName" id="riderStation"></select></label>
           <label class="field"><span>Search Mapping</span><input class="input" id="assignmentSearch" placeholder="Search train, base kitchen or RK Partner"></label>
           <label class="field"><span>Mapped Location</span><select class="select" name="assignmentId" id="assignmentId" required></select></label>
           <label class="field"><span>Rake Number for Train Vendor</span><input class="input" name="rakeNumber" id="riderRakeNumber" placeholder="Example: 1"></label>
           <label class="field"><span>Photo</span><input class="input" name="photoFile" type="file" accept="image/*"></label>
-          <label class="field"><span>KYC Image</span><input class="input" name="kycFile" type="file" accept="image/*"></label>
+          <label class="field"><span id="riderKycLabel">KYC Image (mandatory for Train Rider)</span><input class="input" id="riderKycFile" name="kycFile" type="file" accept="image/*"></label>
         </div>
         <button class="btn" type="submit"><i data-lucide="save"></i> Submit for Approval</button>
       </form>
@@ -63,7 +85,7 @@
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="open">
-      <div class="section-title"><div><h2>Unassigned Customer Orders</h2><p>Delivery partner can accept an order after profile is saved.</p></div></div>
+      <div class="section-title"><div><h2>Assignment Policy</h2><p>Orders must be assigned by the mapped Base Kitchen, RK Partner or Rake Manager.</p></div></div>
       <div id="openOrders" class="list"></div>
     </section>
 
@@ -81,6 +103,7 @@
       </div>
       <div id="earningsList" class="list"></div>
     </section>
+    </div>
   </main>
 
   <script>
@@ -96,7 +119,97 @@
       let baseKitchens = [];
       let partners = [];
       let assignmentSearchTerm = "";
+      let deliverySessionProfile = null;
+      let deliveryIsSuperAdmin = false;
+      let deliveryRegistrationMode = false;
       const DELIVERY_RATE = 30;
+
+      function showDeliveryAccessMessage(message, tone = "warn") {
+        $("deliveryAccessMessage").textContent = message;
+        $("deliveryAccessMessage").className = `ack ${tone === "danger" ? "danger-soft" : tone === "success" ? "success" : ""}`;
+        $("deliveryAccessMessage").classList.remove("hidden");
+      }
+
+      function renderDeliveryAccess() {
+        const loggedIn = Boolean(deliverySessionProfile || deliveryIsSuperAdmin);
+        $("deliveryLoginFields").classList.toggle("hidden", loggedIn || deliveryRegistrationMode);
+        $("deliveryLoginBtn").classList.toggle("hidden", loggedIn || deliveryRegistrationMode);
+        $("newDeliveryRegistrationBtn").classList.toggle("hidden", loggedIn || deliveryRegistrationMode);
+        $("deliveryForgotPasswordBtn").classList.toggle("hidden", loggedIn || deliveryRegistrationMode);
+        $("deliveryLogoutBtn").classList.toggle("hidden", !loggedIn && !deliveryRegistrationMode);
+        $("deliveryAppShell").classList.toggle("hidden", !loggedIn && !deliveryRegistrationMode);
+        $("deliveryAccessBadge").textContent = deliveryIsSuperAdmin
+          ? "super-admin"
+          : deliverySessionProfile
+            ? `${deliverySessionProfile.loginId || deliverySessionProfile.phone} | approved`
+            : deliveryRegistrationMode ? "new registration" : "not logged in";
+        $("deliveryAccessBadge").className = loggedIn ? "badge ok" : "badge warn";
+        document.querySelectorAll(".mobile-bottom-tabs [data-tab]").forEach((button) => {
+          const allowed = !deliveryRegistrationMode || button.dataset.tab === "profile";
+          button.classList.toggle("hidden", !allowed);
+        });
+        if (deliveryRegistrationMode) showTab("profile");
+        else if (loggedIn) showTab("orders");
+        if (deliverySessionProfile) {
+          $("deliveryPhone").value = deliverySessionProfile.phone || "";
+          localStorage.setItem("rkDeliveryPhone", cleanPhone(deliverySessionProfile.phone));
+        }
+      }
+
+      async function riderProfileForAuth(authUser) {
+        const snapshot = await db.collection("deliveryPartners").where("authUid", "==", authUser.uid).limit(1).get();
+        if (!snapshot.empty) return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        const fallback = await db.collection("systemSettings").where("type", "==", "deliveryPartner").where("authUid", "==", authUser.uid).limit(1).get();
+        return fallback.empty ? null : { id: fallback.docs[0].id, ...fallback.docs[0].data() };
+      }
+
+      async function activateDeliveryAuth(authUser) {
+        const adminSnapshot = await db.collection("adminUsers").doc(authUser.uid).get();
+        const admin = adminSnapshot.exists ? adminSnapshot.data() : null;
+        if (admin?.active === true && admin.role === "super-admin") {
+          deliveryIsSuperAdmin = true;
+          deliverySessionProfile = null;
+          deliveryRegistrationMode = false;
+          renderDeliveryAccess();
+          showDeliveryAccessMessage("Super Admin session recognized.", "success");
+          return;
+        }
+        const profile = await riderProfileForAuth(authUser);
+        deliveryIsSuperAdmin = false;
+        if (!profile) {
+          deliverySessionProfile = null;
+          renderDeliveryAccess();
+          return showDeliveryAccessMessage("No rider registration is linked to this login ID.", "danger");
+        }
+        if (registrationStatus(profile) !== "approved") {
+          deliverySessionProfile = null;
+          renderDeliveryAccess();
+          return showDeliveryAccessMessage(`Rider registration is ${registrationStatus(profile)}. Control Tower approval is required.`, "warn");
+        }
+        deliverySessionProfile = profile;
+        deliveryRegistrationMode = false;
+        renderDeliveryAccess();
+        renderMine();
+        renderEarnings();
+        showDeliveryAccessMessage("Delivery rider login successful.", "success");
+      }
+
+      async function loginDeliveryRider() {
+        const email = $("deliveryLoginEmail").value.trim().toLowerCase();
+        const password = $("deliveryLoginPassword").value;
+        if (!email || !password) return toast("Enter login email and password.");
+        $("deliveryLoginBtn").disabled = true;
+        try {
+          const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+          await activateDeliveryAuth(credential.user);
+          $("deliveryLoginPassword").value = "";
+        } catch (error) {
+          const code = String(error?.code || "unknown-error").replace(/^auth\//, "");
+          showDeliveryAccessMessage(`Secure login failed: ${code}.`, "danger");
+        } finally {
+          $("deliveryLoginBtn").disabled = false;
+        }
+      }
 
       function otp() {
         return String(Math.floor(100000 + Math.random() * 900000));
@@ -107,13 +220,28 @@
       }
 
       function selectedProfile() {
+        if (deliverySessionProfile) return deliverySessionProfile;
         return profiles.find((p) => cleanPhone(p.phone) === cleanPhone($("deliveryPhone").value || localStorage.getItem("rkDeliveryPhone")));
+      }
+
+      function unitStation(row) {
+        return String(row.nearestStation || row.stationName || row.station || row.city || row.location || "").trim();
+      }
+
+      function renderRiderStations() {
+        const type = $("assignmentType").value;
+        const source = type === "base-kitchen" ? baseKitchens : type === "partner" ? partners : [];
+        const stations = [...new Set(source.map(unitStation).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        const current = $("riderStation").value;
+        $("riderStation").innerHTML = stations.map((station) => `<option value="${escapeHtml(station)}">${escapeHtml(station)}</option>`).join("") || `<option value="">No approved station found</option>`;
+        if (stations.includes(current)) $("riderStation").value = current;
       }
 
       function currentAssignmentOptions() {
         const type = $("assignmentType").value;
-        if (type === "base-kitchen") return baseKitchens.map((kitchen) => ({ id: kitchen.id, name: kitchen.name || kitchen.id }));
-        if (type === "partner") return partners.map((partner) => ({ id: partner.id || cleanPhone(partner.phone) || partner.name, name: `${partner.restaurantName || partner.name || partner.id} ${partner.nearestStation ? `- ${partner.nearestStation}` : ""}` }));
+        const station = $("riderStation").value;
+        if (type === "base-kitchen") return baseKitchens.filter((row) => !station || unitStation(row) === station).map((kitchen) => ({ id: kitchen.id, name: kitchen.name || kitchen.id }));
+        if (type === "partner") return partners.filter((row) => !station || unitStation(row) === station).map((partner) => ({ id: partner.id || cleanPhone(partner.phone) || partner.name, name: `${partner.restaurantName || partner.name || partner.id} ${unitStation(partner) ? `- ${unitStation(partner)}` : ""}` }));
         return trainMasters.map((train) => ({ id: train.trainNumber || train.id, name: trainLabel(train) }));
       }
 
@@ -123,6 +251,10 @@
         $("assignmentId").innerHTML = rows.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join("") || `<option value="">No approved master found</option>`;
         const isTrain = $("assignmentType").value === "train";
         $("riderRakeNumber").closest(".field").classList.toggle("hidden", !isTrain);
+        $("riderStationField").classList.toggle("hidden", isTrain);
+        $("riderStation").required = !isTrain;
+        $("riderKycFile").required = isTrain;
+        $("riderKycLabel").textContent = isTrain ? "KYC Image (mandatory for Train Rider)" : "KYC Image (optional for Unit Rider)";
       }
 
       function assignmentFromForm(data) {
@@ -143,6 +275,7 @@
           assignmentId: selectedId,
           assignmentName: name,
           assignmentLabel: type === "train" ? trainLabel(source) : name,
+          stationName: type === "train" ? "" : String(data.stationName || unitStation(source) || ""),
           train: type === "train" ? selectedId : "",
           trainName: type === "train" ? (source?.trainName || "") : "",
           yardName: type === "train" ? (source?.yardName || "") : "",
@@ -206,18 +339,13 @@
       }
 
       function renderOpen() {
-        const active = selectedProfile();
-        if (!active || String(active.status || "").toLowerCase() !== "approved") {
-          $("openOrders").innerHTML = `<div class="empty danger-soft">Your rider profile must be approved before taking open orders.</div>`;
-          return;
-        }
-        const rows = orders.filter((order) => ["new", "accepted", "preparing"].includes(String(order.status || "").toLowerCase()) && !order.deliveryPersonPhone && orderMatchesProfile(order, active));
-        $("openOrders").innerHTML = rows.map((order) => orderCard(order, `<button class="btn" data-take-order="${order.id}"><i data-lucide="hand"></i> Take Order</button>`)).join("") || `<div class="empty">No open order for delivery pickup.</div>`;
+        $("openOrders").innerHTML = `<div class="empty success">Riders cannot take unassigned orders. Wait for assignment from your mapped Base Kitchen, RK Partner or Rake Manager.</div>`;
         lucide.createIcons();
       }
 
       function renderProfiles() {
-        $("deliveryPartnerList").innerHTML = profiles.map((profile) => `
+        const visibleProfiles = deliveryIsSuperAdmin ? profiles : deliverySessionProfile ? [deliverySessionProfile] : [];
+        $("deliveryPartnerList").innerHTML = visibleProfiles.map((profile) => `
           <div class="item">
             <div class="row between">
               <div class="row grow">
@@ -234,7 +362,7 @@
             <div class="row wrap" style="margin-top:10px;">
               <button class="btn secondary" data-use-profile="${escapeHtml(profile.phone || "")}"><i data-lucide="check"></i> Use This Partner</button>
             </div>
-          </div>`).join("") || `<div class="empty">No delivery partner profile saved yet.</div>`;
+          </div>`).join("") || `<div class="empty">Submit a new registration or login with an approved rider ID.</div>`;
         lucide.createIcons();
       }
 
@@ -256,11 +384,35 @@
       function renderMine() {
         const phone = cleanPhone($("deliveryPhone").value);
         const active = selectedProfile();
-        const rows = orders.filter((order) => cleanPhone(order.deliveryPersonPhone) === phone || orderMatchesProfile(order, active));
-        $("myOrders").innerHTML = rows.map((order) => orderCard(order, `
+        if (!active && !deliveryIsSuperAdmin) {
+          $("myOrders").innerHTML = `<div class="empty danger-soft">Login with an approved rider ID to see assigned orders.</div>`;
+          return;
+        }
+        const supplierRows = orders.filter((order) => cleanPhone(order.supplierDispatchRiderPhone) === phone && ["supplier-rider-assigned", "supplier-rider-accepted"].includes(String(order.status || "").toLowerCase()));
+        const batches = new Map();
+        supplierRows.forEach((order) => {
+          const key = order.supplierDispatchBatchId || order.id;
+          if (!batches.has(key)) batches.set(key, []);
+          batches.get(key).push(order);
+        });
+        const batchCards = [...batches.entries()].map(([batchId, batchOrders]) => {
+          const accepted = batchOrders.every((order) => String(order.status || "").toLowerCase() === "supplier-rider-accepted");
+          return `<div class="item urgent-item">
+            <div class="row between"><h3>Pickup Batch ${escapeHtml(batchId)}</h3>${statusBadge(accepted ? "accepted" : "assigned")}</div>
+            <p><b>Unit:</b> ${escapeHtml(batchOrders[0].supplierName || batchOrders[0].baseKitchenName || batchOrders[0].supplierDispatchUnitType || "Supplier")}</p>
+            <p><b>Train:</b> ${escapeHtml(batchOrders[0].train || "")} | <b>Orders:</b> ${batchOrders.length}</p>
+            <p>${batchOrders.map((order) => escapeHtml(order.orderNo || order.id)).join(", ")}</p>
+            <div class="row wrap" style="margin-top:10px;">
+              ${!accepted ? `<button class="btn" data-accept-supplier-batch="${escapeHtml(batchId)}"><i data-lucide="check"></i> Accept Batch</button><button class="btn danger" data-reject-supplier-batch="${escapeHtml(batchId)}"><i data-lucide="x"></i> Reject Batch</button>` : `<button class="btn" data-complete-supplier-batch="${escapeHtml(batchId)}"><i data-lucide="key-round"></i> Complete Rake Handover with OTP</button>`}
+            </div>
+          </div>`;
+        });
+        const passengerRows = orders.filter((order) => cleanPhone(order.deliveryPersonPhone) === phone && !["supplier-rider-assigned", "supplier-rider-accepted"].includes(String(order.status || "").toLowerCase()));
+        const passengerCards = passengerRows.map((order) => orderCard(order, `
           ${order.status !== "out-for-delivery" && order.status !== "delivered" ? `<button class="btn" data-start-order="${order.id}"><i data-lucide="bike"></i> Start Delivery</button>` : ""}
           ${order.status !== "delivered" ? `<button class="btn secondary" data-deliver-order="${order.id}"><i data-lucide="check"></i> Mark Delivered</button>` : ""}
-        `)).join("") || `<div class="empty">No assigned order found for this phone.</div>`;
+        `));
+        $("myOrders").innerHTML = [...batchCards, ...passengerCards].join("") || `<div class="empty">No order is currently assigned to this rider.</div>`;
         lucide.createIcons();
       }
 
@@ -270,18 +422,24 @@
         const data = getForm(form);
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit mobile.");
+        const loginId = String(data.loginId || "").trim().toLowerCase();
+        if (!loginId || !data.password) return toast("Create a valid login email and password.");
+        if (data.assignmentType === "train" && !form.kycFile.files[0]) return toast("KYC image is mandatory for Train Rider.");
         setSubmitState(form, "saving", "Submitting...");
         try {
           await assertUniqueRegistrationPhone(phone, { userType: "delivery-partner" });
           const photo = await compressImage(form.photoFile.files[0], 520, 0.7);
           const kyc = await compressImage(form.kycFile.files[0], 760, 0.7);
+          const credential = await firebase.auth().createUserWithEmailAndPassword(loginId, data.password);
           const profilePayload = {
             ...assignmentFromForm(data),
+            authUid: credential.user.uid,
+            loginId,
             name: data.name || "",
             phone,
             vehicleType: data.vehicleType || "",
             vehicleNo: data.vehicleNo || "",
-            baseLocation: data.baseLocation || "",
+            baseLocation: data.stationName || "",
             photo,
             kyc,
             status: "pending",
@@ -302,10 +460,13 @@
             updatedAt: FieldValue.serverTimestamp()
           }, { merge: true });
           await registerPhoneIdentity(phone, { userType: "delivery-partner", name: data.name, registrationId: created.id, sourceCollection: created.collectionName, status: "pending" });
-          localStorage.setItem("rkDeliveryPhone", phone);
-          $("deliveryPhone").value = phone;
+          await firebase.auth().signOut();
+          deliveryRegistrationMode = false;
+          deliverySessionProfile = null;
           form.reset();
           finishSubmitState(form, "Submitted");
+          renderDeliveryAccess();
+          showDeliveryAccessMessage("Rider profile submitted. Login will open after Control Tower approval.", "success");
           toast("Rider profile submitted for approval.");
         } catch (error) {
           console.error(error);
@@ -333,11 +494,74 @@
         toast("Order assigned to you.");
       }
 
+      function supplierBatchOrders(batchId) {
+        const phone = cleanPhone($("deliveryPhone").value);
+        return orders.filter((order) => String(order.supplierDispatchBatchId || "") === String(batchId) && cleanPhone(order.supplierDispatchRiderPhone) === phone);
+      }
+
+      async function updateSupplierBatch(batchId, action) {
+        const rows = supplierBatchOrders(batchId);
+        if (!rows.length) return toast("Assigned batch not found for this rider.");
+        const writeBatch = db.batch();
+        if (action === "accept") {
+          rows.forEach((order) => writeBatch.update(db.collection("customerOrders").doc(order.id), {
+            status: "supplier-rider-accepted",
+            supplierDispatchStatus: "accepted",
+            supplierDispatchAcceptedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "supplier-rider-accepted", at: new Date().toISOString(), note: `Unit rider accepted batch ${batchId}` })
+          }));
+          await writeBatch.commit();
+          return toast("Pickup batch accepted.");
+        }
+        if (action === "reject") {
+          const reason = prompt("Reason for rejecting this assigned batch", "Unable to take this delivery.");
+          if (!reason) return;
+          rows.forEach((order) => writeBatch.update(db.collection("customerOrders").doc(order.id), {
+            status: "supplier-ready-for-rider",
+            supplierDispatchStatus: "ready",
+            supplierDispatchBatchId: FieldValue.delete(),
+            supplierDispatchOtp: FieldValue.delete(),
+            supplierDispatchOtpStatus: FieldValue.delete(),
+            supplierDispatchRiderId: FieldValue.delete(),
+            supplierDispatchRiderName: FieldValue.delete(),
+            supplierDispatchRiderPhone: FieldValue.delete(),
+            supplierHandoverOtp: FieldValue.delete(),
+            supplierHandoverOtpStatus: FieldValue.delete(),
+            supplierDispatchRejectedAt: FieldValue.serverTimestamp(),
+            supplierDispatchRejectionReason: reason,
+            updatedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "supplier-ready-for-rider", at: new Date().toISOString(), note: `Unit rider rejected batch ${batchId}: ${reason}` })
+          }));
+          await writeBatch.commit();
+          return toast("Batch rejected and returned to the unit for reassignment.");
+        }
+        if (action === "complete") {
+          const entered = prompt("Enter the single OTP provided by the Rake Manager after handing over the full batch");
+          const expected = String(rows[0].supplierDispatchOtp || rows[0].supplierHandoverOtp || "").trim();
+          if (!entered || String(entered).trim() !== expected) return toast("OTP does not match.");
+          rows.forEach((order) => writeBatch.update(db.collection("customerOrders").doc(order.id), {
+            status: "supplier-delivered-to-rake",
+            supplierDispatchStatus: "received-by-rake",
+            supplierDispatchOtpStatus: "verified",
+            supplierHandoverOtpStatus: "verified",
+            supplierDeliveredToRakeAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            statusLog: FieldValue.arrayUnion({ status: "supplier-delivered-to-rake", at: new Date().toISOString(), note: `Rake Manager received full supplier batch ${batchId}` })
+          }));
+          await writeBatch.commit();
+          return toast("Full batch handover completed with one OTP.");
+        }
+      }
+
       document.body.addEventListener("click", async (event) => {
         const take = event.target.closest("[data-take-order]");
         const start = event.target.closest("[data-start-order]");
         const delivered = event.target.closest("[data-deliver-order]");
         const useProfile = event.target.closest("[data-use-profile]");
+        const acceptSupplierBatch = event.target.closest("[data-accept-supplier-batch]");
+        const rejectSupplierBatch = event.target.closest("[data-reject-supplier-batch]");
+        const completeSupplierBatch = event.target.closest("[data-complete-supplier-batch]");
         if (useProfile) {
           const phone = cleanPhone(useProfile.dataset.useProfile);
           localStorage.setItem("rkDeliveryPhone", phone);
@@ -350,6 +574,9 @@
           const order = orders.find((row) => row.id === take.dataset.takeOrder);
           await assignOrder(order);
         }
+        if (acceptSupplierBatch) await updateSupplierBatch(acceptSupplierBatch.dataset.acceptSupplierBatch, "accept");
+        if (rejectSupplierBatch) await updateSupplierBatch(rejectSupplierBatch.dataset.rejectSupplierBatch, "reject");
+        if (completeSupplierBatch) await updateSupplierBatch(completeSupplierBatch.dataset.completeSupplierBatch, "complete");
         if (start) {
           const order = orders.find((row) => row.id === start.dataset.startOrder);
           const active = selectedProfile();
@@ -390,21 +617,65 @@
       $("assignmentType").addEventListener("change", () => {
         assignmentSearchTerm = "";
         $("assignmentSearch").value = "";
+        renderRiderStations();
         renderAssignmentOptions();
       });
+      $("riderStation").addEventListener("change", renderAssignmentOptions);
       $("assignmentSearch").addEventListener("input", (event) => {
         assignmentSearchTerm = event.target.value || "";
         renderAssignmentOptions();
+      });
+      $("deliveryLoginBtn").addEventListener("click", loginDeliveryRider);
+      $("deliveryLoginPassword").addEventListener("keydown", (event) => { if (event.key === "Enter") loginDeliveryRider(); });
+      $("newDeliveryRegistrationBtn").addEventListener("click", async () => {
+        if (firebase.auth().currentUser) await firebase.auth().signOut();
+        deliverySessionProfile = null;
+        deliveryIsSuperAdmin = false;
+        deliveryRegistrationMode = true;
+        renderDeliveryAccess();
+        renderRiderStations();
+        renderAssignmentOptions();
+      });
+      $("deliveryForgotPasswordBtn").addEventListener("click", async () => {
+        const email = $("deliveryLoginEmail").value.trim().toLowerCase();
+        if (!email) return toast("Enter the registered login email first.");
+        try {
+          await firebase.auth().sendPasswordResetEmail(email);
+          showDeliveryAccessMessage("Password reset email sent to the registered login ID.", "success");
+        } catch (error) {
+          const code = String(error?.code || "unknown-error").replace(/^auth\//, "");
+          showDeliveryAccessMessage(`Password reset failed: ${code}.`, "danger");
+        }
+      });
+      $("deliveryLogoutBtn").addEventListener("click", async () => {
+        if (firebase.auth().currentUser) await firebase.auth().signOut();
+        deliverySessionProfile = null;
+        deliveryIsSuperAdmin = false;
+        deliveryRegistrationMode = false;
+        localStorage.removeItem("rkDeliveryPhone");
+        $("deliveryPhone").value = "";
+        renderDeliveryAccess();
       });
       const today = new Date().toISOString().slice(0, 10);
       $("earnFrom").value = today;
       $("earnTo").value = today;
       $("deliveryPhone").value = localStorage.getItem("rkDeliveryPhone") || "";
-      onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { profiles = rows; renderProfiles(); renderOpen(); }, "updatedAt", "desc", 250);
+      onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { profiles = rows; renderProfiles(); renderOpen(); renderMine(); }, "updatedAt", "desc", 250);
       onLive("customerOrders", (rows) => { orders = rows; renderOpen(); renderMine(); renderEarnings(); }, "createdAt", "desc", 250);
       onLive("trainMasters", (rows) => { trainMasters = rows.filter((row) => row.active !== false); renderAssignmentOptions(); }, "trainNumber", "asc", 250);
-      onLive("baseKitchens", (rows) => { baseKitchens = rows.filter((row) => row.active !== false); renderAssignmentOptions(); }, "name", "asc", 250);
-      onLiveCompat("partners", "partner", (rows) => { partners = rows.filter((row) => row.active !== false && registrationStatus(row, "approved") !== "rejected"); renderAssignmentOptions(); }, "updatedAt", "desc", 250);
+      onLive("baseKitchens", (rows) => { baseKitchens = rows.filter((row) => row.active !== false && registrationStatus(row, "approved") === "approved"); renderRiderStations(); renderAssignmentOptions(); }, "name", "asc", 250);
+      onLiveCompat("partners", "partner", (rows) => { partners = rows.filter((row) => row.active !== false && registrationStatus(row, "approved") === "approved"); renderRiderStations(); renderAssignmentOptions(); }, "updatedAt", "desc", 250);
+      renderDeliveryAccess();
+      renderOpen();
+      firebase.auth().onAuthStateChanged(async (authUser) => {
+        if (!authUser || deliveryRegistrationMode) return;
+        try {
+          await activateDeliveryAuth(authUser);
+        } catch (error) {
+          console.error(error);
+          showDeliveryAccessMessage("Unable to verify this delivery login.", "danger");
+        }
+      });
     });
   </script>
 </body>

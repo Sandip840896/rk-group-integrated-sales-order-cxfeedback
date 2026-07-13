@@ -623,13 +623,14 @@
                 <div>
                   <h3>${escapeHtml(rider.name || rider.phone || rider.id)}</h3>
                   <p>${escapeHtml(rider.phone || "")} | ${escapeHtml(rider.vehicleType || "")}${rider.vehicleNo ? ` | ${escapeHtml(rider.vehicleNo)}` : ""}</p>
-                  <p>${escapeHtml(rider.baseLocation || "")}</p>
+                  <p>${escapeHtml(rider.roleLabel || rider.assignmentType || "Rider")} | Station ${escapeHtml(rider.stationName || rider.baseLocation || "Not mapped")}</p>
+                  <p>${escapeHtml(mapping || "No approved unit mapping")}</p>
                   ${mapping ? `<p><b>Mapped:</b> ${escapeHtml(mapping)}</p>` : ""}
                 </div>
               </div>
               ${statusBadge(approvalStatus)}
             </div>
-            ${rider.kyc ? `<details class="status-details"><summary><i data-lucide="id-card"></i> View KYC</summary><img class="proof-img" src="${rider.kyc}" alt="Rider KYC"></details>` : ""}
+            ${rider.kyc ? `<details class="status-details"><summary><i data-lucide="id-card"></i> View KYC</summary><img class="proof-img" src="${rider.kyc}" alt="Rider KYC"></details>` : String(rider.assignmentType || "").toLowerCase() === "train" ? `<div class="ack danger-soft">Train Rider KYC is required before approval.</div>` : `<div class="ack success">KYC is optional for Base Kitchen and RK Partner riders.</div>`}
             <div class="row wrap" style="margin-top:10px;">
               ${approvalStatus === "pending" ? `
                 <button class="btn" data-approve-rider="${rider.id}"><i data-lucide="check"></i> Approve Rider</button>
@@ -920,6 +921,7 @@
         const reject = event.target.closest("[data-reject-rider]");
         if (approve) {
           const rider = riders.find((row) => row.id === approve.dataset.approveRider);
+          if (String(rider?.assignmentType || "").toLowerCase() === "train" && !rider?.kyc) return toast("Train Rider KYC is mandatory before approval.");
           await compatUpdate(rider, "deliveryPartners", {
             status: "approved",
             approvalStatus: "approved",

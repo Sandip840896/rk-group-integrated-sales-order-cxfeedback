@@ -55,6 +55,10 @@
 
     <section class="panel pad stack hidden" data-tab-panel="incoming">
       <div class="section-title"><div><h2>Incoming Restaurant Orders</h2><p>Accept, prepare and complete handover to rake manager from here.</p></div></div>
+      <div class="row wrap">
+        <span class="badge" id="partnerSelectedOrderCount">0 selected</span>
+        <button class="btn" id="assignPartnerSelectedOrdersBtn" type="button"><i data-lucide="bike"></i> Assign Selected Orders to Rider</button>
+      </div>
       <div id="partnerIncomingList" class="list"></div>
     </section>
 
@@ -138,6 +142,17 @@
     </div>
   </main>
 
+  <div class="modal-backdrop hidden" id="partnerDispatchRiderModal">
+    <div class="modal stack">
+      <div class="section-title">
+        <div><h2>Select RK Partner Rider</h2><p>Choose an approved rider mapped to this RK Partner.</p></div>
+        <button class="icon-btn" id="closePartnerDispatchRiderBtn" type="button" title="Close"><i data-lucide="x"></i></button>
+      </div>
+      <label class="field"><span>Search Rider</span><input class="input" id="partnerDispatchRiderSearch" placeholder="Search rider name, phone or vehicle"></label>
+      <div id="partnerDispatchRiderList" class="list"></div>
+    </div>
+  </div>
+
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
       appHeader("Meals On Wheels Partner App", "Restaurant enlistment and food catalog submission");
@@ -149,6 +164,9 @@
       let statusRows = [];
       let partnerOrders = [];
       let partnerFeedbacks = [];
+      let deliveryPartners = [];
+      let partnerDispatchRiderSearchTerm = "";
+      const selectedPartnerDispatchOrderIds = new Set();
       let trainRoutes = [];
       let partnerSession = JSON.parse(sessionStorage.getItem("rkPartnerSession") || "null");
       let partnerAccessMode = partnerSession ? "authenticated" : "login";
@@ -319,6 +337,82 @@
         return { name: file.name, type: file.type || "application/pdf", dataUrl };
       }
 
+      function selectedPartnerDispatchOrders() {
+        return partnerOrders.filter((order) => selectedPartnerDispatchOrderIds.has(order.id) && String(order.status || "").toLowerCase() === "supplier-ready-for-rider");
+      }
+
+      function updatePartnerSelectedCount() {
+        $("partnerSelectedOrderCount").textContent = `${selectedPartnerDispatchOrders().length} selected`;
+      }
+
+      function approvedPartnerRiders() {
+        const query = partnerDispatchRiderSearchTerm.toLowerCase().trim();
+        return deliveryPartners
+          .filter((rider) => registrationStatus(rider) === "approved")
+          .filter((rider) => String(rider.assignmentType || "").toLowerCase() === "partner")
+          .filter((rider) => String(rider.partnerId || rider.assignmentId || "") === String(partnerSession?.id || ""))
+          .filter((rider) => `${rider.name || ""} ${rider.phone || ""} ${rider.vehicleNo || ""}`.toLowerCase().includes(query));
+      }
+
+      function renderPartnerDispatchRiders() {
+        $("partnerDispatchRiderList").innerHTML = approvedPartnerRiders().map((rider) => `
+          <div class="item">
+            <div class="row between">
+              <div><h3>${escapeHtml(rider.name || rider.phone || rider.id)}</h3><p>${escapeHtml(rider.phone || "")} | ${escapeHtml(rider.vehicleType || "")}${rider.vehicleNo ? ` | ${escapeHtml(rider.vehicleNo)}` : ""}</p></div>
+              <span class="badge ok">approved</span>
+            </div>
+            <button class="btn" data-partner-dispatch-rider="${escapeHtml(rider.id)}"><i data-lucide="check"></i> Assign Selected Orders</button>
+          </div>`).join("") || `<div class="empty danger-soft">No approved rider is mapped to this RK Partner yet.</div>`;
+        lucide.createIcons();
+      }
+
+      function openPartnerDispatchRiderModal() {
+        const rows = selectedPartnerDispatchOrders();
+        if (!rows.length) return toast("Select at least one ready order.");
+        const trains = new Set(rows.map((order) => String(order.train || "").trim().toLowerCase()));
+        if (trains.size !== 1 || trains.has("")) return toast("Select orders from one train only.");
+        partnerDispatchRiderSearchTerm = "";
+        $("partnerDispatchRiderSearch").value = "";
+        renderPartnerDispatchRiders();
+        $("partnerDispatchRiderModal").classList.remove("hidden");
+      }
+
+      async function assignPartnerDispatchBatch(riderId) {
+        const rows = selectedPartnerDispatchOrders();
+        const rider = deliveryPartners.find((entry) => entry.id === riderId);
+        if (!rows.length || !rider) return toast("Select ready orders and an approved rider.");
+        const trains = new Set(rows.map((order) => String(order.train || "").trim().toLowerCase()));
+        if (trains.size !== 1) return toast("All selected orders must be from the same train.");
+        const batchId = shortId("RPD");
+        const handoverOtp = String(Math.floor(100000 + Math.random() * 900000));
+        const riderPhone = cleanPhone(rider.phone || rider.id);
+        const writeBatch = db.batch();
+        rows.forEach((order) => writeBatch.update(db.collection("customerOrders").doc(order.id), {
+          status: "supplier-rider-assigned",
+          supplierDispatchStatus: "assigned",
+          supplierDispatchBatchId: batchId,
+          supplierDispatchOtp: handoverOtp,
+          supplierDispatchOtpStatus: "active",
+          supplierDispatchRiderId: rider.id,
+          supplierDispatchRiderName: rider.name || "",
+          supplierDispatchRiderPhone: riderPhone,
+          supplierDispatchUnitType: "partner",
+          supplierDispatchUnitId: partnerSession.id,
+          supplierDispatchTrain: order.train || "",
+          supplierHandoverOtp: handoverOtp,
+          supplierHandoverRole: "partner",
+          supplierHandoverOtpStatus: "active",
+          supplierDispatchAssignedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          statusLog: FieldValue.arrayUnion({ status: "supplier-rider-assigned", at: new Date().toISOString(), note: `RK Partner batch ${batchId} assigned to ${rider.name || riderPhone}` })
+        }));
+        await writeBatch.commit();
+        selectedPartnerDispatchOrderIds.clear();
+        updatePartnerSelectedCount();
+        $("partnerDispatchRiderModal").classList.add("hidden");
+        toast(`${rows.length} order(s) assigned to one rider for Train ${rows[0].train || ""}.`);
+      }
+
       function renderDashboard() {
         const phone = partnerPhone();
         if (!phone) {
@@ -348,10 +442,12 @@
             <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
             <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${escapeHtml(order.deliveryWindow || "")}</p>
             <p>${(order.items || []).filter((line) => partnerLineMatches(line)).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
+            ${status === "supplier-ready-for-rider" ? `<label class="check-pill"><input type="checkbox" data-partner-dispatch-order="${order.id}" ${selectedPartnerDispatchOrderIds.has(order.id) ? "checked" : ""}> Select for rider assignment</label>` : ""}
+            ${["supplier-rider-assigned", "supplier-rider-accepted"].includes(status) ? `<div class="ack success" style="margin-top:10px;"><b>Unit Rider:</b> ${escapeHtml(order.supplierDispatchRiderName || order.supplierDispatchRiderPhone || "Assigned")} | Batch ${escapeHtml(order.supplierDispatchBatchId || "")}</div>` : ""}
             ${status === "restaurant-handover" ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Rake Manager OTP:</b> ${escapeHtml(order.supplierHandoverOtp || "")}. Collect this OTP from rake manager after physical handover.</div>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               ${status === "new" ? `<button class="btn" data-partner-accept-order="${order.id}"><i data-lucide="check"></i> Accept Restaurant Order</button>` : ""}
-              ${["accepted", "preparing", "restaurant-accepted", "restaurant-preparing"].includes(status) ? `<button class="btn secondary" data-partner-ready-order="${order.id}"><i data-lucide="package-check"></i> Ready for Rake Manager</button>` : ""}
+              ${["accepted", "preparing", "restaurant-accepted", "restaurant-preparing"].includes(status) ? `<button class="btn secondary" data-partner-ready-order="${order.id}"><i data-lucide="package-check"></i> Ready for Unit Rider</button>` : ""}
               ${status === "restaurant-handover" ? `<button class="btn" data-partner-complete-handover="${order.id}"><i data-lucide="key-round"></i> Close Handover with OTP</button>` : ""}
             </div>
           </div>`;
@@ -374,6 +470,10 @@
         $("partnerComplaintList").innerHTML = feedbackCards.join("") || `<div class="empty success">No complaint or feedback for this partner right now.</div>`;
         setPartnerTabBadge("partnerIncomingBadge", incomingCards.length);
         setPartnerTabBadge("partnerComplaintBadge", feedbacks.filter((fb) => !["resolved", "closed"].includes(String(fb.status || "").toLowerCase())).length);
+        [...selectedPartnerDispatchOrderIds].forEach((id) => {
+          if (!orders.some((order) => order.id === id && String(order.status || "").toLowerCase() === "supplier-ready-for-rider")) selectedPartnerDispatchOrderIds.delete(id);
+        });
+        updatePartnerSelectedCount();
         renderAccounting();
         lucide.createIcons();
       }
@@ -673,10 +773,16 @@
         }
       }
       async function handlePartnerOpsClick(event) {
+        const selection = event.target.closest("[data-partner-dispatch-order]");
         const accept = event.target.closest("[data-partner-accept-order]");
         const ready = event.target.closest("[data-partner-ready-order]");
         const complete = event.target.closest("[data-partner-complete-handover]");
         const save = event.target.closest("[data-partner-save-feedback]");
+        if (selection) {
+          if (selection.checked) selectedPartnerDispatchOrderIds.add(selection.dataset.partnerDispatchOrder);
+          else selectedPartnerDispatchOrderIds.delete(selection.dataset.partnerDispatchOrder);
+          updatePartnerSelectedCount();
+        }
         if (accept) {
           await db.collection("customerOrders").doc(accept.dataset.partnerAcceptOrder).update({
             status: "restaurant-accepted",
@@ -691,20 +797,19 @@
           toast("Restaurant order accepted.");
         }
         if (ready) {
-          const order = partnerOrders.find((entry) => entry.id === ready.dataset.partnerReadyOrder);
           await db.collection("customerOrders").doc(ready.dataset.partnerReadyOrder).update({
-            status: "restaurant-handover",
-            supplierHandoverOtp: order?.supplierHandoverOtp || String(Math.floor(100000 + Math.random() * 900000)),
+            status: "supplier-ready-for-rider",
+            supplierDispatchStatus: "ready",
             supplierHandoverRole: "partner",
             partnerId: partnerSession.id,
             supplierId: partnerSession.id,
             supplierName: partnerName(),
             supplierPhone: partnerPhone(),
             partnerReadyAt: FieldValue.serverTimestamp(),
-            statusLog: FieldValue.arrayUnion({ status: "restaurant-handover", at: new Date().toISOString(), note: "RK Partner is ready to hand over to rake manager" }),
+            statusLog: FieldValue.arrayUnion({ status: "supplier-ready-for-rider", at: new Date().toISOString(), note: "RK Partner order is ready for unit rider assignment" }),
             updatedAt: FieldValue.serverTimestamp()
           });
-          toast("Order marked ready for rake manager handover. OTP is visible in Rake Manager App.");
+          toast("Order is ready. Select one or more same-train orders and assign a unit rider.");
         }
         if (complete) {
           const order = partnerOrders.find((entry) => entry.id === complete.dataset.partnerCompleteHandover);
@@ -734,6 +839,17 @@
       $("partnerDashboardList").addEventListener("click", handlePartnerOpsClick);
       $("partnerIncomingList").addEventListener("click", handlePartnerOpsClick);
       $("partnerComplaintList").addEventListener("click", handlePartnerOpsClick);
+      $("assignPartnerSelectedOrdersBtn").addEventListener("click", openPartnerDispatchRiderModal);
+      $("closePartnerDispatchRiderBtn").addEventListener("click", () => $("partnerDispatchRiderModal").classList.add("hidden"));
+      $("partnerDispatchRiderSearch").addEventListener("input", (event) => {
+        partnerDispatchRiderSearchTerm = event.target.value || "";
+        renderPartnerDispatchRiders();
+      });
+      $("partnerDispatchRiderList").addEventListener("click", async (event) => {
+        const rider = event.target.closest("[data-partner-dispatch-rider]");
+        if (!rider) return;
+        await assignPartnerDispatchBatch(rider.dataset.partnerDispatchRider);
+      });
       ["partnerAccFrom", "partnerAccTo", "partnerAccMonth"].forEach((id) => $(id).addEventListener("change", renderAccounting));
       $("partnerTodaySalesBtn").addEventListener("click", () => {
         const today = dateInputValue(new Date());
@@ -799,6 +915,7 @@
       renderStationOptions();
       onLive("customerOrders", (rows) => { partnerOrders = rows; renderDashboard(); }, "createdAt", "desc", 250);
       onLive("feedbacks", (rows) => { partnerFeedbacks = rows; renderDashboard(); }, "timestamp", "desc", 250);
+      onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { deliveryPartners = rows; if (!$("partnerDispatchRiderModal").classList.contains("hidden")) renderPartnerDispatchRiders(); }, "updatedAt", "desc", 250);
       onLive("trainRoutes", (rows) => { trainRoutes = rows; renderStationOptions(); }, "updatedAt", "desc", 300);
     });
   </script>

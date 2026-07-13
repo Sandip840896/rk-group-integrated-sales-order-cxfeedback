@@ -480,7 +480,7 @@ function statusBadge(status) {
   const s = String(status || "new").toLowerCase();
   let tone = "info";
   if (["delivered", "accepted", "closed", "resolved", "invoiced", "supplier-delivered-to-rake"].includes(s)) tone = "ok";
-  if (["processing", "preparing", "out-for-delivery", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor", "customer-replied", "restaurant-accepted", "restaurant-preparing", "restaurant-handover"].includes(s)) tone = "warn";
+  if (["processing", "preparing", "out-for-delivery", "sent", "new", "pending", "acknowledged", "investigating", "waiting for vendor", "customer-replied", "restaurant-accepted", "restaurant-preparing", "restaurant-handover", "supplier-ready-for-rider", "supplier-rider-assigned", "supplier-rider-accepted"].includes(s)) tone = "warn";
   if (["disputed", "cancelled", "rejected", "open"].includes(s)) tone = "danger";
   return `<span class="badge ${tone}">${escapeHtml(s.replace(/-/g, " "))}</span>`;
 }
