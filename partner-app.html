@@ -16,7 +16,24 @@
 </head>
 <body>
   <main class="main stack supplier-portal">
-    <div class="management-shell">
+    <section class="panel pad stack" id="partnerAccessPanel">
+      <div class="section-title">
+        <div><h2>RK Partner Access</h2><p>Login after Control Tower approval, or submit a new restaurant enlistment request.</p></div>
+        <span class="badge warn" id="partnerAccessBadge">not logged in</span>
+      </div>
+      <div class="grid two">
+        <label class="field"><span>Login ID</span><input class="input" id="partnerLoginId" autocomplete="username"></label>
+        <label class="field"><span>Password</span><input class="input" id="partnerLoginPassword" type="password" autocomplete="current-password"></label>
+      </div>
+      <div class="row wrap">
+        <button class="btn" id="partnerLoginBtn" type="button"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary" id="newPartnerRegistrationBtn" type="button"><i data-lucide="clipboard-list"></i> New Registration</button>
+        <button class="btn danger hidden" id="partnerLogoutBtn" type="button"><i data-lucide="log-out"></i> Logout</button>
+      </div>
+      <div class="ack hidden" id="partnerAccessMessage"></div>
+    </section>
+
+    <div class="management-shell hidden" id="partnerAppShell">
       <div class="tabs manager-vertical-tabs" id="partnerTabs">
         <button class="tab-btn" data-tab="dashboard" data-partner-tab><i data-lucide="layout-dashboard"></i> Dashboard</button>
         <button class="tab-btn" data-tab="incoming" data-partner-tab><i data-lucide="inbox"></i> Incoming Orders <span class="tab-badge hidden" id="partnerIncomingBadge">0</span></button>
@@ -24,14 +41,12 @@
         <button class="tab-btn" data-tab="accounting" data-partner-tab><i data-lucide="indian-rupee"></i> Accounting</button>
         <button class="tab-btn" data-tab="catalog" data-partner-tab><i data-lucide="utensils"></i> Catalog Request</button>
         <button class="tab-btn" data-tab="status" data-partner-tab><i data-lucide="activity"></i> Request Status</button>
-        <button class="tab-btn" data-tab="enlist" id="partnerRegisterTab"><i data-lucide="clipboard-list"></i> Vendor Enlistment</button>
       </div>
       <div class="management-content">
 
-    <section class="panel pad stack" data-tab-panel="dashboard">
+    <section class="panel pad stack hidden" data-tab-panel="dashboard">
       <div class="row mobile-stack">
-        <label class="field grow"><span>Partner Phone</span><input class="input" id="dashboardPhone" inputmode="tel"></label>
-        <button class="btn secondary" id="loadDashboardBtn"><i data-lucide="search"></i> Load Dashboard</button>
+        <label class="field grow"><span>Logged-in Partner</span><input class="input" id="dashboardPhone" inputmode="tel" readonly></label>
       </div>
       <div id="partnerDashboardMetrics" class="grid four"></div>
       <div id="partnerDashboardList" class="list"></div>
@@ -67,10 +82,12 @@
       <div class="table-wrap" id="partnerDaySales"></div>
     </section>
 
-    <section class="panel pad stack hidden" data-tab-panel="enlist">
+    <section class="panel pad stack hidden" data-tab-panel="enlist" id="partnerRegistrationPanel">
       <div class="section-title"><div><h2>Partner Vendor Enlistment</h2><p>Restaurant details will go to Control Tower for approval.</p></div></div>
       <form id="partnerForm" class="stack">
         <div class="grid two">
+          <label class="field"><span>Login ID</span><input class="input" name="loginId" required autocomplete="username" placeholder="Example: partner.howrah01"></label>
+          <label class="field"><span>Password</span><input class="input" name="password" required type="password" minlength="4" autocomplete="new-password"></label>
           <label class="field"><span>Restaurant Name</span><input class="input" name="restaurantName" required></label>
           <label class="field"><span>Nearest Station</span><input class="input" name="station" required list="partnerStationOptions" placeholder="Search station name / code"><datalist id="partnerStationOptions"></datalist></label>
           <label class="field"><span>Owner / Manager</span><input class="input" name="ownerName" required></label>
@@ -88,7 +105,7 @@
       <div class="section-title"><div><h2>Partner Food Catalog</h2><p>Approved by Control Tower before it appears in passenger menu.</p></div></div>
       <form id="catalogForm" class="stack">
         <div class="grid two">
-          <label class="field"><span>Partner Phone</span><input class="input" name="partnerPhone" required inputmode="tel"></label>
+          <label class="field"><span>Partner Phone</span><input class="input" name="partnerPhone" required inputmode="tel" readonly></label>
           <label class="field"><span>Item Name</span><input class="input" name="name" required></label>
           <label class="field"><span>Meal Categories</span><div id="partnerMealSlots" class="check-grid"></div></label>
           <label class="field"><span>Food Type</span><select class="select" name="type"><option>veg</option><option>non-veg</option><option>beverage</option><option>other</option></select></label>
@@ -106,8 +123,7 @@
 
     <section class="panel pad stack hidden" data-tab-panel="status">
       <div class="row mobile-stack">
-        <label class="field grow"><span>Phone</span><input class="input" id="statusPhone" inputmode="tel"></label>
-        <button class="btn secondary" id="loadStatusBtn"><i data-lucide="search"></i> Search</button>
+        <label class="field grow"><span>Logged-in Partner Phone</span><input class="input" id="statusPhone" inputmode="tel" readonly></label>
         <button class="btn danger" id="switchOffPartnerBtn"><i data-lucide="power"></i> Switch Off Service</button>
       </div>
       <div id="statusList" class="list"></div>
@@ -128,40 +144,96 @@
       let partnerOrders = [];
       let partnerFeedbacks = [];
       let trainRoutes = [];
+      let partnerSession = JSON.parse(sessionStorage.getItem("rkPartnerSession") || "null");
       const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
 
       function partnerPhone() {
-        return cleanPhone($("dashboardPhone").value || $("statusPhone").value || localStorage.getItem("rkPartnerPhone") || "");
+        return cleanPhone(partnerSession?.phone || "");
       }
 
-      function hasPartnerRegistration() {
-        return partnerPhone().length === 10;
+      function isApprovedPartnerSession() {
+        return Boolean(partnerSession?.phone && String(partnerSession.status || "").toLowerCase() === "approved");
       }
 
       function renderPartnerAccess() {
-        const registered = hasPartnerRegistration();
-        document.querySelectorAll("[data-partner-tab]").forEach((btn) => btn.classList.toggle("hidden", !registered));
-        $("partnerRegisterTab").classList.toggle("hidden", registered);
-        if (!registered) showTab("enlist");
-        else if (document.querySelector("[data-tab-panel='enlist']")?.classList.contains("hidden") === false) showTab("dashboard");
+        const approved = isApprovedPartnerSession();
+        $("partnerAppShell").classList.toggle("hidden", !approved);
+        $("partnerRegistrationPanel").classList.add("hidden");
+        $("partnerLogoutBtn").classList.toggle("hidden", !approved);
+        document.querySelectorAll("[data-partner-tab]").forEach((btn) => btn.classList.toggle("hidden", !approved));
+        $("partnerAccessBadge").textContent = approved ? `${partnerSession.loginId || partnerSession.phone} | approved` : "not logged in";
+        $("partnerAccessBadge").className = approved ? "badge ok" : "badge warn";
+        if (approved) {
+          $("dashboardPhone").value = partnerSession.phone || "";
+          $("statusPhone").value = partnerSession.phone || "";
+          document.querySelector("#catalogForm [name='partnerPhone']").value = partnerSession.phone || "";
+          showTab("dashboard");
+        }
         lucide.createIcons();
+      }
+
+      function showAccessMessage(message, tone = "warn") {
+        $("partnerAccessMessage").textContent = message;
+        $("partnerAccessMessage").className = `ack ${tone === "danger" ? "danger-soft" : tone === "success" ? "success" : ""}`;
+        $("partnerAccessMessage").classList.remove("hidden");
+      }
+
+      async function findPartnerByLogin(loginId) {
+        const cleanId = String(loginId || "").trim().toLowerCase();
+        try {
+          const snap = await db.collection("partners").where("loginId", "==", cleanId).get();
+          return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))[0] || null;
+        } catch (error) {
+          const snap = await db.collection("systemSettings").where("type", "==", "partner").get();
+          return snap.docs.map((doc) => ({ id: doc.id, compatSource: "systemSettings", ...doc.data() })).find((row) => String(row.loginId || "").toLowerCase() === cleanId) || null;
+        }
+      }
+
+      async function loginPartner() {
+        const loginId = $("partnerLoginId").value.trim().toLowerCase();
+        const password = $("partnerLoginPassword").value;
+        if (!loginId || !password) return showAccessMessage("Enter Login ID and Password.", "danger");
+        const partner = await findPartnerByLogin(loginId);
+        if (!partner || String(partner.password || "") !== password) return showAccessMessage("Invalid partner Login ID or Password.", "danger");
+        const status = String(partner.status || partner.approvalStatus || "pending").toLowerCase();
+        if (status !== "approved") {
+          return showAccessMessage(`Your enlistment is ${status}. Control Tower approval is required before login.`, "warn");
+        }
+        partnerSession = {
+          id: partner.id,
+          loginId,
+          phone: cleanPhone(partner.phone || partner.supplierPhone || ""),
+          restaurantName: partner.restaurantName || partner.name || "",
+          status: "approved"
+        };
+        sessionStorage.setItem("rkPartnerSession", JSON.stringify(partnerSession));
+        statusRows = [partner];
+        renderPartnerAccess();
+        await loadOwnPartnerStatus();
+        showAccessMessage("Partner login successful.", "success");
       }
 
       function rowMatchesPartner(row, phone) {
         if (!phone) return false;
-        return [row.phone, row.supplierPhone, row.partnerPhone].some((value) => cleanPhone(value) === phone);
+        const id = String(partnerSession?.id || "");
+        return (id && [row.partnerId, row.supplierId, row.id].some((value) => String(value || "") === id))
+          || [row.phone, row.supplierPhone, row.partnerPhone].some((value) => cleanPhone(value) === phone);
       }
 
       function orderMatchesPartner(order, phone) {
         if (!phone) return false;
-        const direct = [order.supplierPhone, order.partnerPhone].some((value) => cleanPhone(value) === phone);
-        const lineMatch = (order.items || []).some((line) => {
-          const source = String(line.fulfillmentSource || line.source || "").toLowerCase();
-          return source === "partner" && [line.supplierPhone, line.partnerPhone, line.phone].some((value) => cleanPhone(value) === phone);
-        });
-        const knownName = statusRows.find((row) => rowMatchesPartner(row, phone))?.restaurantName || "";
-        const nameMatch = knownName && (order.items || []).some((line) => String(line.supplierName || line.partnerName || "").toLowerCase() === knownName.toLowerCase());
-        return direct || lineMatch || nameMatch;
+        const id = String(partnerSession?.id || "");
+        const direct = (id && [order.partnerId, order.supplierId].some((value) => String(value || "") === id))
+          || [order.supplierPhone, order.partnerPhone].some((value) => cleanPhone(value) === phone);
+        const lineMatch = (order.items || []).some((line) => partnerLineMatches(line, phone));
+        return direct || lineMatch;
+      }
+
+      function partnerLineMatches(line, phone = partnerPhone()) {
+        const id = String(partnerSession?.id || "");
+        const source = String(line.fulfillmentSource || line.source || "").toLowerCase();
+        return source === "partner" && ((id && [line.partnerId, line.supplierId].some((value) => String(value || "") === id))
+          || [line.supplierPhone, line.partnerPhone, line.phone].some((value) => cleanPhone(value) === phone));
       }
 
       function visiblePartnerOrders() {
@@ -247,7 +319,7 @@
             <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
             <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
             <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${escapeHtml(order.deliveryWindow || "")}</p>
-            <p>${(order.items || []).filter((line) => String(line.fulfillmentSource || "").toLowerCase() === "partner").map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ") || (order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
+            <p>${(order.items || []).filter((line) => partnerLineMatches(line)).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
             ${status === "restaurant-handover" ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Rake Manager OTP:</b> ${escapeHtml(order.supplierHandoverOtp || "")}. Collect this OTP from rake manager after physical handover.</div>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               ${status === "new" ? `<button class="btn" data-partner-accept-order="${order.id}"><i data-lucide="check"></i> Accept Restaurant Order</button>` : ""}
@@ -306,7 +378,7 @@
           if (from && day < from) return [];
           if (to && day > to) return [];
           return (order.items || [])
-            .filter((line) => String(line.fulfillmentSource || line.source || "").toLowerCase() === "partner")
+            .filter((line) => partnerLineMatches(line))
             .map((line) => {
               const qty = Number(line.qty || 0);
               const amount = qty * Number(line.price ?? line.sellingPrice ?? 0);
@@ -397,21 +469,23 @@
         setSubmitState(form, "saving", "Submitting...");
         try {
           const licenseProof = await readPartnerDocument(form.licenseFile.files[0]);
+          const loginId = String(data.loginId || "").trim().toLowerCase();
           await compatAdd("partners", "partner", {
             ...data,
+            loginId,
             licenseProof,
             phone,
             status: "pending",
+            approvalStatus: "pending",
             source: "partner-app",
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
-          localStorage.setItem("rkPartnerPhone", phone);
-          $("statusPhone").value = phone;
-          $("dashboardPhone").value = phone;
           form.reset();
           finishSubmitState(form, "Submitted");
-          renderPartnerAccess();
+          $("partnerRegistrationPanel").classList.add("hidden");
+          $("partnerAppShell").classList.add("hidden");
+          showAccessMessage("Registration submitted. After Control Tower approval, login with the same ID and password.", "success");
           toast("Partner request sent to Control Tower.");
         } catch (error) {
           console.error(error);
@@ -424,7 +498,8 @@
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
-        const phone = cleanPhone(data.partnerPhone);
+        if (!isApprovedPartnerSession()) return toast("Login with an approved Partner ID first.");
+        const phone = partnerPhone();
         if (phone.length !== 10) return toast("Enter partner phone used for enlistment.");
         const selectedMealSlots = [...form.querySelectorAll("[name='mealSlots']:checked")].map((box) => box.value);
         if (!selectedMealSlots.length) return toast("Choose at least one meal category.");
@@ -445,8 +520,10 @@
             itemImage: image,
             sourceType: "partner",
             source: "partner",
+            partnerId: partnerSession.id,
+            supplierId: partnerSession.id,
             supplierPhone: phone,
-            supplierName: phone,
+            supplierName: partnerName(),
             status: "pending",
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
@@ -532,8 +609,8 @@
         }
       });
 
-      $("loadStatusBtn").addEventListener("click", async () => {
-        const phone = cleanPhone($("statusPhone").value);
+      async function loadOwnPartnerStatus() {
+        const phone = partnerPhone();
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         localStorage.setItem("rkPartnerPhone", phone);
         $("dashboardPhone").value = phone;
@@ -554,15 +631,7 @@
           ]);
           renderDashboard();
         }
-      });
-      $("loadDashboardBtn").addEventListener("click", () => {
-        const phone = partnerPhone();
-        if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
-        localStorage.setItem("rkPartnerPhone", phone);
-        $("statusPhone").value = phone;
-        renderPartnerAccess();
-        renderDashboard();
-      });
+      }
       async function handlePartnerOpsClick(event) {
         const accept = event.target.closest("[data-partner-accept-order]");
         const ready = event.target.closest("[data-partner-ready-order]");
@@ -572,6 +641,8 @@
           await db.collection("customerOrders").doc(accept.dataset.partnerAcceptOrder).update({
             status: "restaurant-accepted",
             supplierHandoverRole: "partner",
+            partnerId: partnerSession.id,
+            supplierId: partnerSession.id,
             supplierName: partnerName(),
             supplierPhone: partnerPhone(),
             statusLog: FieldValue.arrayUnion({ status: "restaurant-accepted", at: new Date().toISOString(), note: "Accepted by RK Partner" }),
@@ -585,6 +656,8 @@
             status: "restaurant-handover",
             supplierHandoverOtp: order?.supplierHandoverOtp || String(Math.floor(100000 + Math.random() * 900000)),
             supplierHandoverRole: "partner",
+            partnerId: partnerSession.id,
+            supplierId: partnerSession.id,
             supplierName: partnerName(),
             supplierPhone: partnerPhone(),
             partnerReadyAt: FieldValue.serverTimestamp(),
@@ -638,7 +711,7 @@
       });
       $("partnerClaimBtn").addEventListener("click", createPartnerClaim);
       $("switchOffPartnerBtn").addEventListener("click", async () => {
-        const phone = cleanPhone($("statusPhone").value || localStorage.getItem("rkPartnerPhone"));
+        const phone = partnerPhone();
         if (phone.length !== 10) return toast("Enter partner phone first.");
         const reason = prompt("Reason for switching off restaurant service", "Restaurant temporarily unavailable.");
         if (!reason) return;
@@ -646,6 +719,8 @@
           active: false,
           app: "partner-app",
           sourceType: "partner",
+          partnerId: partnerSession.id,
+          supplierId: partnerSession.id,
           supplierPhone: phone,
           phone,
           name: statusRows.find((row) => cleanPhone(row.phone || row.supplierPhone) === phone)?.restaurantName || phone,
@@ -655,8 +730,28 @@
         }, { merge: true });
         toast("Restaurant service switched off and Control Tower notified.");
       });
-      $("statusPhone").value = localStorage.getItem("rkPartnerPhone") || "";
-      $("dashboardPhone").value = localStorage.getItem("rkPartnerPhone") || "";
+      $("partnerLoginBtn").addEventListener("click", loginPartner);
+      $("partnerLoginPassword").addEventListener("keydown", (event) => { if (event.key === "Enter") loginPartner(); });
+      $("newPartnerRegistrationBtn").addEventListener("click", () => {
+        partnerSession = null;
+        sessionStorage.removeItem("rkPartnerSession");
+        $("partnerAppShell").classList.remove("hidden");
+        document.querySelectorAll("[data-partner-tab]").forEach((btn) => btn.classList.add("hidden"));
+        $("partnerRegistrationPanel").classList.remove("hidden");
+        showTab("enlist");
+        showAccessMessage("Fill registration details and create your Login ID and Password.", "warn");
+      });
+      $("partnerLogoutBtn").addEventListener("click", () => {
+        partnerSession = null;
+        sessionStorage.removeItem("rkPartnerSession");
+        $("dashboardPhone").value = "";
+        $("statusPhone").value = "";
+        renderPartnerAccess();
+        showAccessMessage("Logged out.", "warn");
+      });
+      $("statusPhone").value = partnerSession?.phone || "";
+      $("dashboardPhone").value = partnerSession?.phone || "";
+      document.querySelector("#catalogForm [name='partnerPhone']").value = partnerSession?.phone || "";
       renderPartnerAccess();
       renderStationOptions();
       onLive("customerOrders", (rows) => { partnerOrders = rows; renderDashboard(); }, "createdAt", "desc", 250);

@@ -51,6 +51,10 @@
         <button class="tab-btn" type="button" data-master-view="kitchenMaster">Base Kitchen</button>
         <button class="tab-btn" type="button" data-master-view="partnerMaster">Partner</button>
       </div>
+      <div class="panel pad stack soft-panel">
+        <div class="section-title"><div><h3>Registered Supplier Login List</h3><p>Control Tower can issue or replace the password for each Partner and Base Kitchen.</p></div></div>
+        <div id="supplierCredentialTable" class="table-wrap"></div>
+      </div>
       <div id="catalogMaster" class="list"></div>
       <div id="kitchenMaster" class="list hidden"></div>
       <div id="partnerMaster" class="list hidden"></div>
@@ -58,7 +62,7 @@
 
     <section class="panel pad stack hidden" data-tab-panel="partners">
       <div class="section-title">
-        <div><h2>Partner Vendor Requests</h2><p>Restaurants and station partners wait here before they can supply food.</p></div>
+        <div><h2>Partner and Base Kitchen Requests</h2><p>New suppliers wait here before their approved ID and password can open operations.</p></div>
       </div>
       <div id="partnerQueue" class="list"></div>
     </section>
@@ -251,7 +255,7 @@
         $("mPending").textContent = requests.filter((r) => ["pending", "resubmitted"].includes(String(r.status || "").toLowerCase())).length;
         $("mApproved").textContent = requests.filter((r) => r.status === "approved").length;
         const pendingStatus = (row) => String(row.status || row.approvalStatus || "pending").toLowerCase() === "pending";
-        $("mPartners").textContent = partners.filter(pendingStatus).length + riders.filter(pendingStatus).length;
+        $("mPartners").textContent = partners.filter(pendingStatus).length + kitchens.filter(pendingStatus).length + riders.filter(pendingStatus).length;
         $("mLiveItems").textContent = menuItems.length;
         renderControlTabBadges();
       }
@@ -268,7 +272,7 @@
       function renderControlTabBadges() {
         const pendingStatus = (row) => String(row.status || row.approvalStatus || "pending").toLowerCase() === "pending";
         setTabBadge("catalogTabBadge", requests.filter((row) => ["pending", "resubmitted"].includes(String(row.status || "").toLowerCase())).length);
-        setTabBadge("partnerTabBadge", partners.filter(pendingStatus).length);
+        setTabBadge("partnerTabBadge", partners.filter(pendingStatus).length + kitchens.filter(pendingStatus).length);
         setTabBadge("riderTabBadge", riders.filter(pendingStatus).length);
         setTabBadge("serviceTabBadge", serviceSwitches.filter((row) => row.active === false).length);
       }
@@ -378,6 +382,8 @@
             <div class="grid two">
               <label class="field"><span>Name</span><input class="input" value="${escapeHtml(kitchen.name || "")}" data-kitchen-master="${kitchen.id}" data-field="name"></label>
               <label class="field"><span>City</span><input class="input" value="${escapeHtml(kitchen.city || "")}" data-kitchen-master="${kitchen.id}" data-field="city"></label>
+              <label class="field"><span>Login ID</span><input class="input" value="${escapeHtml(kitchen.loginId || kitchen.id || "")}" data-kitchen-master="${kitchen.id}" data-field="loginId"></label>
+              <label class="field"><span>Password</span><input class="input" value="${escapeHtml(kitchen.password || kitchen.loginPassword || "")}" data-kitchen-master="${kitchen.id}" data-field="password" placeholder="Default fallback is 1234"></label>
               <label class="field"><span>Active</span><select class="select" data-kitchen-master="${kitchen.id}" data-field="active"><option value="true" ${kitchen.active === false ? "" : "selected"}>true</option><option value="false" ${kitchen.active === false ? "selected" : ""}>false</option></select></label>
             </div>
             <button class="btn secondary" data-save-kitchen-master="${kitchen.id}"><i data-lucide="save"></i> Save Kitchen</button>
@@ -393,18 +399,33 @@
               <label class="field"><span>Station</span><input class="input" value="${escapeHtml(partner.station || "")}" data-partner-master="${partner.id}" data-field="station"></label>
               <label class="field"><span>Owner</span><input class="input" value="${escapeHtml(partner.ownerName || "")}" data-partner-master="${partner.id}" data-field="ownerName"></label>
               <label class="field"><span>Phone</span><input class="input" value="${escapeHtml(partner.phone || "")}" data-partner-master="${partner.id}" data-field="phone"></label>
+              <label class="field"><span>Login ID</span><input class="input" value="${escapeHtml(partner.loginId || "")}" data-partner-master="${partner.id}" data-field="loginId"></label>
+              <label class="field"><span>New Password</span><input class="input" type="password" data-partner-master="${partner.id}" data-field="password" placeholder="Leave blank to keep current"></label>
               <label class="field"><span>Status</span><select class="select" data-partner-master="${partner.id}" data-field="status">${["pending", "approved", "rejected"].map((status) => `<option value="${status}" ${String(partner.status || "pending") === status ? "selected" : ""}>${status}</option>`).join("")}</select></label>
             </div>
             <button class="btn secondary" data-save-partner-master="${partner.id}"><i data-lucide="save"></i> Save Partner</button>
           </div>`).join("") || `<div class="empty">No partner master found. New RK Partner registrations will appear here after approval/sync.</div>`;
+        const credentialRows = [
+          ...partners.map((row) => ({ ...row, supplierType: "Partner", displayName: row.restaurantName || row.name || row.id })),
+          ...kitchens.map((row) => ({ ...row, supplierType: "Base Kitchen", displayName: row.name || row.id }))
+        ];
+        $("supplierCredentialTable").innerHTML = `<table>
+          <thead><tr><th>Type</th><th>Registered Supplier</th><th>Login ID</th><th>Status</th><th>New Password</th><th>Action</th></tr></thead>
+          <tbody>${credentialRows.map((row) => `<tr>
+            <td>${escapeHtml(row.supplierType)}</td><td>${escapeHtml(row.displayName)}</td><td>${escapeHtml(row.loginId || row.id)}</td>
+            <td>${statusBadge(row.approvalStatus || row.status || (row.active === false ? "pending" : "approved"))}</td>
+            <td><input class="input" type="password" data-credential-password="${row.supplierType === "Partner" ? "partner" : "kitchen"}:${row.id}" placeholder="Enter new password"></td>
+            <td><button class="btn secondary" data-save-credential="${row.supplierType === "Partner" ? "partner" : "kitchen"}:${row.id}"><i data-lucide="key-round"></i> Update</button></td>
+          </tr>`).join("")}</tbody></table>`;
         lucide.createIcons();
       }
 
       function renderPartners() {
-        $("partnerQueue").innerHTML = partners.map((partner) => `
+        const partnerCards = partners.map((partner) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(partner.restaurantName || partner.name || partner.id)}</h3>${statusBadge(partner.status || "pending")}</div>
             <p>${escapeHtml(partner.station || "")} | ${escapeHtml(partner.ownerName || "")} | ${escapeHtml(partner.phone || "")}</p>
+            <p><b>Login ID:</b> ${escapeHtml(partner.loginId || "Not provided")} | <b>Password:</b> ${partner.password ? "Provided by partner" : "Not provided"}</p>
             <p>${escapeHtml(partner.address || "")}</p>
             ${partner.licenseNo ? `<p><b>FSSAI / License:</b> ${escapeHtml(partner.licenseNo)}</p>` : ""}
             ${partner.licenseProof?.dataUrl ? `<details class="status-details" open>
@@ -417,7 +438,21 @@
                 <button class="btn danger" data-reject-partner="${partner.id}"><i data-lucide="x"></i> Reject</button>
               ` : ""}
             </div>
-          </div>`).join("") || `<div class="empty">No partner onboarding request.</div>`;
+          </div>`).join("");
+        const kitchenCards = kitchens.map((kitchen) => {
+          const approval = String(kitchen.approvalStatus || kitchen.status || (kitchen.active === false ? "pending" : "approved")).toLowerCase();
+          return `<div class="item">
+            <div class="row between"><h3>${escapeHtml(kitchen.name || kitchen.id)}</h3>${statusBadge(approval)}</div>
+            <p>Base Kitchen | ${escapeHtml(kitchen.city || "")} | ${escapeHtml(kitchen.ownerName || "")} | ${escapeHtml(kitchen.phone || "")}</p>
+            <p><b>Login ID:</b> ${escapeHtml(kitchen.loginId || kitchen.id)}</p>
+            <p>${escapeHtml(kitchen.address || "")}</p>
+            ${approval === "pending" ? `<div class="row wrap" style="margin-top:10px;">
+              <button class="btn" data-approve-kitchen="${kitchen.id}"><i data-lucide="check"></i> Approve Base Kitchen</button>
+              <button class="btn danger" data-reject-kitchen="${kitchen.id}"><i data-lucide="x"></i> Reject</button>
+            </div>` : ""}
+          </div>`;
+        }).join("");
+        $("partnerQueue").innerHTML = partnerCards + kitchenCards || `<div class="empty">No Partner or Base Kitchen onboarding request.</div>`;
         lucide.createIcons();
         renderMetrics();
       }
@@ -680,17 +715,33 @@
       $("partnerQueue").addEventListener("click", async (event) => {
         const approve = event.target.closest("[data-approve-partner]");
         const reject = event.target.closest("[data-reject-partner]");
+        const approveKitchen = event.target.closest("[data-approve-kitchen]");
+        const rejectKitchen = event.target.closest("[data-reject-kitchen]");
         if (approve) {
           const partner = partners.find((row) => row.id === approve.dataset.approvePartner);
-          await compatUpdate(partner, "partners", { status: "approved", approvedAt: FieldValue.serverTimestamp() });
+          await compatUpdate(partner, "partners", { status: "approved", approvalStatus: "approved", approvedAt: FieldValue.serverTimestamp() });
           toast("Partner approved.");
         }
         if (reject) {
           const reason = prompt("Reason for rejection", "Documents/details incomplete.");
           if (!reason) return;
           const partner = partners.find((row) => row.id === reject.dataset.rejectPartner);
-          await compatUpdate(partner, "partners", { status: "rejected", rejectionReason: reason });
+          await compatUpdate(partner, "partners", { status: "rejected", approvalStatus: "rejected", rejectionReason: reason });
           toast("Partner rejected.");
+        }
+        if (approveKitchen) {
+          await db.collection("baseKitchens").doc(approveKitchen.dataset.approveKitchen).update({
+            active: true, status: "approved", approvalStatus: "approved", approvedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Base Kitchen approved. Its ID and password can now be used to login.");
+        }
+        if (rejectKitchen) {
+          const reason = prompt("Reason for rejection", "Documents/details incomplete.");
+          if (!reason) return;
+          await db.collection("baseKitchens").doc(rejectKitchen.dataset.rejectKitchen).update({
+            active: false, status: "rejected", approvalStatus: "rejected", rejectionReason: reason, updatedAt: FieldValue.serverTimestamp()
+          });
+          toast("Base Kitchen rejected.");
         }
       });
 
@@ -783,6 +834,7 @@
         const saveMenu = event.target.closest("[data-save-menu-master]");
         const saveKitchen = event.target.closest("[data-save-kitchen-master]");
         const savePartner = event.target.closest("[data-save-partner-master]");
+        const saveCredential = event.target.closest("[data-save-credential]");
         if (viewBtn) {
           document.querySelectorAll("[data-master-view]").forEach((btn) => btn.classList.toggle("active", btn === viewBtn));
           ["catalogMaster", "kitchenMaster", "partnerMaster"].forEach((id) => $(id).classList.toggle("hidden", id !== viewBtn.dataset.masterView));
@@ -810,6 +862,8 @@
           await db.collection("baseKitchens").doc(id).update({
             name: field("name"),
             city: field("city"),
+            loginId: field("loginId") || id,
+            password: field("password") || "",
             active: field("active") === "true",
             updatedAt: FieldValue.serverTimestamp()
           });
@@ -819,14 +873,31 @@
           const id = savePartner.dataset.savePartnerMaster;
           const field = (name) => document.querySelector(`[data-partner-master="${id}"][data-field="${name}"]`)?.value || "";
           const row = partners.find((partner) => partner.id === id);
-          await compatUpdate(row, "partners", {
+          const payload = {
             restaurantName: field("restaurantName"),
             station: field("station"),
             ownerName: field("ownerName"),
             phone: cleanPhone(field("phone")) || field("phone"),
+            loginId: field("loginId").trim().toLowerCase(),
             status: field("status")
-          });
+          };
+          if (field("password")) payload.password = field("password");
+          await compatUpdate(row, "partners", payload);
           toast("Partner master updated.");
+        }
+        if (saveCredential) {
+          const [type, id] = saveCredential.dataset.saveCredential.split(":");
+          const input = document.querySelector(`[data-credential-password="${type}:${id}"]`);
+          const password = input?.value || "";
+          if (password.length < 4) return toast("Enter a new password of at least 4 characters.");
+          if (type === "partner") {
+            const row = partners.find((partner) => partner.id === id);
+            await compatUpdate(row, "partners", { password, updatedAt: FieldValue.serverTimestamp() });
+          } else {
+            await db.collection("baseKitchens").doc(id).update({ password, updatedAt: FieldValue.serverTimestamp() });
+          }
+          input.value = "";
+          toast("Supplier password updated.");
         }
       });
 
@@ -863,7 +934,7 @@
       renderMasters();
       renderRouteTrainSelect();
       onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); renderMasters(); }, "name", "asc", 300);
-      onLive("baseKitchens", (rows) => { kitchens = rows; renderMasters(); }, "name", "asc", 300);
+      onLive("baseKitchens", (rows) => { kitchens = rows; renderMasters(); renderPartners(); }, "name", "asc", 300);
       onLive("trainMasters", (rows) => { trainMasters = rows.filter((train) => train.active !== false); renderRouteTrainSelect(); renderMarketingTrainPicker(); }, "trainNumber", "asc", 300);
       onLive("trainRoutes", (rows) => { trainRoutes = rows; renderRoute(); }, "updatedAt", "desc", 300);
     });

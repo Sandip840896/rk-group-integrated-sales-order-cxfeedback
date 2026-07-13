@@ -58,6 +58,11 @@
       <div class="section-title"><div><h2>Supplier Payment Claims</h2><p>Verify every claim before forwarding it to the CFO for final approval.</p></div></div>
       <div id="supplierInvoiceList" class="list"></div>
     </section>
+
+    <section class="panel pad stack">
+      <div class="section-title"><div><h2>Registered Partner and Base Kitchen Login List</h2><p>Admin can review approved assignments and replace a supplier password.</p></div></div>
+      <div id="adminSupplierCredentialTable" class="table-wrap"></div>
+    </section>
   </main>
 
   <script>
@@ -160,8 +165,37 @@
             </div>` : String(invoice.status || "") === "central-approved" ? `<div class="ack success" style="margin-top:10px;">Checked by Central Command and awaiting CFO decision.</div>` : ""}
           </div>`;
         }).join("") || `<div class="empty">No partner or base kitchen payment claim yet.</div>`;
+        const suppliers = [
+          ...state.partners.map((row) => ({ ...row, supplierType: "Partner", displayName: row.restaurantName || row.name || row.id })),
+          ...state.kitchens.map((row) => ({ ...row, supplierType: "Base Kitchen", displayName: row.name || row.id }))
+        ];
+        $("adminSupplierCredentialTable").innerHTML = `<table>
+          <thead><tr><th>Type</th><th>Registered Supplier</th><th>Login ID</th><th>Status</th><th>New Password</th><th>Action</th></tr></thead>
+          <tbody>${suppliers.map((row) => `<tr>
+            <td>${escapeHtml(row.supplierType)}</td><td>${escapeHtml(row.displayName)}</td><td>${escapeHtml(row.loginId || row.id)}</td>
+            <td>${statusBadge(row.approvalStatus || row.status || (row.active === false ? "pending" : "approved"))}</td>
+            <td><input class="input" type="password" data-admin-password="${row.supplierType === "Partner" ? "partner" : "kitchen"}:${row.id}" placeholder="Enter new password"></td>
+            <td><button class="btn secondary" data-admin-save-password="${row.supplierType === "Partner" ? "partner" : "kitchen"}:${row.id}"><i data-lucide="key-round"></i> Update</button></td>
+          </tr>`).join("")}</tbody></table>`;
         lucide.createIcons();
       }
+
+      $("adminSupplierCredentialTable").addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-admin-save-password]");
+        if (!button) return;
+        const [type, id] = button.dataset.adminSavePassword.split(":");
+        const input = document.querySelector(`[data-admin-password="${type}:${id}"]`);
+        const password = input?.value || "";
+        if (password.length < 4) return toast("Enter a new password of at least 4 characters.");
+        if (type === "partner") {
+          const row = state.partners.find((partner) => partner.id === id);
+          await compatUpdate(row, "partners", { password, updatedAt: FieldValue.serverTimestamp() });
+        } else {
+          await db.collection("baseKitchens").doc(id).update({ password, updatedAt: FieldValue.serverTimestamp() });
+        }
+        input.value = "";
+        toast("Supplier password updated by Admin.");
+      });
 
       $("supplierInvoiceList").addEventListener("click", async (event) => {
         const forward = event.target.closest("[data-forward-cfo]");

@@ -17,24 +17,44 @@
   <main class="main supplier-portal">
     <div class="panel pad stack">
       <div class="section-title">
-        <div><h2>Choose Base Kitchen</h2><p>Only indents sent to the selected kitchen will appear.</p></div>
+        <div><h2>Base Kitchen Login</h2><p>Use the Login ID and Password approved in Control Tower.</p></div>
         <a class="btn secondary" href="index.html"><i data-lucide="home"></i> Apps</a>
       </div>
       <div class="row mobile-stack">
-        <select id="kitchenSelect" class="select grow"></select>
-        <button class="btn" id="saveKitchenBtn"><i data-lucide="check"></i> Start</button>
+        <input class="input grow" id="bkLoginId" placeholder="Login ID">
+        <input class="input grow" id="bkLoginPassword" type="password" placeholder="Password">
+        <button class="btn" id="saveKitchenBtn"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary" id="newKitchenRegistrationBtn" type="button"><i data-lucide="clipboard-list"></i> New User</button>
+        <button class="btn secondary hidden" id="bkLogoutBtn"><i data-lucide="log-out"></i> Logout</button>
         <button class="btn danger" id="switchOffKitchenBtn"><i data-lucide="power"></i> Switch Off Service</button>
       </div>
+      <div class="ack hidden" id="bkLoginMessage"></div>
     </div>
 
-    <div class="grid four" style="margin-top:14px;">
+    <section class="panel pad stack hidden" id="bkRegistrationPanel" style="margin-top:14px;">
+      <div class="section-title"><div><h2>New Base Kitchen Registration</h2><p>Create an ID and password. Operations open only after Control Tower approval.</p></div></div>
+      <form id="bkRegistrationForm" class="stack">
+        <div class="grid two">
+          <label class="field"><span>Login ID</span><input class="input" name="loginId" required autocomplete="username"></label>
+          <label class="field"><span>Password</span><input class="input" name="password" required type="password" minlength="4" autocomplete="new-password"></label>
+          <label class="field"><span>Base Kitchen Name</span><input class="input" name="name" required></label>
+          <label class="field"><span>City / Station</span><input class="input" name="city" required></label>
+          <label class="field"><span>Owner / Manager</span><input class="input" name="ownerName" required></label>
+          <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel"></label>
+        </div>
+        <label class="field"><span>Full Address</span><textarea class="textarea" name="address" required></textarea></label>
+        <button class="btn" type="submit"><i data-lucide="send"></i> Submit for Approval</button>
+      </form>
+    </section>
+
+    <div class="grid four hidden" id="bkMetricsShell" style="margin-top:14px;">
       <div class="metric"><b id="bkNew">0</b><span>New indents</span></div>
       <div class="metric"><b id="bkCustomer">0</b><span>Customer orders</span></div>
       <div class="metric"><b id="bkInvoices">0</b><span>Invoices sent</span></div>
       <div class="metric"><b id="bkDisputes">0</b><span>Disputes</span></div>
     </div>
 
-    <div class="management-shell" style="margin-top:14px;">
+    <div class="management-shell hidden" id="bkOpsShell" style="margin-top:14px;">
       <div class="tabs manager-vertical-tabs">
         <button class="tab-btn" data-tab="incoming"><i data-lucide="inbox"></i> Incoming Indents</button>
         <button class="tab-btn" data-tab="customer"><i data-lucide="receipt-text"></i> Customer Orders</button>
@@ -134,7 +154,8 @@
       await ensureSeedData();
 
       let kitchens = [];
-      let activeKitchenId = localStorage.getItem("rkBaseKitchen") || "";
+      let bkSession = JSON.parse(sessionStorage.getItem("rkBaseKitchenSession") || "null");
+      let activeKitchenId = bkSession?.id || "";
       let indents = [];
       let invoices = [];
       let catalogRequests = [];
@@ -151,22 +172,98 @@
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         const activeKitchens = kitchens.filter((k) => k.active !== false);
-        $("kitchenSelect").innerHTML = activeKitchens
-          .map((k) => `<option value="${k.id}">${escapeHtml(k.name)} (${escapeHtml(k.id)})</option>`)
-          .join("");
         if (activeKitchenId && activeKitchens.some((k) => k.id === activeKitchenId)) {
-          $("kitchenSelect").value = activeKitchenId;
         } else {
           activeKitchenId = "";
-          localStorage.removeItem("rkBaseKitchen");
+          bkSession = null;
+          sessionStorage.removeItem("rkBaseKitchenSession");
         }
+        renderKitchenAccess();
         renderAll();
       });
 
+      function renderKitchenAccess() {
+        const loggedIn = Boolean(bkSession?.id && activeKitchenId);
+        $("bkMetricsShell").classList.toggle("hidden", !loggedIn);
+        $("bkOpsShell").classList.toggle("hidden", !loggedIn);
+        $("bkLogoutBtn").classList.toggle("hidden", !loggedIn);
+        $("newKitchenRegistrationBtn").classList.toggle("hidden", loggedIn);
+        $("switchOffKitchenBtn").classList.toggle("hidden", !loggedIn);
+      }
+
+      function showKitchenLoginMessage(message, tone = "warn") {
+        $("bkLoginMessage").textContent = message;
+        $("bkLoginMessage").className = `ack ${tone === "danger" ? "danger-soft" : tone === "success" ? "success" : ""}`;
+        $("bkLoginMessage").classList.remove("hidden");
+      }
+
+      function kitchenCredentialValid(kitchen, loginId, password) {
+        const expectedLogin = String(kitchen.loginId || kitchen.id || "").trim().toLowerCase();
+        const expectedPassword = String(kitchen.password || kitchen.loginPassword || "");
+        return String(loginId || "").trim().toLowerCase() === expectedLogin && String(password || "") === expectedPassword;
+      }
+
       $("saveKitchenBtn").addEventListener("click", () => {
-        activeKitchenId = $("kitchenSelect").value;
-        localStorage.setItem("rkBaseKitchen", activeKitchenId);
-        toast("Kitchen selected. Live indents loaded.");
+        const loginId = $("bkLoginId").value.trim().toLowerCase();
+        const kitchen = kitchens.find((entry) => String(entry.loginId || entry.id || "").trim().toLowerCase() === loginId);
+        if (!kitchen) return showKitchenLoginMessage("Invalid Base Kitchen Login ID or Password.", "danger");
+        if (!kitchenCredentialValid(kitchen, $("bkLoginId").value, $("bkLoginPassword").value)) {
+          return showKitchenLoginMessage("Invalid Base Kitchen Login ID or Password.", "danger");
+        }
+        const approvalStatus = String(kitchen.approvalStatus || kitchen.status || (kitchen.active === false ? "pending" : "approved")).toLowerCase();
+        if (approvalStatus !== "approved") return showKitchenLoginMessage(`Registration is ${approvalStatus}. Control Tower approval is required.`, "warn");
+        activeKitchenId = kitchen.id;
+        bkSession = { id: activeKitchenId, name: kitchen.name || activeKitchenId, loginId: $("bkLoginId").value.trim().toLowerCase() };
+        sessionStorage.setItem("rkBaseKitchenSession", JSON.stringify(bkSession));
+        $("bkLoginPassword").value = "";
+        renderKitchenAccess();
+        showKitchenLoginMessage("Base kitchen login successful.", "success");
+        toast("Kitchen login successful. Live indents loaded.");
+        renderAll();
+      });
+
+      $("newKitchenRegistrationBtn").addEventListener("click", () => {
+        $("bkRegistrationPanel").classList.toggle("hidden");
+      });
+
+      $("bkRegistrationForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const data = getForm(form);
+        const phone = cleanPhone(data.phone);
+        if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
+        const loginId = String(data.loginId || "").trim().toLowerCase();
+        if (kitchens.some((row) => String(row.loginId || "").toLowerCase() === loginId)) return toast("This Login ID is already registered.");
+        setSubmitState(form, "saving", "Submitting...");
+        try {
+          await db.collection("baseKitchens").add({
+            ...data,
+            loginId,
+            phone,
+            active: false,
+            status: "pending",
+            approvalStatus: "pending",
+            source: "base-kitchen-app",
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          form.reset();
+          finishSubmitState(form, "Submitted");
+          $("bkRegistrationPanel").classList.add("hidden");
+          showKitchenLoginMessage("Registration submitted. After Control Tower approval, login with the same ID and password.", "success");
+        } catch (error) {
+          console.error(error);
+          setSubmitState(form, "idle");
+          toast(firebaseAccessMessage("baseKitchens", error));
+        }
+      });
+
+      $("bkLogoutBtn").addEventListener("click", () => {
+        activeKitchenId = "";
+        bkSession = null;
+        sessionStorage.removeItem("rkBaseKitchenSession");
+        renderKitchenAccess();
+        showKitchenLoginMessage("Logged out.", "warn");
         renderAll();
       });
 
@@ -188,13 +285,6 @@
         toast("Service switched off and Control Tower notified.");
       });
 
-      $("kitchenSelect").addEventListener("change", () => {
-        activeKitchenId = $("kitchenSelect").value;
-        localStorage.setItem("rkBaseKitchen", activeKitchenId);
-        seenIndents = new Set();
-        renderAll();
-      });
-
       function visibleIndents() {
         if (!activeKitchenId) return [];
         return indents.filter((indent) => String(indent.baseKitchenId || "") === activeKitchenId);
@@ -210,9 +300,13 @@
         return customerOrders.filter((order) => {
           const source = String(order.fulfillmentSource || "").toLowerCase();
           const ownOrder = String(order.baseKitchenId || "") === activeKitchenId;
-          const ownLine = (order.items || []).some((line) => String(line.baseKitchenId || line.supplierId || "") === activeKitchenId || String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen");
+          const ownLine = (order.items || []).some((line) => String(line.baseKitchenId || line.supplierId || "") === activeKitchenId);
           return (source === "base-kitchen" || source === "mixed" || ownLine) && (ownOrder || ownLine);
         });
+      }
+
+      function kitchenLineMatches(line) {
+        return Boolean(activeKitchenId) && String(line.baseKitchenId || line.supplierId || "") === activeKitchenId;
       }
 
       function payableKitchenOrders() {
@@ -247,7 +341,7 @@
           if (from && day < from) return [];
           if (to && day > to) return [];
           return (order.items || [])
-            .filter((line) => String(line.fulfillmentSource || line.source || "").toLowerCase() === "base-kitchen" || String(line.baseKitchenId || line.supplierId || "") === activeKitchenId)
+            .filter((line) => kitchenLineMatches(line))
             .map((line) => {
               const qty = Number(line.qty || 0);
               const amount = qty * Number(line.price ?? line.sellingPrice ?? 0);
@@ -411,7 +505,7 @@
             <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
             <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
             <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${escapeHtml(order.deliveryWindow || "")}</p>
-            <p>${(order.items || []).filter((line) => String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen").map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ") || (order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
+            <p>${(order.items || []).filter((line) => kitchenLineMatches(line)).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
             ${String(order.status || "").toLowerCase() === "restaurant-handover" ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Rake Manager OTP:</b> ${escapeHtml(order.supplierHandoverOtp || "")}. Collect this OTP from rake manager after physical handover.</div>` : `<div class="ack ${String(order.status || "").toLowerCase() === "new" ? "danger-soft" : "success"}" style="margin-top:10px;">${escapeHtml(acceptanceClock(order))}</div>`}
             <div class="row wrap" style="margin-top:10px;">
               ${String(order.status || "").toLowerCase() === "new" ? `<button class="btn" data-bk-accept-order="${order.id}"><i data-lucide="check"></i> Accept Customer Order</button>` : ""}
@@ -845,7 +939,7 @@
       onLive("customerOrders", (rows) => {
         const visible = rows.filter((order) => {
           const source = String(order.fulfillmentSource || "").toLowerCase();
-          const ownLine = (order.items || []).some((line) => String(line.baseKitchenId || line.supplierId || "") === activeKitchenId || String(line.fulfillmentSource || "").toLowerCase() === "base-kitchen");
+          const ownLine = (order.items || []).some((line) => String(line.baseKitchenId || line.supplierId || "") === activeKitchenId);
           return activeKitchenId && (source === "base-kitchen" || source === "mixed" || ownLine) && (String(order.baseKitchenId || "") === activeKitchenId || ownLine);
         });
         const incoming = visible.filter((row) => !seenCustomerOrders.has(row.id));
