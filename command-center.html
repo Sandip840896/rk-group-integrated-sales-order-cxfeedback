@@ -22,7 +22,7 @@
   <main class="main">
     <section class="panel pad" id="loginPanel">
       <div class="section-title">
-        <div><h2>Rake Manager Command Center Login</h2><p>Prototype access control. Use Firebase Auth before production launch.</p></div>
+        <div><h2 id="loginPanelTitle">Rake Manager Command Center Login</h2><p id="loginPanelHint">Sign in with your approved Firebase account.</p></div>
         <span class="badge warn" id="loginRoleBadge">not logged in</span>
       </div>
       <div class="row mobile-stack">
@@ -34,6 +34,7 @@
       </div>
     </section>
 
+    <div class="management-shell hidden" id="managementShell">
     <div class="tabs manager-vertical-tabs">
       <button class="tab-btn" data-tab="overview"><i data-lucide="activity"></i> Overview</button>
       <button class="tab-btn" data-tab="orders"><i data-lucide="receipt-text"></i> Customer Orders <span class="tab-badge hidden" id="ordersTabBadge">0</span></button>
@@ -48,6 +49,7 @@
       <button class="tab-btn hidden" id="superAdminTabBtn" data-tab="super"><i data-lucide="shield"></i> Super Admin</button>
     </div>
 
+    <div class="management-content">
     <section data-tab-panel="overview" class="stack">
       <div class="grid four">
         <div class="metric"><b id="mOrders">0</b><span>Live customer orders</span></div>
@@ -352,6 +354,8 @@
       </div>
       <div class="empty danger-soft"><b>Production note:</b> client-side super admin is not secure. Before launch we must enable Firebase Authentication, role claims and Firestore Rules.</div>
     </section>
+    </div>
+    </div>
   </main>
 
   <div id="disputeModal" class="modal-backdrop hidden">
@@ -421,8 +425,16 @@
 
       function updateLoginUi() {
         const isSuper = currentUser?.role === "super-admin";
+        const isLoggedIn = Boolean(currentUser);
         $("loginRoleBadge").textContent = currentUser ? `${currentUser.email} | ${currentUser.role}` : "not logged in";
-        $("logoutBtn").classList.toggle("hidden", !currentUser);
+        $("loginPanelTitle").textContent = isLoggedIn ? "Rake Manager Command Center" : "Rake Manager Command Center Login";
+        $("loginPanelHint").textContent = isLoggedIn ? `Secure session active for ${currentUser.name || currentUser.email}.` : "Sign in with your approved Firebase account.";
+        $("loginEmail").classList.toggle("hidden", isLoggedIn);
+        $("loginPassword").classList.toggle("hidden", isLoggedIn);
+        $("loginBtn").classList.toggle("hidden", isLoggedIn);
+        $("rakeForgotPasswordBtn").classList.toggle("hidden", isLoggedIn);
+        $("logoutBtn").classList.toggle("hidden", !isLoggedIn);
+        $("managementShell").classList.toggle("hidden", !isLoggedIn);
         $("superAdminTabBtn").classList.toggle("hidden", !isSuper);
         if (!isSuper && document.querySelector("[data-tab-panel='super']") && !document.querySelector("[data-tab-panel='super']").classList.contains("hidden")) {
           showTab("overview");
