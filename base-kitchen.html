@@ -11,7 +11,8 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=20260713-identity2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="rk-common.js?v=20260714-bulk-catalog1"></script>
 </head>
 <body>
   <main class="main supplier-portal">
@@ -132,6 +133,19 @@
         <label class="field"><span>Product Detail</span><textarea class="textarea" name="description" placeholder="Portion, ingredients, packaging note"></textarea></label>
         <button class="btn" type="submit"><i data-lucide="send"></i> Send to Control Tower</button>
       </form>
+      <div class="panel pad stack soft-panel">
+        <div class="section-title"><div><h3>Bulk Catalog Upload</h3><p>Upload CSV or Excel. Every valid item will go separately to Control Tower for approval.</p></div></div>
+        <div class="row wrap">
+          <button class="btn secondary" id="bkDownloadCatalogCsvBtn" type="button"><i data-lucide="file-down"></i> Sample CSV</button>
+          <a class="btn secondary" href="catalog-bulk-upload-template.xlsx" download><i data-lucide="sheet"></i> Sample Excel</a>
+        </div>
+        <div class="grid two">
+          <label class="field"><span>Filled CSV / Excel</span><input class="input" id="bkCatalogBulkFile" type="file" accept=".csv,.xlsx,.xls"></label>
+          <label class="field"><span>Product Images (optional)</span><input class="input" id="bkCatalogBulkImages" type="file" accept="image/*" multiple><small>Image filenames must match the imageFileName column.</small></label>
+        </div>
+        <button class="btn" id="bkUploadCatalogBulkBtn" type="button"><i data-lucide="upload"></i> Upload All Items for Approval</button>
+        <div class="empty" id="bkCatalogBulkStatus">Download the template, keep its column names unchanged, then upload the completed file.</div>
+      </div>
       <div id="bkCatalogRequests" class="list"></div>
     </section>
 
@@ -931,6 +945,57 @@
           console.error(error);
           setSubmitState(form, "idle");
           toast(firebaseAccessMessage("catalogRequests", error));
+        }
+      });
+
+      $("bkDownloadCatalogCsvBtn").addEventListener("click", () => downloadCatalogBulkTemplate());
+      $("bkUploadCatalogBulkBtn").addEventListener("click", async () => {
+        if (!activeKitchenId) return toast("Select base kitchen first.");
+        const button = $("bkUploadCatalogBulkBtn");
+        const status = $("bkCatalogBulkStatus");
+        const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
+        button.disabled = true;
+        status.textContent = "Reading catalog file...";
+        try {
+          const rows = await readCatalogBulkFile($("bkCatalogBulkFile").files[0]);
+          const images = catalogBulkImageFiles($("bkCatalogBulkImages"));
+          let saved = 0;
+          const errors = [];
+          for (const row of rows) {
+            try {
+              const mealSlots = catalogBulkList(row.mealCategories);
+              if (!mealSlots.length) throw new Error("mealCategories is required");
+              const sellingPrice = Number(row.sellingPrice);
+              const costPrice = Number(row.costPrice);
+              if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error("invalid sellingPrice");
+              if (!Number.isFinite(costPrice) || costPrice < 0) throw new Error("invalid costPrice");
+              const linkedTrains = catalogBulkList(row.linkedTrains, ["All"]);
+              const image = await catalogBulkImage(row, images);
+              await compatAdd("catalogRequests", "catalogRequest", {
+                name: row.itemName, category: mealSlots[0], mealSlots,
+                type: row.foodType || "veg", cuisine: row.cuisine || "Other",
+                sellingPrice, costPrice, stockQty: Math.max(0, Number(row.openingQty || 0)),
+                linkedTrain: linkedTrains.includes("All") ? "All" : linkedTrains.join(", "), linkedTrains,
+                description: row.description || "", itemImage: image,
+                sourceType: "base kitchen", source: "base kitchen", supplierId: activeKitchenId,
+                supplierName: kitchen?.name || activeKitchenId, baseKitchenId: activeKitchenId,
+                baseKitchenName: kitchen?.name || activeKitchenId, status: "pending", bulkUpload: true,
+                createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+              });
+              saved += 1;
+              status.textContent = `Submitting ${saved} of ${rows.length} items...`;
+            } catch (error) {
+              errors.push(`Row ${row._rowNumber}: ${error.message}`);
+            }
+          }
+          status.innerHTML = `<b>${saved} item(s) sent for approval.</b>${errors.length ? `<br>${escapeHtml(errors.slice(0, 6).join(" | "))}` : ""}`;
+          if (saved) toast(`${saved} catalog items sent to Control Tower.`);
+        } catch (error) {
+          console.error(error);
+          status.textContent = error.message;
+          toast(error.message);
+        } finally {
+          button.disabled = false;
         }
       });
 

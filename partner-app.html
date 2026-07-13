@@ -11,7 +11,8 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=20260713-identity2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="rk-common.js?v=20260714-bulk-catalog1"></script>
   <script defer src="route-master-data.js"></script>
 </head>
 <body>
@@ -129,6 +130,19 @@
         <label class="field"><span>Product Detail</span><textarea class="textarea" name="description" placeholder="Ingredients, packing, serving size"></textarea></label>
         <button class="btn" type="submit"><i data-lucide="send"></i> Send to Control Tower</button>
       </form>
+      <div class="panel pad stack soft-panel">
+        <div class="section-title"><div><h3>Bulk Catalog Upload</h3><p>Upload CSV or Excel. Every item will remain pending until Control Tower approval.</p></div></div>
+        <div class="row wrap">
+          <button class="btn secondary" id="partnerDownloadCatalogCsvBtn" type="button"><i data-lucide="file-down"></i> Sample CSV</button>
+          <a class="btn secondary" href="catalog-bulk-upload-template.xlsx" download><i data-lucide="sheet"></i> Sample Excel</a>
+        </div>
+        <div class="grid two">
+          <label class="field"><span>Filled CSV / Excel</span><input class="input" id="partnerCatalogBulkFile" type="file" accept=".csv,.xlsx,.xls"></label>
+          <label class="field"><span>Product Images (optional)</span><input class="input" id="partnerCatalogBulkImages" type="file" accept="image/*" multiple><small>Image filenames must match the imageFileName column.</small></label>
+        </div>
+        <button class="btn" id="partnerUploadCatalogBulkBtn" type="button"><i data-lucide="upload"></i> Upload All Items for Approval</button>
+        <div class="empty" id="partnerCatalogBulkStatus">Use semicolons for multiple meal categories and trains. Example: Lunch;Dinner.</div>
+      </div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="status">
@@ -678,6 +692,57 @@
           console.error(error);
           setSubmitState(form, "idle");
           toast(firebaseAccessMessage("catalogRequests", error));
+        }
+      });
+
+      $("partnerDownloadCatalogCsvBtn").addEventListener("click", () => downloadCatalogBulkTemplate());
+      $("partnerUploadCatalogBulkBtn").addEventListener("click", async () => {
+        if (!isApprovedPartnerSession()) return toast("Login with an approved Partner ID first.");
+        const button = $("partnerUploadCatalogBulkBtn");
+        const status = $("partnerCatalogBulkStatus");
+        const phone = partnerPhone();
+        button.disabled = true;
+        status.textContent = "Reading catalog file...";
+        try {
+          const rows = await readCatalogBulkFile($("partnerCatalogBulkFile").files[0]);
+          const images = catalogBulkImageFiles($("partnerCatalogBulkImages"));
+          let saved = 0;
+          const errors = [];
+          for (const row of rows) {
+            try {
+              const mealSlots = catalogBulkList(row.mealCategories);
+              if (!mealSlots.length) throw new Error("mealCategories is required");
+              const sellingPrice = Number(row.sellingPrice);
+              const costPrice = Number(row.costPrice);
+              if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error("invalid sellingPrice");
+              if (!Number.isFinite(costPrice) || costPrice < 0) throw new Error("invalid costPrice");
+              const linkedTrains = catalogBulkList(row.linkedTrains, ["All"]);
+              const image = await catalogBulkImage(row, images);
+              await compatAdd("catalogRequests", "catalogRequest", {
+                name: row.itemName, category: mealSlots[0], mealSlots,
+                type: row.foodType || "veg", cuisine: row.cuisine || "Other",
+                sellingPrice, costPrice, stockQty: Math.max(0, Number(row.openingQty || 0)),
+                linkedTrain: linkedTrains.includes("All") ? "All" : linkedTrains.join(", "), linkedTrains,
+                description: row.description || "", itemImage: image,
+                sourceType: "partner", source: "partner", partnerId: partnerSession.id,
+                supplierId: partnerSession.id, supplierPhone: phone, supplierName: partnerName(),
+                status: "pending", bulkUpload: true,
+                createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+              });
+              saved += 1;
+              status.textContent = `Submitting ${saved} of ${rows.length} items...`;
+            } catch (error) {
+              errors.push(`Row ${row._rowNumber}: ${error.message}`);
+            }
+          }
+          status.innerHTML = `<b>${saved} item(s) sent for approval.</b>${errors.length ? `<br>${escapeHtml(errors.slice(0, 6).join(" | "))}` : ""}`;
+          if (saved) toast(`${saved} catalog items sent to Control Tower.`);
+        } catch (error) {
+          console.error(error);
+          status.textContent = error.message;
+          toast(error.message);
+        } finally {
+          button.disabled = false;
         }
       });
 

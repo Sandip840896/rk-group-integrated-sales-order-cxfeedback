@@ -210,6 +210,81 @@ function parseCsvRows(text) {
   return rows;
 }
 
+const catalogBulkHeaders = [
+  "itemName", "mealCategories", "foodType", "cuisine", "sellingPrice", "costPrice",
+  "openingQty", "linkedTrains", "description", "imageFileName", "imageUrl", "source"
+];
+
+function catalogBulkTemplateCsv() {
+  const example = [
+    "Veg Biryani", "Lunch;Dinner", "veg", "North Indian", "149", "92", "25",
+    "12859;12860", "500 g portion with sealed packaging", "veg-biryani.jpg", "", "pantry"
+  ];
+  const quote = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  return `\ufeff${catalogBulkHeaders.map(quote).join(",")}\r\n${example.map(quote).join(",")}\r\n`;
+}
+
+function downloadCatalogBulkTemplate(filename = "catalog-bulk-upload-template.csv") {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([catalogBulkTemplateCsv()], { type: "text/csv;charset=utf-8" }));
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+async function readCatalogBulkFile(file) {
+  if (!file) throw new Error("Choose a CSV or Excel file first.");
+  const extension = String(file.name || "").split(".").pop().toLowerCase();
+  let csvText = "";
+  if (extension === "csv") {
+    csvText = await file.text();
+  } else if (["xlsx", "xls"].includes(extension)) {
+    if (!window.XLSX) throw new Error("Excel reader did not load. Refresh the page or save the workbook as CSV UTF-8.");
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    csvText = XLSX.utils.sheet_to_csv(firstSheet);
+  } else {
+    throw new Error("Only CSV, XLSX or XLS files are supported.");
+  }
+  const matrix = parseCsvRows(csvText);
+  if (matrix.length < 2) throw new Error("The upload file has no catalog rows.");
+  const normalizeHeader = (value) => String(value || "").replace(/^\ufeff/, "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const aliases = {
+    itemname: "itemName", name: "itemName", fooditem: "itemName",
+    mealcategories: "mealCategories", mealcategory: "mealCategories", mealslots: "mealCategories", category: "mealCategories",
+    foodtype: "foodType", type: "foodType", cuisine: "cuisine",
+    sellingprice: "sellingPrice", sellingrate: "sellingPrice", price: "sellingPrice",
+    costprice: "costPrice", cost: "costPrice", openingqty: "openingQty", stockqty: "openingQty", quantity: "openingQty",
+    linkedtrains: "linkedTrains", linkedtrain: "linkedTrains", trains: "linkedTrains",
+    description: "description", productdetail: "description", imagefilename: "imageFileName", imagename: "imageFileName",
+    imageurl: "imageUrl", imagelink: "imageUrl", source: "source"
+  };
+  const mappedHeaders = matrix[0].map((header) => aliases[normalizeHeader(header)] || "");
+  if (!mappedHeaders.includes("itemName")) throw new Error("Required column itemName is missing.");
+  return matrix.slice(1).map((cells, index) => {
+    const row = { _rowNumber: index + 2 };
+    mappedHeaders.forEach((header, cellIndex) => { if (header) row[header] = String(cells[cellIndex] || "").trim(); });
+    return row;
+  }).filter((row) => row.itemName);
+}
+
+function catalogBulkList(value, fallback = []) {
+  const rows = String(value || "").split(/[;|]/).map((part) => part.trim()).filter(Boolean);
+  return rows.length ? rows : fallback;
+}
+
+function catalogBulkImageFiles(input) {
+  return new Map([...(input?.files || [])].map((file) => [String(file.name || "").trim().toLowerCase(), file]));
+}
+
+async function catalogBulkImage(row, imageFiles) {
+  const imageUrl = String(row.imageUrl || "").trim();
+  if (imageUrl) return imageUrl;
+  const imageName = String(row.imageFileName || "").trim().toLowerCase();
+  const file = imageName ? imageFiles.get(imageName) : null;
+  return file ? compressImage(file, 520, 0.7) : "";
+}
+
 function invoiceItemQty(line) {
   return Number(line?.approvedQty ?? line?.qty ?? line?.requestedQty ?? 0);
 }

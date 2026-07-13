@@ -12,7 +12,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=20260713-secure-auth1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="rk-common.js?v=20260714-bulk-catalog1"></script>
 </head>
 <body>
   <div class="customer-utility-dock">
@@ -252,6 +253,19 @@
             <button class="btn secondary hidden" id="cancelMenuEditBtn" type="button"><i data-lucide="x"></i> Cancel Edit</button>
           </div>
         </form>
+        <div class="panel pad stack soft-panel">
+          <div class="section-title"><div><h3>Bulk Food Master Upload</h3><p>Upload CSV or Excel to add many Rake Manager food items together.</p></div></div>
+          <div class="row wrap">
+            <button class="btn secondary" id="commandDownloadCatalogCsvBtn" type="button"><i data-lucide="file-down"></i> Sample CSV</button>
+            <a class="btn secondary" href="catalog-bulk-upload-template.xlsx" download><i data-lucide="sheet"></i> Sample Excel</a>
+          </div>
+          <div class="grid two">
+            <label class="field"><span>Filled CSV / Excel</span><input class="input" id="commandCatalogBulkFile" type="file" accept=".csv,.xlsx,.xls"></label>
+            <label class="field"><span>Product Images (optional)</span><input class="input" id="commandCatalogBulkImages" type="file" accept="image/*" multiple><small>Image filenames must match the imageFileName column.</small></label>
+          </div>
+          <button class="btn" id="commandUploadCatalogBulkBtn" type="button"><i data-lucide="upload"></i> Upload All Food Items</button>
+          <div class="empty" id="commandCatalogBulkStatus">Use source pantry for onboard items. Duplicate item names will be skipped.</div>
+        </div>
         <div class="master-list-head">
           <div>
             <h3>Food Item List</h3>
@@ -713,10 +727,67 @@
       }
 
       function slaText(value, minutes) {
-        const created = value?.toDate ? value.toDate() : null;
+        const created = value?.toDate ? value.toDate() : (value ? new Date(value) : null);
         if (!created) return `${minutes} min SLA`;
         const age = Math.floor((Date.now() - created.getTime()) / 60000);
         return age >= minutes ? `Overdue by ${age - minutes + 1} min` : `${minutes - age} min left`;
+      }
+
+      function timestampMillis(value) {
+        if (value?.toMillis) return value.toMillis();
+        if (value?.toDate) return value.toDate().getTime();
+        const parsed = value ? new Date(value).getTime() : NaN;
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      function deliveryDeadlineMillis(order) {
+        const explicit = timestampMillis(order.deliveryDeadline || order.expectedDeliveryAt || order.deliverBy);
+        if (explicit) return explicit;
+        const createdMs = timestampMillis(order.createdAt);
+        const match = String(order.deliveryWindow || "").match(/(\d{1,2}):(\d{2})\s*(?:-|to)\s*(\d{1,2}):(\d{2})/i);
+        if (!createdMs || !match) return 0;
+        const deadline = new Date(createdMs);
+        deadline.setHours(Number(match[3]), Number(match[4]), 0, 0);
+        return deadline.getTime();
+      }
+
+      function digitalDuration(ms) {
+        const total = Math.max(0, Math.floor(Math.abs(ms) / 1000));
+        const hours = String(Math.floor(total / 3600)).padStart(2, "0");
+        const minutes = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+        const seconds = String(total % 60).padStart(2, "0");
+        return `${hours}:${minutes}:${seconds}`;
+      }
+
+      function updateOrderClocks() {
+        document.querySelectorAll("[data-order-sla-clock]").forEach((clock) => {
+          const createdMs = Number(clock.dataset.createdMs || 0);
+          const deadlineMs = Number(clock.dataset.deadlineMs || 0);
+          const status = String(clock.dataset.orderStatus || "new").toLowerCase();
+          const now = Date.now();
+          const elapsed = createdMs ? digitalDuration(now - createdMs) : "--:--:--";
+          let deliveryText = "Delivery deadline not available";
+          let tone = "#475569";
+          if (["delivered", "cancelled"].includes(status)) {
+            deliveryText = status === "delivered" ? "Order delivered" : "Order cancelled";
+          } else if (deadlineMs) {
+            const remaining = deadlineMs - now;
+            deliveryText = remaining >= 0 ? `Deliver in ${digitalDuration(remaining)}` : `Delivery overdue ${digitalDuration(remaining)}`;
+            tone = remaining < 0 ? "#b42318" : remaining <= 15 * 60000 ? "#b54708" : "#067647";
+          }
+          clock.style.borderColor = tone;
+          clock.querySelector("[data-elapsed]").textContent = elapsed;
+          clock.querySelector("[data-delivery-countdown]").textContent = deliveryText;
+        });
+      }
+
+      function orderClockHtml(order) {
+        const createdMs = timestampMillis(order.createdAt);
+        const deadlineMs = deliveryDeadlineMillis(order);
+        return `<div data-order-sla-clock data-created-ms="${createdMs}" data-deadline-ms="${deadlineMs}" data-order-status="${escapeHtml(order.status || "new")}" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:9px 0;padding:9px 12px;border:2px solid #475569;border-radius:8px;background:#f8fafc;font-variant-numeric:tabular-nums;">
+          <span style="display:inline-flex;align-items:center;gap:6px;"><i data-lucide="clock-3"></i><b>Order age</b> <strong data-elapsed>--:--:--</strong></span>
+          <span style="font-weight:800;" data-delivery-countdown>Checking delivery SLA...</span>
+        </div>`;
       }
 
       function orderCard(order) {
@@ -728,6 +799,7 @@
           <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
           ${order.rakeNumber || order.qrId ? `<p><b>QR Context:</b> Rake ${escapeHtml(order.rakeNumber || "")}${order.qrId ? ` | ${escapeHtml(order.qrId)}` : ""}${order.rakeManagerPhone ? ` | Manager ${escapeHtml(order.rakeManagerPhone)}` : ""}</p>` : ""}
           ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
+          ${orderClockHtml(order)}
           ${orderStatus === "new" ? `<div class="ack danger-soft" style="margin:8px 0;">Accept within 10 minutes: ${escapeHtml(slaText(order.createdAt, 10))}</div>` : ""}
           <p><b>Payment:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")}</p>
           <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")} | ${money(order.total)}</p>
@@ -747,9 +819,12 @@
         const directOrders = accessOrders.filter((order) => !orderHasRestaurantSource(order));
         const visibleOrders = trainFilter === "all" ? directOrders : directOrders.filter((order) => trainMatches(order.train, trainFilter));
         $("ordersList").innerHTML = visibleOrders.map(orderCard).join("") || `<div class="empty">No live customer order for this train.</div>`;
+        updateOrderClocks();
         renderMetrics();
         lucide.createIcons();
       }
+
+      setInterval(updateOrderClocks, 1000);
 
       function restaurantHandoverCard(order) {
         const status = String(order.status || "new").toLowerCase();
@@ -1340,6 +1415,56 @@
           toast("Food item saved and reflected live.");
         }
         clearMenuEditForm();
+      });
+
+      $("commandDownloadCatalogCsvBtn").addEventListener("click", () => downloadCatalogBulkTemplate());
+      $("commandUploadCatalogBulkBtn").addEventListener("click", async () => {
+        const button = $("commandUploadCatalogBulkBtn");
+        const status = $("commandCatalogBulkStatus");
+        button.disabled = true;
+        status.textContent = "Reading food master file...";
+        try {
+          const rows = await readCatalogBulkFile($("commandCatalogBulkFile").files[0]);
+          const images = catalogBulkImageFiles($("commandCatalogBulkImages"));
+          const existingNames = new Set(menuItems.map((item) => String(item.name || "").trim().toLowerCase()));
+          let saved = 0;
+          let skipped = 0;
+          const errors = [];
+          for (const row of rows) {
+            try {
+              const itemKey = String(row.itemName || "").trim().toLowerCase();
+              if (existingNames.has(itemKey)) { skipped += 1; continue; }
+              const mealSlots = catalogBulkList(row.mealCategories);
+              if (!mealSlots.length) throw new Error("mealCategories is required");
+              const sellingPrice = Number(row.sellingPrice);
+              const costPrice = Number(row.costPrice);
+              if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error("invalid sellingPrice");
+              if (!Number.isFinite(costPrice) || costPrice < 0) throw new Error("invalid costPrice");
+              const itemImage = await catalogBulkImage(row, images);
+              await db.collection("menuItems").add({
+                name: row.itemName, category: mealSlots[0], mealSlots,
+                type: row.foodType || "veg", cuisine: row.cuisine || "Other",
+                source: row.source || "pantry", price: sellingPrice, sellingPrice, costPrice,
+                stockQty: Math.max(0, Number(row.openingQty || 0)), available: true,
+                description: row.description || "", itemImage, masterItem: true, bulkUpload: true,
+                createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+              });
+              existingNames.add(itemKey);
+              saved += 1;
+              status.textContent = `Saving ${saved} of ${rows.length} items...`;
+            } catch (error) {
+              errors.push(`Row ${row._rowNumber}: ${error.message}`);
+            }
+          }
+          status.innerHTML = `<b>${saved} item(s) saved.</b> ${skipped} duplicate name(s) skipped.${errors.length ? `<br>${escapeHtml(errors.slice(0, 6).join(" | "))}` : ""}`;
+          if (saved) toast(`${saved} food master items uploaded.`);
+        } catch (error) {
+          console.error(error);
+          status.textContent = error.message;
+          toast(error.message);
+        } finally {
+          button.disabled = false;
+        }
       });
 
       $("kitchenMasterForm").addEventListener("submit", async (event) => {

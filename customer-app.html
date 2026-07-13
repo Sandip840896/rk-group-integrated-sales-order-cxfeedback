@@ -72,8 +72,8 @@
       <nav class="customer-drawer-nav" aria-label="Customer menu">
         <button class="active" data-tab="order" data-drawer-nav="order" type="button"><i data-lucide="utensils"></i><span>Order Food</span></button>
         <button data-tab="track" data-drawer-nav="track" type="button"><i data-lucide="map-pin"></i><span>Track Order</span><small id="drawerActiveOrderBadge" class="drawer-badge hidden">0</small></button>
-        <button data-tab="track" data-drawer-nav="payments" type="button"><i data-lucide="receipt-text"></i><span>Payment / Invoice History</span></button>
-        <button data-tab="track" data-drawer-nav="orders" type="button"><i data-lucide="clipboard-list"></i><span>Order History</span></button>
+        <button data-tab="payments" data-drawer-nav="payments" type="button"><i data-lucide="receipt-text"></i><span>Payment / Invoice History</span></button>
+        <button data-tab="orders" data-drawer-nav="orders" type="button"><i data-lucide="clipboard-list"></i><span>Order History</span></button>
         <button data-tab="feedback" data-drawer-nav="feedback" type="button"><i data-lucide="message-square"></i><span>Feedback & Complaints</span></button>
         <button data-tab="faq" data-drawer-nav="faq" type="button"><i data-lucide="circle-help"></i><span>FAQ & Help</span></button>
       </nav>
@@ -329,6 +329,22 @@
       <div id="trackList" class="list"></div>
     </section>
 
+    <section class="panel pad stack hidden" data-tab-panel="payments">
+      <div class="section-title">
+        <div><h2>Payment / Invoice History</h2><p>Payments and customer invoices for orders placed with your phone number.</p></div>
+        <button class="icon-btn" data-refresh-customer-history type="button" title="Refresh"><i data-lucide="refresh-cw"></i></button>
+      </div>
+      <div id="paymentHistoryList" class="list"><div class="empty">No payment or invoice history found.</div></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="orders">
+      <div class="section-title">
+        <div><h2>Order History</h2><p>All current, delivered and cancelled orders placed with your phone number.</p></div>
+        <button class="icon-btn" data-refresh-customer-history type="button" title="Refresh"><i data-lucide="refresh-cw"></i></button>
+      </div>
+      <div id="orderHistoryList" class="list"><div class="empty">No order history found.</div></div>
+    </section>
+
     <section class="panel pad stack hidden faq-panel" data-tab-panel="faq">
       <div class="section-title">
         <div>
@@ -403,6 +419,8 @@
       const customerViewLabels = {
         order: "Order Food",
         track: "Track Order",
+        payments: "Payment / Invoice History",
+        orders: "Order History",
         feedback: "Feedback & Complaints",
         faq: "FAQ & Help"
       };
@@ -876,10 +894,7 @@
         const label = customerViewLabels[name] || customerViewLabels.order;
         $("customerCurrentViewLabel").textContent = label;
         document.querySelectorAll("[data-drawer-nav]").forEach((btn) => {
-          btn.classList.toggle("active", btn.dataset.tab === name && !["orders", "payments"].includes(btn.dataset.drawerNav));
-        });
-        document.querySelectorAll("[data-drawer-nav='orders'], [data-drawer-nav='payments']").forEach((btn) => {
-          btn.classList.toggle("active", name === "track" && btn.dataset.drawerNav === sessionStorage.getItem("mowLastDrawerNav"));
+          btn.classList.toggle("active", btn.dataset.tab === name);
         });
         updateDrawerSummary();
         updateDrawerBadges();
@@ -2041,7 +2056,8 @@
       }
 
       function renderTracking() {
-        const orderHtml = trackedOrders.length ? trackedOrders.map((order) => `
+        const activeTrackedOrders = trackedOrders.filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase()));
+        const orderHtml = activeTrackedOrders.length ? activeTrackedOrders.map((order) => `
           <div class="item">
             <div class="row between">
               <h3>${escapeHtml(order.orderNo || order.id)}</h3>
@@ -2082,7 +2098,7 @@
               <button class="btn secondary" data-help-order="${order.id}"><i data-lucide="message-square-warning"></i> ${textFor("need_help")}</button>
               ${!["out-for-delivery", "delivered", "cancelled"].includes(String(order.status || "").toLowerCase()) ? `<button class="btn secondary" data-modify-slot="${order.id}"><i data-lucide="calendar-clock"></i> ${textFor("modify_delivery")}</button>` : ""}
             </div>
-          </div>`).join("") : `<div class="empty">No order found for this phone number.</div>`;
+          </div>`).join("") : `<div class="empty">No active order found for this phone number.</div>`;
         const feedbackHtml = trackedFeedbacks.length ? `
           <div class="section-title" style="margin-top:12px;"><div><h2>${textFor("feedback_tickets")}</h2><p>${textFor("feedback_tickets_hint")}</p></div></div>
           ${trackedFeedbacks.map((fb) => `
@@ -2125,11 +2141,36 @@
               </div>
             </div>`).join("")}` : "";
         $("trackList").innerHTML = orderHtml + feedbackHtml;
+        renderCustomerHistories();
         const activeOtpOrder = trackedOrders.find((order) => order.deliveryOtp && String(order.status || "").toLowerCase() === "out-for-delivery");
         if (activeOtpOrder) showDeliveryOtpOverlay(activeOtpOrder);
         const deliveredWithoutFeedback = trackedOrders.find((order) => String(order.status || "").toLowerCase() === "delivered" && !trackedFeedbacks.some((fb) => fb.orderId === order.id));
         if (deliveredWithoutFeedback) promptDeliveredFeedback(deliveredWithoutFeedback);
         updateDrawerBadges();
+        lucide.createIcons();
+      }
+
+      function renderCustomerHistories() {
+        $("orderHistoryList").innerHTML = trackedOrders.length ? trackedOrders.map((order) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
+            <p>${nowLabel(order.createdAt)} | Train ${escapeHtml(order.train || "")} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")} | ${money(order.total)}</p>
+            <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")}</p>
+            ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
+            <div class="row wrap" style="margin-top:10px;">
+              ${order.status !== "cancelled" ? `<button class="btn secondary" data-print-order="${order.id}"><i data-lucide="printer"></i> Customer Invoice</button>` : ""}
+              <button class="btn secondary" data-history-track-order="${order.id}"><i data-lucide="map-pin"></i> View Tracking</button>
+            </div>
+          </div>`).join("") : `<div class="empty">No order history found for this phone number.</div>`;
+
+        const paymentOrders = trackedOrders.filter((order) => String(order.status || "").toLowerCase() !== "cancelled");
+        $("paymentHistoryList").innerHTML = paymentOrders.length ? paymentOrders.map((order) => `
+          <div class="item">
+            <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.paymentStatus || order.paymentMode || "COD")}</div>
+            <p><b>Order value:</b> ${money(order.total)} | <b>Payment mode:</b> ${escapeHtml(order.paymentMode || "COD")}</p>
+            <p><b>Payment status:</b> ${escapeHtml(order.paymentStatus || "cash-on-delivery")} | ${nowLabel(order.createdAt)}</p>
+            <button class="btn secondary" data-print-order="${order.id}"><i data-lucide="receipt-text"></i> Open Customer Invoice</button>
+          </div>`).join("") : `<div class="empty">No payment or invoice history found for this phone number.</div>`;
         lucide.createIcons();
       }
 
@@ -2318,9 +2359,22 @@
         sessionStorage.setItem("mowLastDrawerNav", btn.dataset.drawerNav || btn.dataset.tab || "order");
         updateCustomerNavigation(btn.dataset.tab);
         closeCustomerDrawer();
-        if (btn.dataset.tab === "track") loadTracking();
+        if (["track", "payments", "orders"].includes(btn.dataset.tab)) loadTracking();
         if (btn.dataset.tab === "feedback") renderFeedbackOrderOptions();
         document.querySelector(`[data-tab-panel="${btn.dataset.tab}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      document.querySelectorAll("[data-refresh-customer-history]").forEach((btn) => btn.addEventListener("click", () => loadTracking()));
+      [$("paymentHistoryList"), $("orderHistoryList")].forEach((list) => list.addEventListener("click", (event) => {
+        const print = event.target.closest("[data-print-order]");
+        if (!print) return;
+        const order = trackedOrders.find((entry) => entry.id === print.dataset.printOrder);
+        if (order) printCustomerOrder(order);
+      }));
+      document.addEventListener("click", (event) => {
+        const track = event.target.closest("[data-history-track-order]");
+        if (!track) return;
+        showTab("track");
+        $("trackList").scrollIntoView({ behavior: "smooth", block: "start" });
       });
       document.querySelectorAll("#customerForm input[inputmode='tel'], #feedbackForm input[inputmode='tel']").forEach((input) => {
         input.addEventListener("input", () => {
