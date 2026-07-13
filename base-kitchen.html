@@ -112,13 +112,17 @@
       <form id="bkCatalogForm" class="stack">
         <div class="grid two">
           <label class="field"><span>Food Item</span><input class="input" name="name" required placeholder="Veg Biryani"></label>
-          <label class="field"><span>Meal Category</span><select class="select" name="category" id="bkCatalogCategory"></select></label>
+          <label class="field"><span>Meal Categories</span><div id="bkCatalogCategories" class="check-grid"></div></label>
           <label class="field"><span>Selling Rate</span><input class="input" name="sellingPrice" type="number" min="0" required></label>
           <label class="field"><span>Cost incl. food + packaging</span><input class="input" name="costPrice" type="number" min="0" required></label>
           <label class="field"><span>Opening Qty</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
           <label class="field"><span>Food Type</span><select class="select" name="type"><option>veg</option><option>non-veg</option><option>beverage</option><option>other</option></select></label>
           <label class="field"><span>Cuisine</span><select class="select" name="cuisine" id="bkCatalogCuisine"></select></label>
-          <label class="field"><span>Linked Train</span><input class="input" name="linkedTrain" placeholder="12859 / 12860 / All"></label>
+          <div class="field"><span>Linked Trains</span>
+            <input class="input" id="bkCatalogTrainSearch" type="search" placeholder="Search train number, name or yard">
+            <label class="check-pill"><input type="checkbox" id="bkCatalogAllTrains" checked> All Trains</label>
+            <div id="bkCatalogTrainPicker" class="picker-list"></div>
+          </div>
           <label class="field"><span>Product Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
         </div>
         <label class="field"><span>Product Detail</span><textarea class="textarea" name="description" placeholder="Portion, ingredients, packaging note"></textarea></label>
@@ -167,12 +171,27 @@
       let customerOrders = [];
       let feedbacks = [];
       let deliveryPartners = [];
+      let trainMasters = [];
+      const bkCatalogSelectedTrains = new Set();
       let pendingInvoiceIndentId = "";
       let bkRiderSearchTerm = "";
       let seenIndents = new Set();
       let seenCustomerOrders = new Set();
-      $("bkCatalogCategory").innerHTML = mealSlots.map((slot) => `<option>${slot}</option>`).join("");
+      $("bkCatalogCategories").innerHTML = mealSlots.map((slot, index) => `<label class="check-pill"><input type="checkbox" name="mealSlots" value="${escapeHtml(slot)}" ${index === 0 ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("");
       $("bkCatalogCuisine").innerHTML = cuisineOptions.map((cuisine) => `<option>${cuisine}</option>`).join("");
+
+      function renderBkCatalogTrainPicker() {
+        const query = $("bkCatalogTrainSearch").value.trim().toLowerCase();
+        const rows = trainMasters
+          .filter((train) => train.active !== false)
+          .filter((train) => `${train.trainNumber || train.id || ""} ${train.trainName || ""} ${train.yardName || ""}`.toLowerCase().includes(query))
+          .slice(0, 100);
+        $("bkCatalogTrainPicker").innerHTML = rows.map((train) => {
+          const value = String(train.trainNumber || train.id || "");
+          const label = `${value}${train.trainName ? ` - ${train.trainName}` : ""}${train.yardName ? ` | ${train.yardName}` : ""}`;
+          return `<label class="check-pill"><input type="checkbox" data-bk-catalog-train="${escapeHtml(value)}" ${bkCatalogSelectedTrains.has(value) ? "checked" : ""}> ${escapeHtml(label)}</label>`;
+        }).join("") || `<div class="empty">No train found in Train Master.</div>`;
+      }
 
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -191,9 +210,14 @@
         const loggedIn = Boolean(bkSession?.id && activeKitchenId);
         $("bkMetricsShell").classList.toggle("hidden", !loggedIn);
         $("bkOpsShell").classList.toggle("hidden", !loggedIn);
+        $("bkLoginId").classList.toggle("hidden", loggedIn);
+        $("bkLoginPassword").classList.toggle("hidden", loggedIn);
+        $("saveKitchenBtn").classList.toggle("hidden", loggedIn);
         $("bkLogoutBtn").classList.toggle("hidden", !loggedIn);
         $("newKitchenRegistrationBtn").classList.toggle("hidden", loggedIn);
+        $("bkForgotPasswordBtn").classList.toggle("hidden", loggedIn);
         $("switchOffKitchenBtn").classList.toggle("hidden", !loggedIn);
+        if (loggedIn) $("bkRegistrationPanel").classList.add("hidden");
       }
 
       function showKitchenLoginMessage(message, tone = "warn") {
@@ -786,20 +810,26 @@
         if (!activeKitchenId) return toast("Select base kitchen first.");
         const form = event.currentTarget;
         const data = getForm(form);
+        const selectedMealSlots = [...form.querySelectorAll("[name='mealSlots']:checked")].map((box) => box.value);
+        if (!selectedMealSlots.length) return toast("Choose at least one meal category.");
+        const allTrains = $("bkCatalogAllTrains").checked;
+        const linkedTrains = allTrains ? ["All"] : [...bkCatalogSelectedTrains];
+        if (!linkedTrains.length) return toast("Choose at least one train or select All Trains.");
         const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
         setSubmitState(form, "saving", "Submitting...");
         try {
         const image = await compressImage(form.itemImageFile.files[0], 520, 0.7);
         await compatAdd("catalogRequests", "catalogRequest", {
           name: data.name,
-          category: data.category,
-          mealSlots: [data.category],
+          category: selectedMealSlots[0],
+          mealSlots: selectedMealSlots,
           type: data.type,
           cuisine: data.cuisine,
           sellingPrice: Number(data.sellingPrice || 0),
           costPrice: Number(data.costPrice || 0),
           stockQty: Number(data.stockQty || 0),
-          linkedTrain: data.linkedTrain || "All",
+          linkedTrain: allTrains ? "All" : linkedTrains.join(", "),
+          linkedTrains,
           description: data.description || "",
           itemImage: image,
           sourceType: "base kitchen",
@@ -813,6 +843,10 @@
           updatedAt: FieldValue.serverTimestamp()
         });
         form.reset();
+        document.querySelectorAll("#bkCatalogCategories [name='mealSlots']").forEach((box, index) => { box.checked = index === 0; });
+        bkCatalogSelectedTrains.clear();
+        $("bkCatalogAllTrains").checked = true;
+        renderBkCatalogTrainPicker();
         finishSubmitState(form, "Submitted");
         toast("Product sent to Control Tower for approval.");
         } catch (error) {
@@ -820,6 +854,20 @@
           setSubmitState(form, "idle");
           toast(firebaseAccessMessage("catalogRequests", error));
         }
+      });
+
+      $("bkCatalogTrainSearch").addEventListener("input", renderBkCatalogTrainPicker);
+      $("bkCatalogAllTrains").addEventListener("change", () => {
+        if ($("bkCatalogAllTrains").checked) bkCatalogSelectedTrains.clear();
+        renderBkCatalogTrainPicker();
+      });
+      $("bkCatalogTrainPicker").addEventListener("change", (event) => {
+        const box = event.target.closest("[data-bk-catalog-train]");
+        if (!box) return;
+        if (box.checked) bkCatalogSelectedTrains.add(box.dataset.bkCatalogTrain);
+        else bkCatalogSelectedTrains.delete(box.dataset.bkCatalogTrain);
+        $("bkCatalogAllTrains").checked = bkCatalogSelectedTrains.size === 0;
+        renderBkCatalogTrainPicker();
       });
 
       function renderCatalogRequests() {
@@ -965,6 +1013,7 @@
       }, "createdAt", "desc", 250);
       onLive("feedbacks", (rows) => { feedbacks = rows; renderAll(); }, "timestamp", "desc", 250);
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { catalogRequests = rows; renderAll(); }, "createdAt", "desc", 250);
+      onLive("trainMasters", (rows) => { trainMasters = rows; renderBkCatalogTrainPicker(); }, "trainNumber", "asc", 300);
     });
   </script>
 </body>

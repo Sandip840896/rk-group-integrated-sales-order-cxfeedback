@@ -221,6 +221,7 @@
           supplierPhone: req.supplierPhone || req.partnerPhone || req.phone || "",
           partnerPhone: String(req.source || req.sourceType || "").toLowerCase().includes("partner") ? req.supplierPhone || req.partnerPhone || req.phone || "" : "",
           linkedTrain: req.linkedTrain || "",
+          linkedTrains: req.linkedTrains?.length ? req.linkedTrains : String(req.linkedTrain || "All").split(",").map((value) => value.trim()).filter(Boolean),
           approvedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
         };
@@ -238,6 +239,7 @@
 
       function editedRequestPayload(req) {
         const slots = requestMealSlots(req);
+        const linkedTrain = requestValue(req, "linkedTrain") || req.linkedTrain || "All";
         return {
           name: requestValue(req, "name") || req.name || "",
           category: slots[0] || "Other",
@@ -247,7 +249,8 @@
           sellingPrice: Number(requestValue(req, "sellingPrice") || req.sellingPrice || 0),
           costPrice: Number(requestValue(req, "costPrice") || req.costPrice || 0),
           stockQty: Number(requestValue(req, "stockQty") || req.stockQty || 0),
-          linkedTrain: requestValue(req, "linkedTrain") || req.linkedTrain || "All",
+          linkedTrain,
+          linkedTrains: linkedTrain.split(",").map((value) => value.trim()).filter(Boolean),
           description: requestValue(req, "description") || req.description || "",
           supplierName: requestValue(req, "supplierName") || req.supplierName || req.baseKitchenName || req.partnerName || req.supplierPhone || "",
           supplierPhone: req.supplierPhone || req.partnerPhone || req.phone || "",
