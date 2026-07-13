@@ -1,5 +1,5 @@
 ﻿const RK_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDQSWV0QrVQx2C_t-BDndqjuQLnxELdClA",
+  apiKey: "AIzaSyA7ducj8rnFxl4qv8xM6dUWq75GPgm-1rc",
   authDomain: "rk-rail-cx.firebaseapp.com",
   projectId: "rk-rail-cx",
   storageBucket: "rk-rail-cx.firebasestorage.app",
