@@ -7,7 +7,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="rk-app.css?v=mow-20260703-management">
+  <link rel="stylesheet" href="rk-app.css?v=20260713-customer-drawer-fix">
+  <style>
+    .hidden{display:none!important}
+    .customer-app-header{position:sticky;top:0;z-index:34;display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:10px;margin:-18px -18px 12px;padding:12px 14px;background:#071e3a;color:#fff;border-bottom:1px solid rgba(148,163,184,.28);box-shadow:0 12px 28px rgba(15,23,42,.18)}
+    .customer-menu-toggle{width:46px;height:46px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+    .customer-menu-toggle svg{width:27px;height:27px;stroke-width:2.5}
+    .customer-header-brand{display:flex;align-items:center;gap:10px;min-width:0}.customer-header-brand .logo{width:42px;height:42px}.customer-header-brand h1{margin:0;font-size:18px;line-height:1.05}.customer-header-brand p{margin:2px 0 0;color:rgba(255,255,255,.72);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .customer-header-actions{display:flex;gap:8px;align-items:center}.customer-header-actions label,.customer-header-actions a{min-height:42px;display:inline-flex;align-items:center;gap:6px;padding:0 11px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;font-size:12px;font-weight:800}.customer-header-actions select{border:0;background:transparent;color:inherit;font-weight:inherit;outline:0}.customer-header-actions svg{width:18px;height:18px}
+    .customer-nav-drawer{position:fixed;inset:0 auto 0 0;z-index:55;width:min(360px,88vw);display:flex;flex-direction:column;transform:translateX(-104%);transition:transform 180ms ease;background:#fff;box-shadow:18px 0 38px rgba(15,23,42,.24)}.customer-nav-drawer.open{transform:translateX(0)}
+    .customer-drawer-backdrop{position:fixed;inset:0;z-index:54;background:rgba(15,23,42,.48);backdrop-filter:blur(2px)}
+    .drawer-profile{display:grid;grid-template-columns:46px minmax(0,1fr) 42px;gap:10px;align-items:center;padding:18px;background:#071e3a;color:#fff}.drawer-profile h2{margin:0;font-size:18px}.drawer-profile p{margin:4px 0 0;color:rgba(255,255,255,.72);font-size:12px;line-height:1.35}
+    .customer-drawer-nav{display:grid;gap:8px;padding:14px}.customer-drawer-nav button{min-height:58px;display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:10px;border:1px solid transparent;border-radius:8px;padding:8px 10px;background:#f3f6fb;color:#26364d;font-size:15px;font-weight:800;text-align:left;cursor:pointer}.customer-drawer-nav button.active{border-color:#0b6b57;background:#e9f8f4;color:#0b4e42}.drawer-footer{margin-top:auto;padding:16px 18px;border-top:1px solid #e5e7eb;color:#667085;font-size:12px;line-height:1.45}.drawer-badge{min-width:26px;height:26px;display:inline-grid;place-items:center;border-radius:999px;background:#f97316;color:#fff;font-size:12px}
+    .customer-current-view{position:sticky;top:70px;z-index:16;display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 10px;padding:10px 12px;border:1px solid #dbeafe;border-radius:8px;background:rgba(255,255,255,.96);backdrop-filter:blur(10px)}.customer-current-view span{display:inline-flex;align-items:center;gap:8px}.cart-bar.show{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+    @media(max-width:820px){.customer-app-header{grid-template-columns:46px minmax(0,1fr) auto;margin:-14px -14px 10px;padding:10px}.customer-header-brand .logo{display:none}.customer-header-brand h1{font-size:16px}.customer-header-brand p{max-width:210px}.customer-header-actions{gap:6px}.customer-header-actions label,.customer-header-actions a{min-height:38px;padding:0 9px}.customer-header-actions a span{display:none}.customer-current-view{top:58px}}
+  </style>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -46,7 +60,7 @@
       </div>
     </header>
     <div class="customer-drawer-backdrop hidden" id="customerDrawerBackdrop"></div>
-    <aside class="customer-nav-drawer" id="customerNavDrawer" aria-hidden="true">
+    <aside class="customer-nav-drawer hidden" id="customerNavDrawer" aria-hidden="true">
       <div class="drawer-profile">
         <div class="logo">MW</div>
         <div>
@@ -872,6 +886,7 @@
       }
 
       function openCustomerDrawer() {
+        $("customerNavDrawer").classList.remove("hidden");
         $("customerNavDrawer").classList.add("open");
         $("customerDrawerBackdrop").classList.remove("hidden");
         $("customerNavDrawer").setAttribute("aria-hidden", "false");
@@ -881,6 +896,7 @@
 
       function closeCustomerDrawer() {
         $("customerNavDrawer").classList.remove("open");
+        $("customerNavDrawer").classList.add("hidden");
         $("customerDrawerBackdrop").classList.add("hidden");
         $("customerNavDrawer").setAttribute("aria-hidden", "true");
         $("openCustomerMenuBtn").setAttribute("aria-expanded", "false");
