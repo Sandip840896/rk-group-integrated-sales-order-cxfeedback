@@ -459,6 +459,28 @@
         }
       }
 
+      function commandAccessSession(authUser, profile) {
+        if (!profile || profile.active !== true) return null;
+        const role = String(profile.role || "viewer").toLowerCase();
+        const allowedApps = Array.isArray(profile.allowedApps)
+          ? profile.allowedApps
+          : String(profile.access || "").split(",").map((value) => value.trim()).filter(Boolean);
+        const isSuper = role === "super-admin";
+        const hasCommandAccess = isSuper || allowedApps.includes("all") || allowedApps.includes("command-center") || allowedApps.includes("central-command");
+        if (!hasCommandAccess) return null;
+        return {
+          uid: authUser.uid,
+          email: authUser.email,
+          name: profile.name || authUser.email,
+          role,
+          access: isSuper ? "all" : profile.access || allowedApps.join(","),
+          allowedApps: isSuper ? ["all"] : allowedApps,
+          permissionLevel: isSuper ? "admin" : profile.permissionLevel || "read-write",
+          accessScope: isSuper ? "all" : profile.accessScope || "all",
+          accessValue: isSuper ? "" : profile.accessValue || ""
+        };
+      }
+
       $("loginBtn").addEventListener("click", async () => {
         const email = $("loginEmail").value.trim().toLowerCase();
         const password = $("loginPassword").value;
@@ -468,22 +490,13 @@
           const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
           const profileSnapshot = await db.collection("adminUsers").doc(credential.user.uid).get();
           const profile = profileSnapshot.exists ? profileSnapshot.data() : null;
-          if (!profile || profile.active !== true || profile.role !== "super-admin") {
+          const secureSession = commandAccessSession(credential.user, profile);
+          if (!secureSession) {
             await firebase.auth().signOut();
-            toast("This Firebase account is not an active Super Admin.");
+            toast("This Firebase account does not have active Rake Manager Command Center access.");
             return;
           }
-          currentUser = {
-            uid: credential.user.uid,
-            email: credential.user.email,
-            name: profile.name || credential.user.email,
-            role: "super-admin",
-            access: "all",
-            allowedApps: ["all"],
-            permissionLevel: "admin",
-            accessScope: "all",
-            accessValue: ""
-          };
+          currentUser = secureSession;
         } catch (authError) {
           if (firebase.auth().currentUser) await firebase.auth().signOut();
           const found = [...adminUsers, ...accessUsers].find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && user.active !== false);
@@ -533,21 +546,12 @@
         try {
           const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
           const profile = snapshot.exists ? snapshot.data() : null;
-          if (!profile || profile.active !== true || profile.role !== "super-admin") {
+          const secureSession = commandAccessSession(authUser, profile);
+          if (!secureSession) {
             await firebase.auth().signOut();
             return;
           }
-          currentUser = {
-            uid: authUser.uid,
-            email: authUser.email,
-            name: profile.name || authUser.email,
-            role: "super-admin",
-            access: "all",
-            allowedApps: ["all"],
-            permissionLevel: "admin",
-            accessScope: "all",
-            accessValue: ""
-          };
+          currentUser = secureSession;
           sessionStorage.setItem("rkCurrentUser", JSON.stringify(currentUser));
           updateLoginUi();
           refreshAccessViews();
