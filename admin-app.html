@@ -264,9 +264,10 @@
           <div class="item">
             <div class="row between"><h3>${escapeHtml(user.email || user.id)}</h3>${statusBadge(user.active === false ? "inactive" : "active")}</div>
             <p>${escapeHtml(user.name || "")} | ${escapeHtml(user.role || "viewer")} | ${escapeHtml(user.permissionLevel || "read-write")}</p>
-            <p><b>Identity:</b> ${user.authUid || user.id === user.uid ? "Firebase UID linked" : "Legacy migration required"}</p>
+            <p><b>Identity:</b> ${user.authUid || user.uid || user.id === firebase.auth().currentUser?.uid ? "Firebase UID linked" : "Legacy migration required"}</p>
             <p>Apps: ${escapeHtml((user.allowedApps || String(user.access || "").split(",")).filter(Boolean).join(", ") || "not set")}</p>
             <p>Scope: ${escapeHtml(user.accessScope || "all")} ${user.accessValue ? `| ${escapeHtml(user.accessValue)}` : ""}</p>
+            ${!(user.authUid || user.uid || user.id === firebase.auth().currentUser?.uid) ? `<div class="row wrap" style="margin-top:10px;"><input class="input grow" type="password" minlength="8" autocomplete="new-password" data-migration-password="${escapeHtml(user.id)}" placeholder="New temporary password (minimum 8)"><button class="btn info" data-migrate-admin-user="${escapeHtml(user.id)}"><i data-lucide="shield-check"></i> Migrate to Firebase</button></div>` : ""}
             <div class="row wrap" style="margin-top:10px;">
               <button class="btn secondary" data-edit-admin-user="${escapeHtml(user.id)}"><i data-lucide="pencil"></i> Edit</button>
               <button class="btn danger" data-disable-admin-user="${escapeHtml(user.id)}"><i data-lucide="ban"></i> Disable</button>
@@ -358,6 +359,55 @@
       $("adminUserAccessList").addEventListener("click", async (event) => {
         const edit = event.target.closest("[data-edit-admin-user]");
         const disable = event.target.closest("[data-disable-admin-user]");
+        const migrate = event.target.closest("[data-migrate-admin-user]");
+        if (migrate) {
+          const user = users.find((row) => row.id === migrate.dataset.migrateAdminUser);
+          const passwordInput = document.querySelector(`[data-migration-password="${migrate.dataset.migrateAdminUser}"]`);
+          const temporaryPassword = passwordInput?.value || "";
+          if (!user?.email) return toast("This legacy record has no valid email ID.");
+          if (temporaryPassword.length < 8) return toast("Enter a new temporary password of at least 8 characters.");
+          if (!confirm(`Migrate ${user.email} to Firebase Authentication and disable the legacy record?`)) return;
+          migrate.disabled = true;
+          let migrationApp = null;
+          let credential = null;
+          let secureProfileSaved = false;
+          try {
+            migrationApp = firebase.initializeApp(firebase.app().options, `legacy-staff-migration-${Date.now()}`);
+            credential = await migrationApp.auth().createUserWithEmailAndPassword(String(user.email).trim().toLowerCase(), temporaryPassword);
+            const { password, loginPassword, id: ignoredId, ...safeProfile } = user;
+            await db.collection("adminUsers").doc(credential.user.uid).set({
+              ...safeProfile,
+              uid: credential.user.uid,
+              authUid: credential.user.uid,
+              authProvider: "firebase-password",
+              email: String(user.email).trim().toLowerCase(),
+              active: user.active !== false,
+              migratedFromId: user.id,
+              migratedAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+            secureProfileSaved = true;
+            await db.collection("adminUsers").doc(user.id).update({
+              password: FieldValue.delete(),
+              loginPassword: FieldValue.delete(),
+              active: false,
+              migratedToUid: credential.user.uid,
+              migrationStatus: "completed",
+              migratedAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp()
+            });
+            await migrationApp.auth().signOut();
+            await migrationApp.delete();
+            migrationApp = null;
+            toast(`Migration completed for ${user.email}. Give the temporary password to that user securely.`);
+          } catch (error) {
+            if (!secureProfileSaved && credential?.user) await credential.user.delete().catch(() => {});
+            if (migrationApp) await migrationApp.delete().catch(() => {});
+            migrate.disabled = false;
+            toast(`Migration failed: ${error.code || error.message}`);
+          }
+          return;
+        }
         if (edit) {
           const user = users.find((row) => row.id === edit.dataset.editAdminUser);
           if (!user) return;
