@@ -37,7 +37,7 @@
         <p>Create Rake Manager, Base Kitchen Manager, Customer Care and control IDs with app access, scope and read-write rights.</p>
         <div class="hero-points">
           <span><i data-lucide="user-cog"></i> Staff IDs</span>
-          <span><i data-lucide="key-round"></i> Passwords</span>
+          <span><i data-lucide="key-round"></i> Firebase Authentication</span>
           <span><i data-lucide="shield-check"></i> Rights</span>
         </div>
       </div>
@@ -46,12 +46,12 @@
     <div class="grid two">
       <section class="panel pad stack">
         <div class="section-title">
-          <div><h2>Create / Edit User</h2><p>These prototype IDs are used by staff apps until Firebase Auth is enabled.</p></div>
+          <div><h2>Create / Edit User</h2><p>New staff IDs are created in Firebase Authentication. Passwords are never stored in Firestore.</p></div>
         </div>
         <form id="adminAccessForm" class="stack">
           <div class="grid two">
             <label class="field"><span>Email / Login ID</span><input class="input" name="email" type="email" required placeholder="rake.manager@mealsonwheels.in"></label>
-            <label class="field"><span>Password</span><input class="input" name="password" required placeholder="Temporary password"></label>
+            <label class="field"><span>Initial Password</span><input class="input" name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Required for new user; minimum 8 characters"></label>
           </div>
           <div class="grid two">
             <label class="field"><span>User Name</span><input class="input" name="name" required placeholder="Staff name"></label>
@@ -257,11 +257,14 @@
         return [...document.querySelectorAll("#allowedApps input:checked")].map((box) => box.value);
       }
 
+      let editingUserId = "";
+
       function renderUsers() {
         $("adminUserAccessList").innerHTML = users.map((user) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(user.email || user.id)}</h3>${statusBadge(user.active === false ? "inactive" : "active")}</div>
             <p>${escapeHtml(user.name || "")} | ${escapeHtml(user.role || "viewer")} | ${escapeHtml(user.permissionLevel || "read-write")}</p>
+            <p><b>Identity:</b> ${user.authUid || user.id === user.uid ? "Firebase UID linked" : "Legacy migration required"}</p>
             <p>Apps: ${escapeHtml((user.allowedApps || String(user.access || "").split(",")).filter(Boolean).join(", ") || "not set")}</p>
             <p>Scope: ${escapeHtml(user.accessScope || "all")} ${user.accessValue ? `| ${escapeHtml(user.accessValue)}` : ""}</p>
             <div class="row wrap" style="margin-top:10px;">
@@ -279,6 +282,8 @@
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
+        const initialPassword = data.password;
+        delete data.password;
         const allowedApps = selectedApps();
         if (!allowedApps.length) return toast("Select at least one allowed app.");
         if (data.role === "rake-manager") {
@@ -286,18 +291,35 @@
           data.accessValue = $("adminTrainSelect").value || data.accessValue || "";
           if (!data.accessValue) return toast("Attach one train to this rake manager.");
         }
-        const id = firebaseDocId(String(data.email || "").toLowerCase());
+        const email = String(data.email || "").trim().toLowerCase();
         const phone = cleanPhone(data.phone || "");
         if (phone.length !== 10) return toast("Enter a valid unique 10 digit mobile number.");
         try {
-          await assertUniqueRegistrationPhone(phone, { userType: data.role || "staff", recordId: id });
+          await assertUniqueRegistrationPhone(phone, { userType: data.role || "staff", recordId: editingUserId || "" });
         } catch (error) {
           return toast(error.message);
         }
         setSubmitState(form, "saving", "Saving...");
-        await db.collection("adminUsers").doc(id).set({
-          email: String(data.email || "").toLowerCase(),
-          password: data.password || "",
+        let registrationApp = null;
+        let registrationCredential = null;
+        let profileSaved = false;
+        let id = editingUserId;
+        try {
+          if (!id) {
+            if (!initialPassword || initialPassword.length < 8) throw new Error("Enter an initial password of at least 8 characters for the new user.");
+            registrationApp = firebase.initializeApp(firebase.app().options, `staff-registration-${Date.now()}`);
+            registrationCredential = await registrationApp.auth().createUserWithEmailAndPassword(email, initialPassword);
+            id = registrationCredential.user.uid;
+          }
+          const existingProfile = users.find((row) => row.id === id);
+          const identityFields = registrationCredential
+            ? { uid: id, authUid: id, authProvider: "firebase-password" }
+            : existingProfile?.authUid
+              ? { uid: existingProfile.uid || existingProfile.authUid, authUid: existingProfile.authUid, authProvider: existingProfile.authProvider || "firebase-password" }
+              : {};
+          await db.collection("adminUsers").doc(id).set({
+          ...identityFields,
+          email,
           name: data.name || "",
           phone,
           role: data.role || "viewer",
@@ -313,11 +335,24 @@
           updatedAt: FieldValue.serverTimestamp(),
           createdAt: FieldValue.serverTimestamp()
         }, { merge: true });
-        await registerPhoneIdentity(phone, { userType: data.role || "staff", name: data.name || data.email, loginId: String(data.email || "").toLowerCase(), registrationId: id, sourceCollection: "adminUsers", status: data.active === "true" ? "approved" : "inactive" });
+        profileSaved = true;
+        await registerPhoneIdentity(phone, { userType: data.role || "staff", name: data.name || email, loginId: email, registrationId: id, sourceCollection: "adminUsers", status: data.active === "true" ? "approved" : "inactive" });
+        if (registrationApp) {
+          await registrationApp.auth().signOut();
+          await registrationApp.delete();
+          registrationApp = null;
+        }
         finishSubmitState(form, "User Saved");
         form.reset();
+        editingUserId = "";
         applyRoleDefaults();
-        toast("Staff user ID saved.");
+        toast(registrationCredential ? "Secure Firebase staff account created." : "Staff access profile updated.");
+        } catch (error) {
+          if (!profileSaved && registrationCredential?.user) await registrationCredential.user.delete().catch(() => {});
+          if (registrationApp) await registrationApp.delete().catch(() => {});
+          setSubmitState(form, "idle");
+          toast(`User save failed: ${error.code || error.message}`);
+        }
       });
 
       $("adminUserAccessList").addEventListener("click", async (event) => {
@@ -326,9 +361,10 @@
         if (edit) {
           const user = users.find((row) => row.id === edit.dataset.editAdminUser);
           if (!user) return;
+          editingUserId = user.id;
           const form = $("adminAccessForm");
           form.email.value = user.email || "";
-          form.password.value = user.password || "";
+          form.password.value = "";
           form.name.value = user.name || "";
           form.phone.value = cleanPhone(user.phone || "");
           form.role.value = user.role || "viewer";
