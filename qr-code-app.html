@@ -95,9 +95,23 @@
         const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
         const profile = snapshot.exists ? snapshot.data() : null;
         const role = String(profile?.role || "").toLowerCase();
-        const trainScoped = String(profile?.accessScope || "").toLowerCase() === "train";
-        if (!profile || profile.active !== true || (!trainScoped && !["manager", "admin", "rake-manager", "super-admin"].includes(role))) return null;
-        return { uid: authUser.uid, email: authUser.email, ...profile, role, name: profile.name || authUser.email };
+        const allowedApps = Array.isArray(profile?.allowedApps)
+          ? profile.allowedApps.map((app) => String(app).toLowerCase())
+          : String(profile?.access || "")
+              .split(",")
+              .map((app) => app.trim().toLowerCase())
+              .filter(Boolean);
+        const roleAllowed = ["manager", "admin", "rake-manager", "super-admin"].includes(role);
+        const appAllowed = role === "super-admin" || allowedApps.includes("all") || allowedApps.includes("qr-code-app");
+        if (!profile || profile.active !== true || !roleAllowed || !appAllowed) return null;
+        return {
+          uid: authUser.uid,
+          email: authUser.email,
+          ...profile,
+          role,
+          allowedApps,
+          name: profile.name || authUser.email
+        };
       }
       const qrAuthorization = new Promise((resolve) => {
         let resolved = false;
