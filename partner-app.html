@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="rk-common.js?v=20260714-bulk-catalog1"></script>
@@ -93,12 +94,12 @@
       <form id="partnerForm" class="stack">
         <div class="grid two">
           <label class="field"><span>Login ID</span><input class="input" name="loginId" required autocomplete="username" placeholder="Example: partner.howrah01"></label>
-          <label class="field"><span>Password</span><input class="input" name="password" required type="password" minlength="4" autocomplete="new-password"></label>
+          <label class="field"><span>Password</span><input class="input" name="password" required type="password" minlength="8" autocomplete="new-password" placeholder="Minimum 8 characters"></label>
           <label class="field"><span>Restaurant Name</span><input class="input" name="restaurantName" required></label>
           <label class="field"><span>Nearest Station</span><input class="input" name="station" required list="partnerStationOptions" placeholder="Search station name / code"><datalist id="partnerStationOptions"></datalist></label>
           <label class="field"><span>Owner / Manager</span><input class="input" name="ownerName" required></label>
           <label class="field"><span>Phone</span><input class="input" name="phone" required inputmode="tel"></label>
-          <label class="field"><span>Email</span><input class="input" name="email" type="email"></label>
+          <label class="field"><span>Authentication Email</span><input class="input" name="email" type="email" required autocomplete="email" placeholder="Used for secure login and password recovery"></label>
           <label class="field"><span>FSSAI License No</span><input class="input" name="fssaiLicenseNo" required></label>
           <label class="field"><span>FSSAI License Upload</span><input class="input" name="fssaiLicenseFile" required type="file" accept="image/*,.pdf,application/pdf"></label>
           <label class="field"><span>Trade License No</span><input class="input" name="tradeLicenseNo" required></label>
@@ -143,6 +144,8 @@
         <button class="btn" id="partnerUploadCatalogBulkBtn" type="button"><i data-lucide="upload"></i> Upload All Items for Approval</button>
         <div class="empty" id="partnerCatalogBulkStatus">Use semicolons for multiple meal categories and trains. Example: Lunch;Dinner.</div>
       </div>
+      <div class="master-list-head"><div><h3>My Catalog Approval Requests</h3><p>Edit pending or returned items here before Control Tower approval.</p></div></div>
+      <div id="partnerCatalogPendingList" class="list"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="status">
@@ -251,11 +254,24 @@
         const password = $("partnerLoginPassword").value;
         if (!loginId || !password) return showAccessMessage("Enter Login ID and Password.", "danger");
         const candidates = await findPartnersByLogin(loginId);
-        const partner = candidates.find((row) => String(row.password || "") === password && registrationStatus(row) === "approved")
-          || candidates.find((row) => String(row.password || "") === password);
+        const authPartner = candidates.find((row) => row.authUid && (row.authEmail || row.email));
+        let partner = null;
+        if (authPartner) {
+          try {
+            const credential = await firebase.auth().signInWithEmailAndPassword(String(authPartner.authEmail || authPartner.email).trim().toLowerCase(), password);
+            if (credential.user.uid !== authPartner.authUid) throw new Error("Partner identity does not match the approved registration.");
+            partner = authPartner;
+          } catch (error) {
+            return showAccessMessage(`Secure login failed: ${error.code || error.message}`, "danger");
+          }
+        } else {
+          partner = candidates.find((row) => String(row.password || "") === password && registrationStatus(row) === "approved")
+            || candidates.find((row) => String(row.password || "") === password);
+        }
         if (!partner) return showAccessMessage("Invalid partner Login ID or Password.", "danger");
         const status = registrationStatus(partner);
         if (status !== "approved") {
+          if (partner.authUid) await firebase.auth().signOut().catch(() => {});
           return showAccessMessage(`Your enlistment is ${status}. Control Tower approval is required before login.`, "warn");
         }
         partnerSession = {
@@ -263,6 +279,8 @@
           loginId,
           phone: cleanPhone(partner.phone || partner.supplierPhone || ""),
           restaurantName: partner.restaurantName || partner.name || "",
+          authUid: partner.authUid || "",
+          authMode: partner.authUid ? "firebase" : "legacy-transition",
           status: "approved"
         };
         partnerAccessMode = "authenticated";
@@ -370,7 +388,7 @@
 
       function renderPartnerDispatchRiders() {
         $("partnerDispatchRiderList").innerHTML = approvedPartnerRiders().map((rider) => `
-          <div class="item">
+          <div class="item" data-partner-status-row="${row.id}">
             <div class="row between">
               <div><h3>${escapeHtml(rider.name || rider.phone || rider.id)}</h3><p>${escapeHtml(rider.phone || "")} | ${escapeHtml(rider.vehicleType || "")}${rider.vehicleNo ? ` | ${escapeHtml(rider.vehicleNo)}` : ""}</p></div>
               <span class="badge ok">approved</span>
@@ -605,11 +623,16 @@
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
+        const registrationPassword = data.password;
+        delete data.password;
         delete data.fssaiLicenseFile;
         delete data.tradeLicenseFile;
         const phone = cleanPhone(data.phone);
         if (phone.length !== 10) return toast("Enter valid 10 digit phone.");
         setSubmitState(form, "saving", "Submitting...");
+        let registrationApp = null;
+        let registrationCredential = null;
+        let registrationSaved = false;
         try {
           await assertUniqueRegistrationPhone(phone, { userType: "partner" });
           const loginId = String(data.loginId || "").trim().toLowerCase();
@@ -618,9 +641,16 @@
           const fssaiLicenseProof = await readUploadedDocument(form.fssaiLicenseFile.files[0]);
           const tradeLicenseProof = await readUploadedDocument(form.tradeLicenseFile.files[0]);
           if (!fssaiLicenseProof || !tradeLicenseProof) throw new Error("FSSAI License and Trade License uploads are mandatory.");
+          const authEmail = String(data.email || "").trim().toLowerCase();
+          if (!authEmail) throw new Error("Authentication email is required.");
+          registrationApp = firebase.initializeApp(firebase.app().options, `partner-registration-${Date.now()}`);
+          registrationCredential = await registrationApp.auth().createUserWithEmailAndPassword(authEmail, registrationPassword);
           const created = await compatAdd("partners", "partner", {
             ...data,
             loginId,
+            authUid: registrationCredential.user.uid,
+            authEmail,
+            authProvider: "firebase-password",
             licenseNo: data.fssaiLicenseNo,
             licenseProof: fssaiLicenseProof,
             fssaiLicenseProof,
@@ -632,17 +662,23 @@
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
+          registrationSaved = true;
           await registerPhoneIdentity(phone, { userType: "partner", name: data.restaurantName, loginId, registrationId: created.id, sourceCollection: created.collectionName, status: "pending" });
+          await registrationApp.auth().signOut();
+          await registrationApp.delete();
+          registrationApp = null;
           form.reset();
           finishSubmitState(form, "Submitted");
           partnerAccessMode = "login";
           $("partnerLoginId").value = loginId;
           $("partnerLoginPassword").value = "";
           renderPartnerAccess();
-          showAccessMessage("Registration submitted. After Control Tower approval, login with the same ID and password.", "success");
+          showAccessMessage("Secure registration submitted. After Control Tower approval, login with the same Login ID and Firebase password.", "success");
           toast("Partner request sent to Control Tower.");
         } catch (error) {
           console.error(error);
+          if (!registrationSaved && registrationCredential?.user) await registrationCredential.user.delete().catch(() => {});
+          if (registrationApp) await registrationApp.delete().catch(() => {});
           setSubmitState(form, "idle");
           toast(String(error?.message || "").toLowerCase().includes("permission") ? firebaseAccessMessage("partners", error) : error.message);
         }
@@ -750,7 +786,9 @@
         statusRows = rows;
         $("statusList").innerHTML = rows.map((row) => {
           const isCatalog = Boolean(row.name);
-          const returned = ["returned", "rejected"].includes(String(row.status || "").toLowerCase()) && isCatalog;
+          const requestStatus = String(row.status || "pending").toLowerCase();
+          const editable = isCatalog && ["pending", "resubmitted", "returned", "rejected"].includes(requestStatus);
+          const needsResubmit = ["returned", "rejected"].includes(requestStatus);
           const slots = row.mealSlots?.length ? row.mealSlots : [row.category || "Other"];
           return `
           <div class="item">
@@ -758,7 +796,8 @@
             <p>${escapeHtml(row.station || row.category || "")} | ${escapeHtml(row.rejectionReason || row.description || "")}</p>
             ${row.cuisine ? `<p><b>Cuisine:</b> ${escapeHtml(row.cuisine)}</p>` : ""}
             ${row.reworkRemarks ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Control Tower Rework:</b> ${escapeHtml(row.reworkRemarks)}</div>` : ""}
-            ${returned ? `
+            ${editable ? `
+              <div class="ack success" style="margin-top:10px;"><b>Editable before approval:</b> Save corrections here. Approved requests are automatically locked.</div>
               <div class="grid two" style="margin-top:10px;">
                 <label class="field"><span>Item</span><input class="input" value="${escapeHtml(row.name || "")}" data-status-edit="${row.id}" data-field="name"></label>
                 <label class="field"><span>Selling Rate</span><input class="input" type="number" value="${Number(row.sellingPrice || 0)}" data-status-edit="${row.id}" data-field="sellingPrice"></label>
@@ -767,21 +806,30 @@
                 <label class="field"><span>Cuisine</span><select class="select" data-status-edit="${row.id}" data-field="cuisine">
                   ${cuisineOptions.map((cuisine) => `<option value="${escapeHtml(cuisine)}" ${String(row.cuisine || "North Indian") === cuisine ? "selected" : ""}>${escapeHtml(cuisine)}</option>`).join("")}
                 </select></label>
+                <label class="field"><span>Food Type</span><select class="select" data-status-edit="${row.id}" data-field="type">
+                  ${["veg", "non-veg", "beverage", "other"].map((type) => `<option value="${type}" ${String(row.type || "veg") === type ? "selected" : ""}>${type}</option>`).join("")}
+                </select></label>
+                <label class="field" style="grid-column:1/-1;"><span>Linked Trains</span><input class="input" value="${escapeHtml((row.linkedTrains || [row.linkedTrain || "All"]).join ? (row.linkedTrains || [row.linkedTrain || "All"]).join("; ") : row.linkedTrain || "All")}" data-status-edit="${row.id}" data-field="linkedTrains" placeholder="All or 12859;12860"></label>
                 <label class="field" style="grid-column:1/-1;"><span>Meal Categories</span><div class="check-grid">
                   ${mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${escapeHtml(slot)}" data-status-meal="${row.id}" ${slots.includes(slot) ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("")}
                 </div></label>
                 <label class="field" style="grid-column:1/-1;"><span>Product Detail</span><textarea class="textarea" data-status-edit="${row.id}" data-field="description">${escapeHtml(row.description || "")}</textarea></label>
+                <label class="field" style="grid-column:1/-1;"><span>Replace Product Image (optional)</span><input class="input" type="file" accept="image/*" data-status-image="${row.id}"><small>Leave blank to keep the current image.</small></label>
               </div>
               <div class="row wrap" style="margin-top:10px;">
-                <button class="btn" data-resubmit-catalog="${row.id}"><i data-lucide="send"></i> Resend Request</button>
+                <button class="btn" data-resubmit-catalog="${row.id}"><i data-lucide="save"></i> ${needsResubmit ? "Save & Resend Request" : "Save Changes"}</button>
                 <button class="btn danger" data-delete-catalog-request="${row.id}"><i data-lucide="trash-2"></i> Delete Request</button>
               </div>` : ""}
           </div>`;
         }).join("") || `<div class="empty">No request found for this phone number.</div>`;
+        const catalogCards = rows.map((row, index) => ({ row, card: $("statusList").children[index] })).filter(({ row }) => Boolean(row.name));
+        $("partnerCatalogPendingList").innerHTML = "";
+        catalogCards.forEach(({ card }) => { if (card) $("partnerCatalogPendingList").appendChild(card.cloneNode(true)); });
+        if (!catalogCards.length) $("partnerCatalogPendingList").innerHTML = `<div class="empty">No catalog approval request yet.</div>`;
         lucide.createIcons();
       }
 
-      $("statusList").addEventListener("click", async (event) => {
+      async function handlePartnerCatalogEdit(event) {
         const resend = event.target.closest("[data-resubmit-catalog]");
         const del = event.target.closest("[data-delete-catalog-request]");
         if (resend) {
@@ -789,7 +837,10 @@
           const field = (name) => document.querySelector(`[data-status-edit="${row.id}"][data-field="${name}"]`)?.value || "";
           const slots = [...document.querySelectorAll(`[data-status-meal="${row.id}"]:checked`)].map((box) => box.value);
           if (!slots.length) return toast("Choose at least one meal category.");
-          await compatUpdate(row, "catalogRequests", {
+          const linkedTrains = catalogBulkList(field("linkedTrains"), ["All"]);
+          const replacementImage = await compressImage(document.querySelector(`[data-status-image="${row.id}"]`)?.files?.[0], 520, 0.7);
+          const nextStatus = ["returned", "rejected"].includes(String(row.status || "").toLowerCase()) ? "resubmitted" : String(row.status || "pending").toLowerCase();
+          const payload = {
             name: field("name"),
             category: slots[0],
             mealSlots: slots,
@@ -797,11 +848,17 @@
             costPrice: Number(field("costPrice") || 0),
             stockQty: Number(field("stockQty") || 0),
             cuisine: field("cuisine") || "North Indian",
+            type: field("type") || "veg",
+            linkedTrains,
+            linkedTrain: linkedTrains.includes("All") ? "All" : linkedTrains.join(", "),
             description: field("description"),
-            status: "resubmitted",
-            resubmittedAt: FieldValue.serverTimestamp()
-          });
-          toast("Catalog request resent to Control Tower.");
+            status: nextStatus,
+            senderEditedAt: FieldValue.serverTimestamp(),
+            resubmittedAt: nextStatus === "resubmitted" ? FieldValue.serverTimestamp() : (row.resubmittedAt || null)
+          };
+          if (replacementImage) payload.itemImage = replacementImage;
+          await compatUpdate(row, "catalogRequests", payload);
+          toast(nextStatus === "resubmitted" ? "Catalog request corrected and resent to Control Tower." : "Pending catalog request updated.");
         }
         if (del) {
           const row = statusRows.find((entry) => entry.id === del.dataset.deleteCatalogRequest);
@@ -812,7 +869,9 @@
           });
           toast("Catalog request withdrawn.");
         }
-      });
+      }
+      $("statusList").addEventListener("click", handlePartnerCatalogEdit);
+      $("partnerCatalogPendingList").addEventListener("click", handlePartnerCatalogEdit);
 
       async function loadOwnPartnerStatus() {
         const phone = partnerPhone();
@@ -964,7 +1023,8 @@
         partnerAccessMode = "login";
         renderPartnerAccess();
       });
-      $("partnerLogoutBtn").addEventListener("click", () => {
+      $("partnerLogoutBtn").addEventListener("click", async () => {
+        if (partnerSession?.authUid) await firebase.auth().signOut().catch(() => {});
         partnerSession = null;
         partnerAccessMode = "login";
         sessionStorage.removeItem("rkPartnerSession");
