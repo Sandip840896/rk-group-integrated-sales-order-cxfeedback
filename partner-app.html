@@ -24,7 +24,7 @@
         <span class="badge warn" id="partnerAccessBadge">not logged in</span>
       </div>
       <div class="grid two" id="partnerLoginFields">
-        <label class="field"><span>Login ID</span><input class="input" id="partnerLoginId" autocomplete="username"></label>
+        <label class="field"><span>Authentication Email</span><input class="input" id="partnerLoginId" type="email" autocomplete="username"></label>
         <label class="field"><span>Password</span><input class="input" id="partnerLoginPassword" type="password" autocomplete="current-password"></label>
         <label class="field hidden" id="partnerManagementSelectField"><span>Operate As Partner</span><select class="select" id="partnerManagementSelect"><option value="">Select approved partner</option></select></label>
       </div>
@@ -303,9 +303,15 @@
       async function loginPartner() {
         const loginId = $("partnerLoginId").value.trim().toLowerCase();
         const password = $("partnerLoginPassword").value;
-        if (!loginId || !password) return showAccessMessage("Enter Login ID and Password.", "danger");
-        const candidates = await findPartnersByLogin(loginId);
-        if (!candidates.length) {
+        if (!loginId || !password) return showAccessMessage("Enter authentication email and password.", "danger");
+        let credential;
+        try {
+          credential = await firebase.auth().signInWithEmailAndPassword(loginId, password);
+        } catch (error) {
+          return showAccessMessage(`Secure login failed: ${error.code || error.message}`, "danger");
+        }
+        const partnerSnapshot = await db.collection("partners").where("authUid", "==", credential.user.uid).limit(1).get();
+        if (partnerSnapshot.empty) {
           try {
             partnerSession = await managementPartnerSession(loginId, password);
             if (!partnerSession) return;
@@ -318,24 +324,11 @@
             return showAccessMessage(`Secure login failed: ${error.code || error.message}`, "danger");
           }
         }
-        const authPartner = candidates.find((row) => row.authUid && (row.authEmail || row.email));
-        let partner = null;
-        if (authPartner) {
-          try {
-            const credential = await firebase.auth().signInWithEmailAndPassword(String(authPartner.authEmail || authPartner.email).trim().toLowerCase(), password);
-            if (credential.user.uid !== authPartner.authUid) throw new Error("Partner identity does not match the approved registration.");
-            partner = authPartner;
-          } catch (error) {
-            return showAccessMessage(`Secure login failed: ${error.code || error.message}`, "danger");
-          }
-        } else {
-          partner = candidates.find((row) => String(row.password || "") === password && registrationStatus(row) === "approved")
-            || candidates.find((row) => String(row.password || "") === password);
-        }
-        if (!partner) return showAccessMessage("Invalid partner Login ID or Password.", "danger");
+        const partnerDoc = partnerSnapshot.docs[0];
+        const partner = { id: partnerDoc.id, ...partnerDoc.data() };
         const status = registrationStatus(partner);
         if (status !== "approved") {
-          if (partner.authUid) await firebase.auth().signOut().catch(() => {});
+          await firebase.auth().signOut().catch(() => {});
           return showAccessMessage(`Your enlistment is ${status}. Control Tower approval is required before login.`, "warn");
         }
         partnerSession = {
@@ -344,7 +337,7 @@
           phone: cleanPhone(partner.phone || partner.supplierPhone || ""),
           restaurantName: partner.restaurantName || partner.name || "",
           authUid: partner.authUid || "",
-          authMode: partner.authUid ? "firebase" : "legacy-transition",
+          authMode: "firebase",
           status: "approved"
         };
         partnerAccessMode = "authenticated";
@@ -702,8 +695,6 @@
         let registrationSaved = false;
         try {
           const loginId = String(data.loginId || "").trim().toLowerCase();
-          const existingLogin = await findPartnersByLogin(loginId);
-          if (existingLogin.length) throw new Error("This Login ID is already registered. Use Login or Forgot Password.");
           const fssaiLicenseProof = await readUploadedDocument(form.fssaiLicenseFile.files[0]);
           const tradeLicenseProof = await readUploadedDocument(form.tradeLicenseFile.files[0]);
           if (!fssaiLicenseProof || !tradeLicenseProof) throw new Error("FSSAI License and Trade License uploads are mandatory.");
