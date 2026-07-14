@@ -203,12 +203,18 @@
         async function verifyAndGrant(authUser) {
           const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
           const profile = snapshot.exists ? snapshot.data() : null;
-          if (!profile || profile.active !== true || profile.role !== "super-admin") {
+          const role = String(profile?.role || "").toLowerCase();
+          const allowedApps = Array.isArray(profile?.allowedApps)
+            ? profile.allowedApps
+            : String(profile?.access || "").split(",").map((value) => value.trim()).filter(Boolean);
+          const roleAllowed = ["super-admin", "admin", "control-tower"].includes(role);
+          const appAllowed = role === "super-admin" || allowedApps.includes("all") || allowedApps.includes("control-tower");
+          if (!profile || profile.active !== true || !roleAllowed || !appAllowed) {
             await firebase.auth().signOut();
             showLoggedOut("This account does not have active Control Tower access.");
             return false;
           }
-          grantAccess(authUser, profile);
+          grantAccess(authUser, { ...profile, role, allowedApps });
           return true;
         }
 
