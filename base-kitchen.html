@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="rk-common.js?v=20260714-bulk-catalog1"></script>
@@ -38,7 +39,8 @@
       <form id="bkRegistrationForm" class="stack">
         <div class="grid two">
           <label class="field"><span>Login ID</span><input class="input" name="loginId" required autocomplete="username"></label>
-          <label class="field"><span>Password</span><input class="input" name="password" required type="password" minlength="4" autocomplete="new-password"></label>
+          <label class="field"><span>Password</span><input class="input" name="password" required type="password" minlength="8" autocomplete="new-password" placeholder="Minimum 8 characters"></label>
+          <label class="field"><span>Authentication Email</span><input class="input" name="email" required type="email" autocomplete="email" placeholder="Used for secure login and password recovery"></label>
           <label class="field"><span>Base Kitchen Name</span><input class="input" name="name" required></label>
           <label class="field"><span>City / Station</span><input class="input" name="city" required></label>
           <label class="field"><span>Owner / Manager</span><input class="input" name="ownerName" required></label>
@@ -252,17 +254,32 @@
         return String(loginId || "").trim().toLowerCase() === expectedLogin && String(password || "") === expectedPassword;
       }
 
-      $("saveKitchenBtn").addEventListener("click", () => {
+      $("saveKitchenBtn").addEventListener("click", async () => {
         const loginId = $("bkLoginId").value.trim().toLowerCase();
         const password = $("bkLoginPassword").value;
         const candidates = kitchens.filter((entry) => String(entry.loginId || entry.id || "").trim().toLowerCase() === loginId);
-        const kitchen = candidates.find((entry) => kitchenCredentialValid(entry, loginId, password) && registrationStatus(entry, entry.active === false ? "pending" : "approved") === "approved")
-          || candidates.find((entry) => kitchenCredentialValid(entry, loginId, password));
+        const authKitchen = candidates.find((entry) => entry.authUid && (entry.authEmail || entry.email));
+        let kitchen = null;
+        if (authKitchen) {
+          try {
+            const credential = await firebase.auth().signInWithEmailAndPassword(String(authKitchen.authEmail || authKitchen.email).trim().toLowerCase(), password);
+            if (credential.user.uid !== authKitchen.authUid) throw new Error("Base Kitchen identity does not match the approved registration.");
+            kitchen = authKitchen;
+          } catch (error) {
+            return showKitchenLoginMessage(`Secure login failed: ${error.code || error.message}`, "danger");
+          }
+        } else {
+          kitchen = candidates.find((entry) => kitchenCredentialValid(entry, loginId, password) && registrationStatus(entry, entry.active === false ? "pending" : "approved") === "approved")
+            || candidates.find((entry) => kitchenCredentialValid(entry, loginId, password));
+        }
         if (!kitchen) return showKitchenLoginMessage("Invalid Base Kitchen Login ID or Password.", "danger");
         const approvalStatus = registrationStatus(kitchen, kitchen.active === false ? "pending" : "approved");
-        if (approvalStatus !== "approved") return showKitchenLoginMessage(`Registration is ${approvalStatus}. Control Tower approval is required.`, "warn");
+        if (approvalStatus !== "approved") {
+          if (kitchen.authUid) await firebase.auth().signOut().catch(() => {});
+          return showKitchenLoginMessage(`Registration is ${approvalStatus}. Control Tower approval is required.`, "warn");
+        }
         activeKitchenId = kitchen.id;
-        bkSession = { id: activeKitchenId, name: kitchen.name || activeKitchenId, loginId: $("bkLoginId").value.trim().toLowerCase() };
+        bkSession = { id: activeKitchenId, name: kitchen.name || activeKitchenId, loginId: $("bkLoginId").value.trim().toLowerCase(), authUid: kitchen.authUid || "", authMode: kitchen.authUid ? "firebase" : "legacy-transition" };
         sessionStorage.setItem("rkBaseKitchenSession", JSON.stringify(bkSession));
         $("bkLoginPassword").value = "";
         renderKitchenAccess();
@@ -280,6 +297,8 @@
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
+        const registrationPassword = data.password;
+        delete data.password;
         delete data.fssaiLicenseFile;
         delete data.tradeLicenseFile;
         const phone = cleanPhone(data.phone);
@@ -287,14 +306,24 @@
         const loginId = String(data.loginId || "").trim().toLowerCase();
         if (kitchens.some((row) => String(row.loginId || "").toLowerCase() === loginId)) return toast("This Login ID is already registered.");
         setSubmitState(form, "saving", "Submitting...");
+        let registrationApp = null;
+        let registrationCredential = null;
+        let registrationSaved = false;
         try {
           await assertUniqueRegistrationPhone(phone, { userType: "base-kitchen" });
           const fssaiLicenseProof = await readUploadedDocument(form.fssaiLicenseFile.files[0]);
           const tradeLicenseProof = await readUploadedDocument(form.tradeLicenseFile.files[0]);
           if (!fssaiLicenseProof || !tradeLicenseProof) throw new Error("FSSAI License and Trade License uploads are mandatory.");
+          const authEmail = String(data.email || "").trim().toLowerCase();
+          if (!authEmail) throw new Error("Authentication email is required.");
+          registrationApp = firebase.initializeApp(firebase.app().options, `base-kitchen-registration-${Date.now()}`);
+          registrationCredential = await registrationApp.auth().createUserWithEmailAndPassword(authEmail, registrationPassword);
           const created = await db.collection("baseKitchens").add({
             ...data,
             loginId,
+            authUid: registrationCredential.user.uid,
+            authEmail,
+            authProvider: "firebase-password",
             phone,
             fssaiLicenseProof,
             tradeLicenseProof,
@@ -305,19 +334,26 @@
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
+          registrationSaved = true;
           await registerPhoneIdentity(phone, { userType: "base-kitchen", name: data.name, loginId, registrationId: created.id, sourceCollection: "baseKitchens", status: "pending" });
+          await registrationApp.auth().signOut();
+          await registrationApp.delete();
+          registrationApp = null;
           form.reset();
           finishSubmitState(form, "Submitted");
           $("bkRegistrationPanel").classList.add("hidden");
-          showKitchenLoginMessage("Registration submitted. After Control Tower approval, login with the same ID and password.", "success");
+          showKitchenLoginMessage("Secure registration submitted. After Control Tower approval, login with the same Login ID and Firebase password.", "success");
         } catch (error) {
           console.error(error);
+          if (!registrationSaved && registrationCredential?.user) await registrationCredential.user.delete().catch(() => {});
+          if (registrationApp) await registrationApp.delete().catch(() => {});
           setSubmitState(form, "idle");
           toast(String(error?.message || "").toLowerCase().includes("permission") ? firebaseAccessMessage("baseKitchens", error) : error.message);
         }
       });
 
-      $("bkLogoutBtn").addEventListener("click", () => {
+      $("bkLogoutBtn").addEventListener("click", async () => {
+        if (bkSession?.authUid) await firebase.auth().signOut().catch(() => {});
         activeKitchenId = "";
         bkSession = null;
         sessionStorage.removeItem("rkBaseKitchenSession");
@@ -1016,7 +1052,9 @@
       function renderCatalogRequests() {
         const rows = catalogRequests.filter((row) => row.baseKitchenId === activeKitchenId || row.supplierId === activeKitchenId);
         $("bkCatalogRequests").innerHTML = rows.map((row) => {
-          const returned = ["returned", "rejected"].includes(String(row.status || "").toLowerCase());
+          const requestStatus = String(row.status || "pending").toLowerCase();
+          const editable = ["pending", "resubmitted", "returned", "rejected"].includes(requestStatus);
+          const needsResubmit = ["returned", "rejected"].includes(requestStatus);
           const slots = row.mealSlots?.length ? row.mealSlots : [row.category || "Other"];
           return `
           <div class="item">
@@ -1024,7 +1062,8 @@
             <p>${escapeHtml(row.category || "")} | ${escapeHtml(row.cuisine || "")} | Sell ${money(row.sellingPrice)} | Cost ${money(row.costPrice)} | Train ${escapeHtml(row.linkedTrain || "All")}</p>
             ${row.rejectionReason ? `<p><b>Control Tower Note:</b> ${escapeHtml(row.rejectionReason)}</p>` : ""}
             ${row.reworkRemarks ? `<div class="ack danger-soft" style="margin-top:10px;"><b>Control Tower Rework:</b> ${escapeHtml(row.reworkRemarks)}</div>` : ""}
-            ${returned ? `
+            ${editable ? `
+              <div class="ack success" style="margin-top:10px;"><b>Editable before approval:</b> Save corrections here. Approved requests are automatically locked.</div>
               <div class="grid two" style="margin-top:10px;">
                 <label class="field"><span>Item</span><input class="input" value="${escapeHtml(row.name || "")}" data-bk-request="${row.id}" data-field="name"></label>
                 <label class="field"><span>Selling Rate</span><input class="input" type="number" value="${Number(row.sellingPrice || 0)}" data-bk-request="${row.id}" data-field="sellingPrice"></label>
@@ -1033,13 +1072,18 @@
                 <label class="field"><span>Cuisine</span><select class="select" data-bk-request="${row.id}" data-field="cuisine">
                   ${cuisineOptions.map((cuisine) => `<option value="${escapeHtml(cuisine)}" ${String(row.cuisine || "North Indian") === cuisine ? "selected" : ""}>${escapeHtml(cuisine)}</option>`).join("")}
                 </select></label>
+                <label class="field"><span>Food Type</span><select class="select" data-bk-request="${row.id}" data-field="type">
+                  ${["veg", "non-veg", "beverage", "other"].map((type) => `<option value="${type}" ${String(row.type || "veg") === type ? "selected" : ""}>${type}</option>`).join("")}
+                </select></label>
+                <label class="field" style="grid-column:1/-1;"><span>Linked Trains</span><input class="input" value="${escapeHtml((row.linkedTrains || [row.linkedTrain || "All"]).join ? (row.linkedTrains || [row.linkedTrain || "All"]).join("; ") : row.linkedTrain || "All")}" data-bk-request="${row.id}" data-field="linkedTrains" placeholder="All or 12859;12860"></label>
                 <label class="field" style="grid-column:1/-1;"><span>Meal Categories</span><div class="check-grid">
                   ${mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${escapeHtml(slot)}" data-bk-request-meal="${row.id}" ${slots.includes(slot) ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("")}
                 </div></label>
                 <label class="field" style="grid-column:1/-1;"><span>Product Detail</span><textarea class="textarea" data-bk-request="${row.id}" data-field="description">${escapeHtml(row.description || "")}</textarea></label>
+                <label class="field" style="grid-column:1/-1;"><span>Replace Product Image (optional)</span><input class="input" type="file" accept="image/*" data-bk-request-image="${row.id}"><small>Leave blank to keep the current image.</small></label>
               </div>
               <div class="row wrap" style="margin-top:10px;">
-                <button class="btn" data-bk-resubmit-catalog="${row.id}"><i data-lucide="send"></i> Resend Request</button>
+                <button class="btn" data-bk-resubmit-catalog="${row.id}"><i data-lucide="save"></i> ${needsResubmit ? "Save & Resend Request" : "Save Changes"}</button>
                 <button class="btn danger" data-bk-withdraw-catalog="${row.id}"><i data-lucide="trash-2"></i> Withdraw Request</button>
               </div>` : ""}
           </div>`;
@@ -1055,7 +1099,10 @@
           const field = (name) => document.querySelector(`[data-bk-request="${row.id}"][data-field="${name}"]`)?.value || "";
           const slots = [...document.querySelectorAll(`[data-bk-request-meal="${row.id}"]:checked`)].map((box) => box.value);
           if (!slots.length) return toast("Choose at least one meal category.");
-          await compatUpdate(row, "catalogRequests", {
+          const linkedTrains = catalogBulkList(field("linkedTrains"), ["All"]);
+          const replacementImage = await compressImage(document.querySelector(`[data-bk-request-image="${row.id}"]`)?.files?.[0], 520, 0.7);
+          const nextStatus = ["returned", "rejected"].includes(String(row.status || "").toLowerCase()) ? "resubmitted" : String(row.status || "pending").toLowerCase();
+          const payload = {
             name: field("name"),
             category: slots[0],
             mealSlots: slots,
@@ -1063,11 +1110,17 @@
             costPrice: Number(field("costPrice") || 0),
             stockQty: Number(field("stockQty") || 0),
             cuisine: field("cuisine") || "North Indian",
+            type: field("type") || "veg",
+            linkedTrains,
+            linkedTrain: linkedTrains.includes("All") ? "All" : linkedTrains.join(", "),
             description: field("description"),
-            status: "resubmitted",
-            resubmittedAt: FieldValue.serverTimestamp()
-          });
-          toast("Catalog request resent to Control Tower.");
+            status: nextStatus,
+            senderEditedAt: FieldValue.serverTimestamp(),
+            resubmittedAt: nextStatus === "resubmitted" ? FieldValue.serverTimestamp() : (row.resubmittedAt || null)
+          };
+          if (replacementImage) payload.itemImage = replacementImage;
+          await compatUpdate(row, "catalogRequests", payload);
+          toast(nextStatus === "resubmitted" ? "Catalog request corrected and resent to Control Tower." : "Pending catalog request updated.");
         }
         if (withdraw) {
           const row = catalogRequests.find((entry) => entry.id === withdraw.dataset.bkWithdrawCatalog);
