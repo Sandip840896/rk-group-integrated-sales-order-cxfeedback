@@ -313,7 +313,7 @@
           updatedAt: FieldValue.serverTimestamp(),
           createdAt: FieldValue.serverTimestamp()
         }, { merge: true });
-        await registerPhoneIdentity(phone, { userType: data.role === "rake-manager" ? "rake-manager" : "staff", name: data.name || data.email, loginId: String(data.email || "").toLowerCase(), registrationId: id, sourceCollection: "adminUsers", status: data.active === "true" ? "approved" : "inactive" });
+        await registerPhoneIdentity(phone, { userType: data.role || "staff", name: data.name || data.email, loginId: String(data.email || "").toLowerCase(), registrationId: id, sourceCollection: "adminUsers", status: data.active === "true" ? "approved" : "inactive" });
         finishSubmitState(form, "User Saved");
         form.reset();
         applyRoleDefaults();

@@ -590,6 +590,10 @@ function normalizedPhoneIdentity(row, source) {
   };
 }
 
+function normalizeRegistrationUserType(value) {
+  return String(value || "user").trim().toLowerCase().replace(/_/g, "-");
+}
+
 async function findRegistrationByPhone(phone) {
   const clean = cleanPhone(phone);
   if (clean.length !== 10) return [];
@@ -598,6 +602,20 @@ async function findRegistrationByPhone(phone) {
   if (registryDoc?.exists) {
     const data = registryDoc.data();
     results.push({ id: registryDoc.id, ...data, phone: clean, registry: true });
+    Object.entries(data.identities || {}).forEach(([key, identity]) => {
+      results.push({
+        id: key,
+        sourceCollection: identity.sourceCollection || data.sourceCollection || "systemSettings",
+        compatSource: "systemSettings",
+        userType: normalizeRegistrationUserType(identity.userType || data.userType),
+        phone: clean,
+        name: identity.name || data.name || "Registered user",
+        loginId: identity.loginId || data.loginId || "",
+        registrationId: identity.registrationId || "",
+        status: registrationStatus(identity || data),
+        registry: true
+      });
+    });
   }
   for (const source of registrationPhoneSources) {
     try {
@@ -616,7 +634,7 @@ async function findRegistrationByPhone(phone) {
         id: doc.id,
         sourceCollection: "systemSettings",
         compatSource: "systemSettings",
-        userType: data.userType || (data.type === "baseKitchen" ? "base-kitchen" : data.type === "deliveryPartner" ? "delivery-partner" : data.type),
+        userType: normalizeRegistrationUserType(data.userType || (data.type === "baseKitchen" ? "base-kitchen" : data.type === "deliveryPartner" ? "delivery-partner" : data.type)),
         phone: clean,
         name: data.name || data.restaurantName || "Registered user",
         loginId: data.loginId || "",
@@ -628,34 +646,54 @@ async function findRegistrationByPhone(phone) {
     console.warn("Fallback phone lookup skipped", error);
   }
   const unique = new Map();
-  results.forEach((row) => unique.set(`${row.sourceCollection || row.compatSource}:${row.id}:${row.userType}`, row));
+  results.forEach((row) => {
+    row.userType = normalizeRegistrationUserType(row.userType);
+    unique.set(`${row.sourceCollection || row.compatSource}:${row.id}:${row.userType}`, row);
+  });
   return [...unique.values()];
 }
 
 async function assertUniqueRegistrationPhone(phone, options = {}) {
   const clean = cleanPhone(phone);
   if (clean.length !== 10) throw new Error("Enter a valid 10 digit phone number.");
+  const requestedType = normalizeRegistrationUserType(options.userType || "user");
   const matches = await findRegistrationByPhone(clean);
   const blocking = matches.find((row) => {
-    if (options.allowSameType && row.userType === options.userType) return false;
+    const rowType = normalizeRegistrationUserType(row.userType);
+    if (rowType !== requestedType) return false;
+    if (options.allowSameType) return false;
     if (options.recordId && (row.id === options.recordId || row.registrationId === options.recordId)) return false;
     return true;
   });
-  if (blocking) throw new Error(`This phone number is already registered for ${blocking.name} (${String(blocking.userType || "user").replace(/-/g, " ")}). Use Login or Forgot Password instead.`);
+  if (blocking) throw new Error(`This phone number is already registered in this app for ${blocking.name} (${String(blocking.userType || "user").replace(/-/g, " ")}). Use Login or Forgot Password instead.`);
   return matches;
 }
 
 async function registerPhoneIdentity(phone, payload = {}) {
   const clean = cleanPhone(phone);
+  const userType = normalizeRegistrationUserType(payload.userType || "user");
+  const registrationId = String(payload.registrationId || payload.loginId || payload.sourceCollection || userType || "identity");
+  const identityKey = `${userType}__${registrationId}`.replace(/[^a-z0-9_-]/gi, "_");
   await db.collection("systemSettings").doc(compatDocId("phoneIdentity", clean)).set({
     type: "phoneIdentity",
     phone: clean,
-    userType: payload.userType || "user",
+    userType,
     name: payload.name || "Registered user",
     loginId: payload.loginId || "",
-    registrationId: payload.registrationId || "",
+    registrationId,
     sourceCollection: payload.sourceCollection || "",
     status: payload.status || "registered",
+    identities: {
+      [identityKey]: {
+        userType,
+        name: payload.name || "Registered user",
+        loginId: payload.loginId || "",
+        registrationId,
+        sourceCollection: payload.sourceCollection || "",
+        status: payload.status || "registered",
+        updatedAt: new Date().toISOString()
+      }
+    },
     updatedAt: FieldValue.serverTimestamp(),
     createdAt: FieldValue.serverTimestamp()
   }, { merge: true });
