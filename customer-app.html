@@ -425,7 +425,6 @@
       const hasJourneyContext = Boolean(journeyContext.qrId || journeyContext.train || journeyContext.rakeNumber);
       let trackedOrders = [];
       let trackedFeedbacks = [];
-      let adminUsers = [];
       let lastOtpOrderId = sessionStorage.getItem("lastOtpOrderId") || "";
       let lastDeliveredPromptOrderId = sessionStorage.getItem("lastDeliveredPromptOrderId") || "";
       let unsubscribeTrack = null;
@@ -976,12 +975,12 @@
 
       function rakeManagerForTrain(trainNo) {
         const train = String(trainNo || "");
-        return adminUsers.find((user) => {
-          const role = String(user.role || "").toLowerCase();
-          const scope = String(user.accessScope || "").toLowerCase();
-          const value = String(user.accessValue || "");
-          return role === "rake-manager" && user.active !== false && (scope === "train" || scope === "train-rake") && value.split("-")[0] === train;
-        });
+        const master = trainMasters.find((entry) => String(entry.trainNumber || entry.id || "") === train);
+        if (!master) return null;
+        return {
+          name: master.rakeManagerName || master.managerName || "",
+          phone: master.rakeManagerPhone || master.managerPhone || ""
+        };
       }
 
       function applyRakeManagerToCustomer(data) {
@@ -990,7 +989,7 @@
         data.rakeManagerName = manager.name || data.rakeManagerName || "";
         data.rakeManagerPhone = cleanPhone(manager.phone || manager.mobile || manager.mobileNumber || manager.contactPhone || data.rakeManagerPhone || "");
         if (data.rakeManagerPhone) $("callRakeLink").href = `tel:${data.rakeManagerPhone}`;
-        return applyRakeManagerToCustomer(data);
+        return data;
       }
 
       function renderBannerInsight() {
@@ -2280,10 +2279,11 @@
         let savedTicketRows = [];
         const refreshFeedbacks = () => mergeTrackedFeedbacks(phoneFeedbackRows, nestedPhoneFeedbackRows, savedTicketRows);
         unsubscribeTrack = db.collection("customerOrders")
-          .where("customer.phone", "==", phone)
+          .where("customerAuthUid", "==", customerAuthUser.uid)
           .onSnapshot((snapshot) => {
             trackedOrders = snapshot.docs
               .map((doc) => ({ id: doc.id, ...doc.data() }))
+              .filter((order) => cleanPhone(order.customerPhone || order.customer?.phone || "") === phone)
               .sort((a, b) => {
                 const left = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
                 const right = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
@@ -2297,22 +2297,17 @@
             $("trackList").innerHTML = `<div class="empty">${textFor("unable_tracking")} ${escapeHtml(error.message)}</div>`;
           });
         unsubscribeFeedbackPhoneTrack = db.collection("feedbacks")
-          .where("customerPhone", "==", phone)
+          .where("customerAuthUid", "==", customerAuthUser.uid)
           .onSnapshot((snapshot) => {
-            phoneFeedbackRows = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+            phoneFeedbackRows = snapshot.docs
+              .map((doc) => ({ id: doc.id, ...doc.data() }))
+              .filter((feedback) => cleanPhone(feedback.customerPhone || feedback.customer?.phone || "") === phone);
             refreshFeedbacks();
           }, (error) => {
             console.error(error);
             $("trackList").insertAdjacentHTML("beforeend", `<div class="empty danger-soft">${textFor("unable_feedback_tickets")} ${escapeHtml(error.message)}</div>`);
           });
-        unsubscribeFeedbackNestedTrack = db.collection("feedbacks")
-          .where("customer.phone", "==", phone)
-          .onSnapshot((snapshot) => {
-            nestedPhoneFeedbackRows = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-            refreshFeedbacks();
-          }, (error) => {
-            console.error(error);
-          });
+        nestedPhoneFeedbackRows = [];
         const savedTicketIds = JSON.parse(localStorage.getItem("rkFeedbackTicketRefs") || "[]").slice(0, 20);
         savedTicketIds.forEach((ticketId) => {
           const unsubscribe = db.collection("feedbacks").doc(ticketId).onSnapshot((doc) => {
@@ -2512,10 +2507,6 @@
         clampCartToLiveStock();
         renderMenu();
       }, "name", "asc", 200);
-      onLive("adminUsers", (rows) => {
-        adminUsers = rows;
-        renderPassengerSummary();
-      }, "email", "asc", 300);
       onLive("marketingSettings", (rows) => {
         marketingSettings = rows.find((row) => row.id === "default") || rows[0] || null;
         renderCart();
