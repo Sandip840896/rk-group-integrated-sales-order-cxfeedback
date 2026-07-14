@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script defer src="rk-common.js"></script>
 </head>
@@ -17,17 +18,19 @@
   <main class="main care-main stack">
     <section class="panel pad" id="careLoginPanel">
       <div class="section-title">
-        <div><h2>Customer Care Login</h2><p>Use customer-care ID created from Rake Manager Command Center.</p></div>
+        <div><h2>Customer Care Secure Login</h2><p>Use an active Firebase Customer Care or Super Admin account.</p></div>
         <span class="badge warn" id="careLoginBadge">not logged in</span>
       </div>
       <div class="row mobile-stack">
-        <input class="input grow" id="careEmail" type="email" placeholder="customer care email">
-        <input class="input grow" id="carePassword" type="password" placeholder="password">
+        <input class="input grow" id="careEmail" type="email" placeholder="approved email ID" autocomplete="username">
+        <input class="input grow" id="carePassword" type="password" placeholder="password" autocomplete="current-password">
         <button class="btn" id="careLoginBtn"><i data-lucide="log-in"></i> Login</button>
         <button class="btn secondary hidden" id="careLogoutBtn"><i data-lucide="log-out"></i> Logout</button>
       </div>
+      <div class="notice hidden" id="careLoginMessage"></div>
     </section>
 
+    <div class="stack hidden" id="careSecureContent">
     <div class="grid four">
       <div class="metric"><b id="careOrders">0</b><span>Open orders</span></div>
       <div class="metric"><b id="careComplaints">0</b><span>Open complaints</span></div>
@@ -61,6 +64,7 @@
       <div class="section-title"><div><h2>Feedback and Complaint Resolution</h2><p>Customer care can reply to the customer and update the live ticket.</p></div></div>
       <div id="careComplaintList" class="list"></div>
     </section>
+    </div>
   </main>
 
   <script>
@@ -68,12 +72,10 @@
       appHeader("Meals On Wheels Customer Care Desk", "Customer resolution bridge for rake manager, base kitchen and partners");
       lucide.createIcons();
       wireTabs("dashboard");
-      await ensureSeedData();
 
-      let users = [];
       let orders = [];
       let feedbacks = [];
-      let currentUser = JSON.parse(sessionStorage.getItem("rkCareUser") || "null");
+      let currentUser = null;
       let seenEscalations = new Set();
 
       function isLoggedIn() {
@@ -81,8 +83,27 @@
       }
 
       function updateLogin() {
-        $("careLoginBadge").textContent = currentUser ? `${currentUser.email} | customer care` : "not logged in";
+        $("careLoginBadge").textContent = currentUser ? `${currentUser.email} | ${currentUser.role}` : "not logged in";
+        $("careLoginBadge").className = currentUser ? "badge success" : "badge warn";
+        $("careEmail").classList.toggle("hidden", Boolean(currentUser));
+        $("carePassword").classList.toggle("hidden", Boolean(currentUser));
+        $("careLoginBtn").classList.toggle("hidden", Boolean(currentUser));
         $("careLogoutBtn").classList.toggle("hidden", !currentUser);
+        $("careSecureContent").classList.toggle("hidden", !currentUser);
+      }
+
+      function showCareLoginMessage(message, kind = "danger") {
+        $("careLoginMessage").textContent = message;
+        $("careLoginMessage").className = `notice ${kind}`;
+      }
+
+      async function verifiedCareProfile(authUser) {
+        if (!authUser) return null;
+        const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
+        const profile = snapshot.exists ? snapshot.data() : null;
+        const role = String(profile?.role || "").toLowerCase();
+        if (!profile || profile.active !== true || !["customer-care", "super-admin"].includes(role)) return null;
+        return { uid: authUser.uid, email: authUser.email, ...profile, role, name: profile.name || authUser.email };
       }
 
       function ageMinutes(value) {
@@ -183,23 +204,26 @@
         lucide.createIcons();
       }
 
-      $("careLoginBtn").addEventListener("click", () => {
+      $("careLoginBtn").addEventListener("click", async () => {
         const email = $("careEmail").value.trim().toLowerCase();
         const password = $("carePassword").value;
-        const found = users.find((user) => String(user.email || "").toLowerCase() === email && String(user.password || "") === password && String(user.role || "").toLowerCase() === "customer-care");
-        if (!found) return toast("Login failed. Use a customer-care ID created from Rake Manager Command Center.");
-        currentUser = { email: found.email, name: found.name || found.email };
-        sessionStorage.setItem("rkCareUser", JSON.stringify(currentUser));
-        $("carePassword").value = "";
-        updateLogin();
-        toast("Customer care logged in.");
+        if (!email || !password) return showCareLoginMessage("Enter your approved email ID and password.");
+        $("careLoginBtn").disabled = true;
+        try {
+          const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+          const profile = await verifiedCareProfile(credential.user);
+          if (!profile) throw new Error("This account has no active Customer Care access.");
+          $("carePassword").value = "";
+        } catch (error) {
+          await firebase.auth().signOut().catch(() => {});
+          showCareLoginMessage(`Login failed: ${error.code || error.message}`);
+        } finally {
+          $("careLoginBtn").disabled = false;
+        }
       });
 
-      $("careLogoutBtn").addEventListener("click", () => {
-        currentUser = null;
-        sessionStorage.removeItem("rkCareUser");
-        updateLogin();
-      });
+      $("carePassword").addEventListener("keydown", event => { if (event.key === "Enter") $("careLoginBtn").click(); });
+      $("careLogoutBtn").addEventListener("click", async () => { await firebase.auth().signOut(); window.location.reload(); });
 
       document.body.addEventListener("click", async (event) => {
         if (!isLoggedIn()) return;
@@ -210,6 +234,7 @@
             status: "accepted",
             acceptedAt: FieldValue.serverTimestamp(),
             acceptedBy: currentUser.name,
+            acceptedByUid: currentUser.uid,
             acceptedByRole: "customer-care",
             statusLog: FieldValue.arrayUnion({ status: "accepted", at: new Date().toISOString(), note: `Accepted by customer care ${currentUser.name}` }),
             updatedAt: FieldValue.serverTimestamp()
@@ -226,6 +251,7 @@
             managerResponse: note,
             customerNotice: note,
             lastResponder: currentUser.name,
+            lastResponderUid: currentUser.uid,
             lastResponderRole: "customer-care",
             statusLog: FieldValue.arrayUnion({ status, note, by: currentUser.name, at: new Date().toISOString() }),
             updatedAt: FieldValue.serverTimestamp()
@@ -237,11 +263,29 @@
       });
 
       updateLogin();
-      db.collection("systemSettings").where("type", "==", "adminUser").onSnapshot((snapshot) => {
-        users = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      let careStarted = false;
+      firebase.auth().onAuthStateChanged(async (authUser) => {
+        try {
+          const profile = await verifiedCareProfile(authUser);
+          if (!profile) {
+            currentUser = null;
+            updateLogin();
+            if (authUser) await firebase.auth().signOut();
+            return;
+          }
+          currentUser = profile;
+          updateLogin();
+          if (careStarted) return;
+          careStarted = true;
+          await ensureSeedData();
+          onLive("customerOrders", (rows) => { orders = rows; render(); }, "createdAt", "desc", 300);
+          onLive("feedbacks", (rows) => { feedbacks = rows; render(); }, "timestamp", "desc", 300);
+        } catch (error) {
+          currentUser = null;
+          updateLogin();
+          showCareLoginMessage(`Security verification failed: ${error.code || error.message}`);
+        }
       });
-      onLive("customerOrders", (rows) => { orders = rows; render(); }, "createdAt", "desc", 300);
-      onLive("feedbacks", (rows) => { feedbacks = rows; render(); }, "timestamp", "desc", 300);
     });
   </script>
 </body>
