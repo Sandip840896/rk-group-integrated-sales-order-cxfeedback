@@ -442,7 +442,6 @@
         if (data.assignmentType === "train" && !form.kycFile.files[0]) return toast("KYC image is mandatory for Train Rider.");
         setSubmitState(form, "saving", "Submitting...");
         try {
-          await assertUniqueRegistrationPhone(phone, { userType: "delivery-partner" });
           const photo = await compressImage(form.photoFile.files[0], 520, 0.7);
           const kyc = await compressImage(form.kycFile.files[0], 760, 0.7);
           const credential = await firebase.auth().createUserWithEmailAndPassword(loginId, data.password);
@@ -464,17 +463,9 @@
             updatedAt: FieldValue.serverTimestamp(),
             createdAt: FieldValue.serverTimestamp()
           };
-          const created = await compatSet("deliveryPartners", "deliveryPartner", phone, {
-            ...profilePayload
-          }, { merge: true });
-          await db.collection("systemSettings").doc(compatDocId("deliveryPartner", phone)).set({
-            ...profilePayload,
-            type: "deliveryPartner",
-            compatCollection: "deliveryPartners",
-            compatFallback: true,
-            updatedAt: FieldValue.serverTimestamp()
-          }, { merge: true });
-          await registerPhoneIdentity(phone, { userType: "delivery-partner", name: data.name, registrationId: created.id, sourceCollection: created.collectionName, status: "pending" });
+          const registrationRef = db.collection("deliveryPartners").doc(phone);
+          if ((await registrationRef.get()).exists) throw new Error("This phone number is already registered.");
+          await registrationRef.set(profilePayload);
           await firebase.auth().signOut();
           deliveryRegistrationMode = false;
           deliverySessionProfile = null;

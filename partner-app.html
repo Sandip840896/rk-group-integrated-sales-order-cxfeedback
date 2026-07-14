@@ -682,7 +682,6 @@
         let registrationCredential = null;
         let registrationSaved = false;
         try {
-          await assertUniqueRegistrationPhone(phone, { userType: "partner" });
           const loginId = String(data.loginId || "").trim().toLowerCase();
           const existingLogin = await findPartnersByLogin(loginId);
           if (existingLogin.length) throw new Error("This Login ID is already registered. Use Login or Forgot Password.");
@@ -693,7 +692,10 @@
           if (!authEmail) throw new Error("Authentication email is required.");
           registrationApp = firebase.initializeApp(firebase.app().options, `partner-registration-${Date.now()}`);
           registrationCredential = await registrationApp.auth().createUserWithEmailAndPassword(authEmail, registrationPassword);
-          const created = await compatAdd("partners", "partner", {
+          const registrationDb = registrationApp.firestore();
+          const registrationRef = registrationDb.collection("partners").doc(phone);
+          if ((await registrationRef.get()).exists) throw new Error("This phone number is already registered.");
+          await registrationRef.set({
             ...data,
             loginId,
             authUid: registrationCredential.user.uid,
@@ -710,8 +712,8 @@
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
+          const created = { id: registrationRef.id, collectionName: "partners" };
           registrationSaved = true;
-          await registerPhoneIdentity(phone, { userType: "partner", name: data.restaurantName, loginId, registrationId: created.id, sourceCollection: created.collectionName, status: "pending" });
           await registrationApp.auth().signOut();
           await registrationApp.delete();
           registrationApp = null;

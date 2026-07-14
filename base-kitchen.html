@@ -25,6 +25,7 @@
       <div class="row mobile-stack">
         <input class="input grow" id="bkLoginId" placeholder="Login ID">
         <input class="input grow" id="bkLoginPassword" type="password" placeholder="Password">
+        <select class="select grow" id="bkManagementKitchen"><option value="">Management: select kitchen</option></select>
         <button class="btn" id="saveKitchenBtn"><i data-lucide="log-in"></i> Login</button>
         <button class="btn secondary" id="newKitchenRegistrationBtn" type="button"><i data-lucide="clipboard-list"></i> New User</button>
         <button class="btn secondary" id="bkForgotPasswordBtn" type="button"><i data-lucide="key-round"></i> Forgot Password</button>
@@ -218,6 +219,7 @@
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
         kitchens = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         const activeKitchens = kitchens.filter((k) => k.active !== false);
+        $("bkManagementKitchen").innerHTML = `<option value="">Management: select kitchen</option>${activeKitchens.map((kitchen) => `<option value="${escapeHtml(kitchen.id)}">${escapeHtml(kitchen.name || kitchen.id)}</option>`).join("")}`;
         if (activeKitchenId && activeKitchens.some((k) => k.id === activeKitchenId)) {
         } else {
           activeKitchenId = "";
@@ -234,6 +236,7 @@
         $("bkOpsShell").classList.toggle("hidden", !loggedIn);
         $("bkLoginId").classList.toggle("hidden", loggedIn);
         $("bkLoginPassword").classList.toggle("hidden", loggedIn);
+        $("bkManagementKitchen").classList.toggle("hidden", loggedIn);
         $("saveKitchenBtn").classList.toggle("hidden", loggedIn);
         $("bkLogoutBtn").classList.toggle("hidden", !loggedIn);
         $("newKitchenRegistrationBtn").classList.toggle("hidden", loggedIn);
@@ -258,6 +261,47 @@
         const loginId = $("bkLoginId").value.trim().toLowerCase();
         const password = $("bkLoginPassword").value;
         const candidates = kitchens.filter((entry) => String(entry.loginId || entry.id || "").trim().toLowerCase() === loginId);
+        if (!candidates.length) {
+          let credential;
+          try {
+            credential = await firebase.auth().signInWithEmailAndPassword(loginId, password);
+            const snapshot = await db.collection("adminUsers").doc(credential.user.uid).get();
+            const admin = snapshot.exists ? snapshot.data() : null;
+            const role = String(admin?.role || "").toLowerCase();
+            const allowedApps = Array.isArray(admin?.allowedApps)
+              ? admin.allowedApps.map((app) => String(app).toLowerCase())
+              : String(admin?.access || "")
+                  .split(",")
+                  .map((app) => app.trim().toLowerCase())
+                  .filter(Boolean);
+            const roleAllowed = ["base-kitchen", "admin", "super-admin"].includes(role);
+            const appAllowed = role === "super-admin" || allowedApps.includes("all") || allowedApps.includes("base-kitchen");
+            if (!admin || admin.active !== true || !roleAllowed || !appAllowed) throw new Error("This account has no Base Kitchen App access.");
+            const assignedKitchenId = String(admin.accessValue || "").trim();
+            const requestedKitchenId = role === "base-kitchen" ? assignedKitchenId : $("bkManagementKitchen").value;
+            const kitchen = kitchens.find((entry) => entry.id === requestedKitchenId);
+            if (!kitchen || kitchen.active === false) throw new Error(role === "base-kitchen" ? "Assigned base kitchen is unavailable." : "Select an active base kitchen before management login.");
+            activeKitchenId = kitchen.id;
+            bkSession = {
+              id: kitchen.id,
+              name: kitchen.name || kitchen.id,
+              loginId,
+              authUid: credential.user.uid,
+              authMode: "firebase-management",
+              managementAccess: true,
+              role
+            };
+            sessionStorage.setItem("rkBaseKitchenSession", JSON.stringify(bkSession));
+            $("bkLoginPassword").value = "";
+            renderKitchenAccess();
+            showKitchenLoginMessage(`Management session opened for ${kitchen.name || kitchen.id}.`, "success");
+            renderAll();
+            return;
+          } catch (error) {
+            if (credential?.user) await firebase.auth().signOut().catch(() => {});
+            return showKitchenLoginMessage(`Secure login failed: ${error.code || error.message}`, "danger");
+          }
+        }
         const authKitchen = candidates.find((entry) => entry.authUid && (entry.authEmail || entry.email));
         let kitchen = null;
         if (authKitchen) {
@@ -310,7 +354,6 @@
         let registrationCredential = null;
         let registrationSaved = false;
         try {
-          await assertUniqueRegistrationPhone(phone, { userType: "base-kitchen" });
           const fssaiLicenseProof = await readUploadedDocument(form.fssaiLicenseFile.files[0]);
           const tradeLicenseProof = await readUploadedDocument(form.tradeLicenseFile.files[0]);
           if (!fssaiLicenseProof || !tradeLicenseProof) throw new Error("FSSAI License and Trade License uploads are mandatory.");
@@ -318,7 +361,10 @@
           if (!authEmail) throw new Error("Authentication email is required.");
           registrationApp = firebase.initializeApp(firebase.app().options, `base-kitchen-registration-${Date.now()}`);
           registrationCredential = await registrationApp.auth().createUserWithEmailAndPassword(authEmail, registrationPassword);
-          const created = await db.collection("baseKitchens").add({
+          const registrationDb = registrationApp.firestore();
+          const registrationRef = registrationDb.collection("baseKitchens").doc(phone);
+          if ((await registrationRef.get()).exists) throw new Error("This phone number is already registered.");
+          await registrationRef.set({
             ...data,
             loginId,
             authUid: registrationCredential.user.uid,
@@ -334,8 +380,8 @@
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
+          const created = { id: registrationRef.id };
           registrationSaved = true;
-          await registerPhoneIdentity(phone, { userType: "base-kitchen", name: data.name, loginId, registrationId: created.id, sourceCollection: "baseKitchens", status: "pending" });
           await registrationApp.auth().signOut();
           await registrationApp.delete();
           registrationApp = null;
