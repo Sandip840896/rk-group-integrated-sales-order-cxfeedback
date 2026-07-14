@@ -120,7 +120,7 @@
       let partners = [];
       let assignmentSearchTerm = "";
       let deliverySessionProfile = null;
-      let deliveryIsSuperAdmin = false;
+      let deliveryManagementProfile = null;
       let deliveryRegistrationMode = false;
       const DELIVERY_RATE = 30;
 
@@ -131,15 +131,15 @@
       }
 
       function renderDeliveryAccess() {
-        const loggedIn = Boolean(deliverySessionProfile || deliveryIsSuperAdmin);
+        const loggedIn = Boolean(deliverySessionProfile || deliveryManagementProfile);
         $("deliveryLoginFields").classList.toggle("hidden", loggedIn || deliveryRegistrationMode);
         $("deliveryLoginBtn").classList.toggle("hidden", loggedIn || deliveryRegistrationMode);
         $("newDeliveryRegistrationBtn").classList.toggle("hidden", loggedIn || deliveryRegistrationMode);
         $("deliveryForgotPasswordBtn").classList.toggle("hidden", loggedIn || deliveryRegistrationMode);
         $("deliveryLogoutBtn").classList.toggle("hidden", !loggedIn && !deliveryRegistrationMode);
         $("deliveryAppShell").classList.toggle("hidden", !loggedIn && !deliveryRegistrationMode);
-        $("deliveryAccessBadge").textContent = deliveryIsSuperAdmin
-          ? "super-admin"
+        $("deliveryAccessBadge").textContent = deliveryManagementProfile
+          ? `${deliveryManagementProfile.email || deliveryManagementProfile.name} | ${deliveryManagementProfile.role}`
           : deliverySessionProfile
             ? `${deliverySessionProfile.loginId || deliverySessionProfile.phone} | approved`
             : deliveryRegistrationMode ? "new registration" : "not logged in";
@@ -166,16 +166,31 @@
       async function activateDeliveryAuth(authUser) {
         const adminSnapshot = await db.collection("adminUsers").doc(authUser.uid).get();
         const admin = adminSnapshot.exists ? adminSnapshot.data() : null;
-        if (admin?.active === true && admin.role === "super-admin") {
-          deliveryIsSuperAdmin = true;
+        const adminRole = String(admin?.role || "").toLowerCase();
+        const allowedApps = Array.isArray(admin?.allowedApps)
+          ? admin.allowedApps.map((app) => String(app).toLowerCase())
+          : String(admin?.access || "")
+              .split(",")
+              .map((app) => app.trim().toLowerCase())
+              .filter(Boolean);
+        const managementRoleAllowed = ["delivery-supervisor", "admin", "super-admin"].includes(adminRole);
+        const deliveryAppAllowed = adminRole === "super-admin" || allowedApps.includes("all") || allowedApps.includes("delivery-app");
+        if (admin?.active === true && managementRoleAllowed && deliveryAppAllowed) {
+          deliveryManagementProfile = {
+            uid: authUser.uid,
+            email: authUser.email,
+            ...admin,
+            role: adminRole,
+            allowedApps
+          };
           deliverySessionProfile = null;
           deliveryRegistrationMode = false;
           renderDeliveryAccess();
-          showDeliveryAccessMessage("Super Admin session recognized.", "success");
+          showDeliveryAccessMessage("Delivery management session recognized.", "success");
           return;
         }
         const profile = await riderProfileForAuth(authUser);
-        deliveryIsSuperAdmin = false;
+        deliveryManagementProfile = null;
         if (!profile) {
           deliverySessionProfile = null;
           renderDeliveryAccess();
@@ -344,7 +359,7 @@
       }
 
       function renderProfiles() {
-        const visibleProfiles = deliveryIsSuperAdmin ? profiles : deliverySessionProfile ? [deliverySessionProfile] : [];
+        const visibleProfiles = deliveryManagementProfile ? profiles : deliverySessionProfile ? [deliverySessionProfile] : [];
         $("deliveryPartnerList").innerHTML = visibleProfiles.map((profile) => `
           <div class="item">
             <div class="row between">
@@ -384,7 +399,7 @@
       function renderMine() {
         const phone = cleanPhone($("deliveryPhone").value);
         const active = selectedProfile();
-        if (!active && !deliveryIsSuperAdmin) {
+        if (!active && !deliveryManagementProfile) {
           $("myOrders").innerHTML = `<div class="empty danger-soft">Login with an approved rider ID to see assigned orders.</div>`;
           return;
         }
@@ -630,7 +645,7 @@
       $("newDeliveryRegistrationBtn").addEventListener("click", async () => {
         if (firebase.auth().currentUser) await firebase.auth().signOut();
         deliverySessionProfile = null;
-        deliveryIsSuperAdmin = false;
+        deliveryManagementProfile = null;
         deliveryRegistrationMode = true;
         renderDeliveryAccess();
         renderRiderStations();
@@ -650,7 +665,7 @@
       $("deliveryLogoutBtn").addEventListener("click", async () => {
         if (firebase.auth().currentUser) await firebase.auth().signOut();
         deliverySessionProfile = null;
-        deliveryIsSuperAdmin = false;
+        deliveryManagementProfile = null;
         deliveryRegistrationMode = false;
         localStorage.removeItem("rkDeliveryPhone");
         $("deliveryPhone").value = "";
