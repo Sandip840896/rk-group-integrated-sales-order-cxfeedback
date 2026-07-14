@@ -10,11 +10,25 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script defer src="rk-common.js"></script>
 </head>
 <body class="cfo-body">
-  <main class="main stack cfo-main">
+  <main class="main stack" id="cfoSecureGate">
+    <section class="panel pad stack" style="max-width:760px;margin:8vh auto 0">
+      <div class="section-title"><div><h2>CFO Secure Access</h2><p>Finance information loads only after Firebase verifies an active CFO or Super Admin account.</p></div><span class="badge warn" id="cfoLoginBadge">not logged in</span></div>
+      <div class="row wrap">
+        <input class="input grow" id="cfoLoginEmail" type="email" placeholder="Approved email ID" autocomplete="username">
+        <input class="input grow" id="cfoLoginPassword" type="password" placeholder="Password" autocomplete="current-password">
+        <button class="btn" id="cfoLoginBtn" type="button"><i data-lucide="log-in"></i> Secure Login</button>
+      </div>
+      <div class="notice hidden" id="cfoLoginMessage"></div>
+    </section>
+  </main>
+
+  <main class="main stack cfo-main hidden" id="cfoSecureContent">
+    <div class="row between wrap"><span class="badge success" id="cfoSecureIdentity">verified finance user</span><button class="btn danger" id="cfoLogoutBtn" type="button"><i data-lucide="log-out"></i> Logout</button></div>
     <section class="cfo-hero">
       <div><p class="eyebrow">Finance command desk</p><h2>Business performance at a glance</h2><p>Sales, contribution margin and supplier payments across Meals On Wheels operations.</p></div>
       <div class="cfo-period"><i data-lucide="calendar-range"></i><div><small>Reporting period</small><b id="periodLabel">All live business</b></div></div>
@@ -54,6 +68,50 @@
   </main>
   <script>
   window.addEventListener("DOMContentLoaded", async () => {
+    const cfoGate = $("cfoSecureGate"), cfoContent = $("cfoSecureContent"), cfoMessage = $("cfoLoginMessage");
+    let cfoProfile = null;
+    function showCfoLoginMessage(message, kind = "danger") { cfoMessage.textContent = message; cfoMessage.className = `notice ${kind}`; }
+    async function verifiedFinanceProfile(authUser) {
+      if (!authUser) return null;
+      const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
+      const profile = snapshot.exists ? snapshot.data() : null;
+      const role = String(profile?.role || "").toLowerCase();
+      if (!profile || profile.active !== true || !["cfo", "super-admin"].includes(role)) return null;
+      return { uid: authUser.uid, email: authUser.email, ...profile, role };
+    }
+    const cfoAuthorization = new Promise((resolve) => {
+      let resolved = false;
+      async function accept(authUser) {
+        try {
+          const profile = await verifiedFinanceProfile(authUser);
+          if (!profile) {
+            if (authUser) await firebase.auth().signOut();
+            cfoProfile = null; cfoGate.classList.remove("hidden"); cfoContent.classList.add("hidden");
+            $("cfoLoginBadge").textContent = "not authorized"; $("cfoLoginBadge").className = "badge danger";
+            return;
+          }
+          cfoProfile = profile; cfoGate.classList.add("hidden"); cfoContent.classList.remove("hidden");
+          $("cfoSecureIdentity").textContent = `${profile.email} | ${profile.role}`;
+          if (!resolved) { resolved = true; resolve(profile); }
+        } catch (error) { showCfoLoginMessage(`Security verification failed: ${error.code || error.message}`); }
+      }
+      firebase.auth().onAuthStateChanged(accept);
+      $("cfoLoginBtn").addEventListener("click", async () => {
+        const email = $("cfoLoginEmail").value.trim().toLowerCase(), password = $("cfoLoginPassword").value;
+        if (!email || !password) return showCfoLoginMessage("Enter your approved email ID and password.");
+        $("cfoLoginBtn").disabled = true;
+        try {
+          const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+          if (!await verifiedFinanceProfile(credential.user)) throw new Error("This account has no active CFO access.");
+          $("cfoLoginPassword").value = ""; await accept(credential.user);
+        } catch (error) {
+          await firebase.auth().signOut().catch(() => {}); showCfoLoginMessage(`Login failed: ${error.code || error.message}`);
+        } finally { $("cfoLoginBtn").disabled = false; }
+      });
+      $("cfoLoginPassword").addEventListener("keydown", event => { if (event.key === "Enter") $("cfoLoginBtn").click(); });
+    });
+    await cfoAuthorization;
+    $("cfoLogoutBtn").addEventListener("click", async () => { await firebase.auth().signOut(); window.location.reload(); });
     appHeader("Meals On Wheels CFO Office", "Executive finance dashboard and final payment control");
     lucide.createIcons(); await ensureSeedData();
     document.querySelectorAll("[data-tab]").forEach((button) => button.addEventListener("click", () => {
@@ -92,7 +150,7 @@
       $("approvalList").innerHTML=rows.map(c=>`<article class="item cfo-approval-card"><div class="row between"><div><p class="eyebrow">${escapeHtml(c.invoiceNo||c.id)}</p><h3>${escapeHtml(c.supplierName||c.supplierPhone||"Supplier")}</h3></div><div class="claim-value">${money(c.totalAmount)}</div></div><div class="cfo-claim-meta"><span><i data-lucide="building-2"></i>${escapeHtml(String(c.supplierType||"supplier").replace(/-/g," "))}</span><span><i data-lucide="calendar"></i>${escapeHtml(c.periodFrom||"")} – ${escapeHtml(c.periodTo||"")}</span><span><i data-lucide="package-check"></i>${n(c.totalQty)} items</span></div><div class="grid two cfo-bank-grid"><label class="field"><span>Account holder</span><input class="input" data-bank="holder" data-claim="${c.id}" value="${escapeHtml(c.bankAccountHolder||c.supplierName||"")}"></label><label class="field"><span>Bank name</span><input class="input" data-bank="bank" data-claim="${c.id}" value="${escapeHtml(c.bankName||"")}" placeholder="Bank name"></label><label class="field"><span>Account number</span><input class="input" data-bank="account" data-claim="${c.id}" value="${escapeHtml(c.bankAccountNumber||"")}" placeholder="Account number"></label><label class="field"><span>IFSC code</span><input class="input" data-bank="ifsc" data-claim="${c.id}" value="${escapeHtml(c.bankIfsc||"")}" placeholder="IFSC"></label></div><div class="row wrap"><button class="btn" data-cfo-approve="${c.id}"><i data-lucide="circle-check-big"></i> Approve & Create Payment Advice</button><button class="btn danger" data-cfo-hold="${c.id}"><i data-lucide="circle-pause"></i> Put on Hold</button></div></article>`).join("")||`<div class="empty cfo-empty"><i data-lucide="badge-check"></i><h3>No approval pending</h3><p>Claims will appear after Central Command verification.</p></div>`;
     }
     function renderAdvice(){ $("adviceTable").innerHTML=`<table><thead><tr><th>Advice No.</th><th>Party</th><th>Bank Details</th><th>Amount</th><th>Status</th><th>Approved</th></tr></thead><tbody>${state.advices.map(a=>`<tr><td><b>${escapeHtml(a.adviceNo||a.id)}</b><br><small>${escapeHtml(a.invoiceNo||"")}</small></td><td>${escapeHtml(a.partyName||"")}<br><small>${escapeHtml(a.partyType||"")}</small></td><td>${escapeHtml(a.bankName||"")}<br><small>${escapeHtml(a.accountNumber||"")} · ${escapeHtml(a.ifsc||"")}</small></td><td><b>${money(a.amount)}</b></td><td><span class="badge ok">Approved for payment</span></td><td>${nowLabel(a.approvedAt||a.createdAt)}</td></tr>`).join("")||`<tr><td colspan="6">No CFO-approved payment advice yet.</td></tr>`}</tbody></table>`; }
-    $("approvalList").addEventListener("click",async e=>{const approve=e.target.closest("[data-cfo-approve]"), hold=e.target.closest("[data-cfo-hold]"); if(hold){const note=prompt("Reason for putting this request on hold:");if(!note)return;await db.collection("supplierInvoices").doc(hold.dataset.cfoHold).update({status:"cfo-hold",cfoNote:note,updatedAt:FieldValue.serverTimestamp()});return toast("Payment request placed on hold.");} if(!approve)return; const id=approve.dataset.cfoApprove, claim=state.claims.find(c=>c.id===id); const get=k=>document.querySelector(`[data-bank="${k}"][data-claim="${id}"]`).value.trim(); const bank={holder:get("holder"),bank:get("bank"),account:get("account"),ifsc:get("ifsc").toUpperCase()}; if(Object.values(bank).some(v=>!v))return toast("Complete all bank details before final approval."); if(!confirm(`Approve ${money(claim.totalAmount)} for ${claim.supplierName||"this supplier"}?`))return; const adviceRef=db.collection("paymentAdvices").doc(), adviceNo=shortId("MWPA"); const batch=db.batch(); batch.set(adviceRef,{adviceNo,invoiceId:id,invoiceNo:claim.invoiceNo||id,partyId:claim.supplierId||"",partyName:claim.supplierName||claim.supplierPhone||"Supplier",partyType:claim.supplierType||"supplier",amount:n(claim.totalAmount),periodFrom:claim.periodFrom||"",periodTo:claim.periodTo||"",totalQty:n(claim.totalQty),bankAccountHolder:bank.holder,bankName:bank.bank,accountNumber:bank.account,ifsc:bank.ifsc,status:"approved-for-payment",approvedBy:"Chief Financial Officer",approvedAt:FieldValue.serverTimestamp(),createdAt:FieldValue.serverTimestamp()}); batch.update(db.collection("supplierInvoices").doc(id),{status:"cfo-approved",paymentAdviceId:adviceRef.id,paymentAdviceNo:adviceNo,bankAccountHolder:bank.holder,bankName:bank.bank,bankAccountNumber:bank.account,bankIfsc:bank.ifsc,cfoApprovedBy:"Chief Financial Officer",cfoApprovedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()}); await batch.commit(); toast(`Payment advice ${adviceNo} created.`); });
+    $("approvalList").addEventListener("click",async e=>{const approve=e.target.closest("[data-cfo-approve]"), hold=e.target.closest("[data-cfo-hold]"); const actor=cfoProfile?.name||cfoProfile?.email||"Verified CFO"; if(hold){const note=prompt("Reason for putting this request on hold:");if(!note)return;await db.collection("supplierInvoices").doc(hold.dataset.cfoHold).update({status:"cfo-hold",cfoNote:note,cfoHeldBy:actor,cfoHeldByUid:cfoProfile.uid,updatedAt:FieldValue.serverTimestamp()});return toast("Payment request placed on hold.");} if(!approve)return; const id=approve.dataset.cfoApprove, claim=state.claims.find(c=>c.id===id); const get=k=>document.querySelector(`[data-bank="${k}"][data-claim="${id}"]`).value.trim(); const bank={holder:get("holder"),bank:get("bank"),account:get("account"),ifsc:get("ifsc").toUpperCase()}; if(Object.values(bank).some(v=>!v))return toast("Complete all bank details before final approval."); if(!confirm(`Approve ${money(claim.totalAmount)} for ${claim.supplierName||"this supplier"}?`))return; const adviceRef=db.collection("paymentAdvices").doc(), adviceNo=shortId("MWPA"); const batch=db.batch(); batch.set(adviceRef,{adviceNo,invoiceId:id,invoiceNo:claim.invoiceNo||id,partyId:claim.supplierId||"",partyName:claim.supplierName||claim.supplierPhone||"Supplier",partyType:claim.supplierType||"supplier",amount:n(claim.totalAmount),periodFrom:claim.periodFrom||"",periodTo:claim.periodTo||"",totalQty:n(claim.totalQty),bankAccountHolder:bank.holder,bankName:bank.bank,accountNumber:bank.account,ifsc:bank.ifsc,status:"approved-for-payment",approvedBy:actor,approvedByUid:cfoProfile.uid,approvedAt:FieldValue.serverTimestamp(),createdAt:FieldValue.serverTimestamp()}); batch.update(db.collection("supplierInvoices").doc(id),{status:"cfo-approved",paymentAdviceId:adviceRef.id,paymentAdviceNo:adviceNo,bankAccountHolder:bank.holder,bankName:bank.bank,bankAccountNumber:bank.account,bankIfsc:bank.ifsc,cfoApprovedBy:actor,cfoApprovedByUid:cfoProfile.uid,cfoApprovedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()}); await batch.commit(); toast(`Payment advice ${adviceNo} created.`); });
     onLive("customerOrders",r=>{state.orders=r;render();},"createdAt","desc",1000); onLive("staffSales",r=>{state.staffSales=r;render();},"createdAt","desc",1000); onLive("supplierInvoices",r=>{state.claims=r;render();},"createdAt","desc",1000); onLive("paymentAdvices",r=>{state.advices=r;render();},"approvedAt","desc",1000); render();
   });
   </script>
