@@ -24,6 +24,7 @@
   </style>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script defer src="rk-common.js?v=20260713-identity2"></script>
 </head>
@@ -363,6 +364,19 @@
       setTimeout(() => $("brandSplash")?.classList.add("hidden"), 3000);
       lucide.createIcons();
       wireTabs("order");
+      async function ensureCustomerIdentity() {
+        if (firebase.auth().currentUser) return firebase.auth().currentUser;
+        const credential = await firebase.auth().signInAnonymously();
+        return credential.user;
+      }
+      let customerAuthUser;
+      try {
+        customerAuthUser = await ensureCustomerIdentity();
+      } catch (error) {
+        console.error("Customer identity initialization failed", error);
+        toast("Unable to start a secure customer session. Please refresh and try again.");
+        return;
+      }
       await ensureSeedData();
 
       const saved = JSON.parse(localStorage.getItem("rkPassenger") || "{}");
@@ -1879,6 +1893,7 @@
             const orderRef = db.collection("customerOrders").doc();
             transaction.set(orderRef, {
               orderNo,
+              customerAuthUid: customerAuthUser.uid,
               customer,
               customerPhone: customer.phone,
               pnr: customer.pnr,
@@ -1967,6 +1982,7 @@
           const overallRating = Number(data.overallRating || 0);
           const ratingAlert = Math.min(foodRating, deliveryRating, overallRating) < 7;
           const feedbackRef = await db.collection("feedbacks").add({
+            customerAuthUid: customerAuthUser.uid,
             rating: overallRating,
             foodRating,
             deliveryRating,
