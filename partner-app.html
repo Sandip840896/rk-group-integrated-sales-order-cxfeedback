@@ -26,6 +26,7 @@
       <div class="grid two" id="partnerLoginFields">
         <label class="field"><span>Login ID</span><input class="input" id="partnerLoginId" autocomplete="username"></label>
         <label class="field"><span>Password</span><input class="input" id="partnerLoginPassword" type="password" autocomplete="current-password"></label>
+        <label class="field hidden" id="partnerManagementSelectField"><span>Operate As Partner</span><select class="select" id="partnerManagementSelect"><option value="">Select approved partner</option></select></label>
       </div>
       <div class="row wrap">
         <button class="btn" id="partnerLoginBtn" type="button"><i data-lucide="log-in"></i> Login</button>
@@ -267,9 +268,26 @@
           const roleAllowed = ["admin", "super-admin"].includes(role);
           const appAllowed = role === "super-admin" || allowedApps.includes("all") || allowedApps.includes("partner-app");
           if (!admin || admin.active !== true || !roleAllowed || !appAllowed) throw new Error("This account has no Partner App access.");
+          const primarySnapshot = await db.collection("partners").get();
+          const selectablePartners = primarySnapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .filter((partner) => partner.active !== false && registrationStatus(partner) === "approved")
+            .sort((a, b) => String(a.restaurantName || a.name || a.id).localeCompare(String(b.restaurantName || b.name || b.id)));
+          const selectedId = $("partnerManagementSelect").value;
+          $("partnerManagementSelect").innerHTML = `<option value="">Select approved partner</option>${selectablePartners.map((partner) => `<option value="${escapeHtml(partner.id)}">${escapeHtml(partner.restaurantName || partner.name || partner.id)}${partner.phone ? ` | ${escapeHtml(partner.phone)}` : ""}</option>`).join("")}`;
+          $("partnerManagementSelectField").classList.remove("hidden");
+          if (!selectedId) {
+            showAccessMessage("Management account verified. Select the partner to operate and click Login again.", "success");
+            return null;
+          }
+          $("partnerManagementSelect").value = selectedId;
+          const selectedPartner = selectablePartners.find((partner) => partner.id === selectedId);
+          if (!selectedPartner) throw new Error("Select an active approved partner.");
           return {
-            id: credential.user.uid,
+            id: selectedPartner.id,
             loginId,
+            phone: cleanPhone(selectedPartner.phone || selectedPartner.supplierPhone || ""),
+            restaurantName: selectedPartner.restaurantName || selectedPartner.name || selectedPartner.id,
             authUid: credential.user.uid,
             authMode: "firebase-management",
             managementAccess: true,
@@ -290,6 +308,7 @@
         if (!candidates.length) {
           try {
             partnerSession = await managementPartnerSession(loginId, password);
+            if (!partnerSession) return;
             partnerAccessMode = "authenticated";
             sessionStorage.setItem("rkPartnerSession", JSON.stringify(partnerSession));
             renderPartnerAccess();
