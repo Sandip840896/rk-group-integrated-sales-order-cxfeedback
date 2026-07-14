@@ -194,7 +194,7 @@
       }
 
       function isApprovedPartnerSession() {
-        return Boolean(partnerSession?.phone && String(partnerSession.status || "").toLowerCase() === "approved");
+        return Boolean((partnerSession?.managementAccess || partnerSession?.phone) && String(partnerSession.status || "").toLowerCase() === "approved");
       }
 
       function renderPartnerAccess() {
@@ -212,7 +212,9 @@
         $("partnerForgotPasswordBtn").classList.toggle("hidden", approved);
         $("partnerLogoutBtn").classList.toggle("hidden", !approved);
         document.querySelectorAll("[data-partner-tab]").forEach((btn) => btn.classList.toggle("hidden", !approved));
-        $("partnerAccessBadge").textContent = approved ? `${partnerSession.loginId || partnerSession.phone} | approved` : "not logged in";
+        $("partnerAccessBadge").textContent = approved
+          ? `${partnerSession.loginId || partnerSession.phone} | ${partnerSession.managementAccess ? partnerSession.role : "approved"}`
+          : "not logged in";
         $("partnerAccessBadge").className = approved ? "badge ok" : "badge warn";
         if (registering) {
           showTab("enlist");
@@ -249,11 +251,54 @@
         return rows.sort((a, b) => (registrationStatus(b) === "approved" ? 1 : 0) - (registrationStatus(a) === "approved" ? 1 : 0));
       }
 
+      async function managementPartnerSession(loginId, password) {
+        let credential;
+        try {
+          credential = await firebase.auth().signInWithEmailAndPassword(loginId, password);
+          const snapshot = await db.collection("adminUsers").doc(credential.user.uid).get();
+          const admin = snapshot.exists ? snapshot.data() : null;
+          const role = String(admin?.role || "").toLowerCase();
+          const allowedApps = Array.isArray(admin?.allowedApps)
+            ? admin.allowedApps.map((app) => String(app).toLowerCase())
+            : String(admin?.access || "")
+                .split(",")
+                .map((app) => app.trim().toLowerCase())
+                .filter(Boolean);
+          const roleAllowed = ["admin", "super-admin"].includes(role);
+          const appAllowed = role === "super-admin" || allowedApps.includes("all") || allowedApps.includes("partner-app");
+          if (!admin || admin.active !== true || !roleAllowed || !appAllowed) throw new Error("This account has no Partner App access.");
+          return {
+            id: credential.user.uid,
+            loginId,
+            authUid: credential.user.uid,
+            authMode: "firebase-management",
+            managementAccess: true,
+            role,
+            status: "approved"
+          };
+        } catch (error) {
+          if (credential?.user) await firebase.auth().signOut().catch(() => {});
+          throw error;
+        }
+      }
+
       async function loginPartner() {
         const loginId = $("partnerLoginId").value.trim().toLowerCase();
         const password = $("partnerLoginPassword").value;
         if (!loginId || !password) return showAccessMessage("Enter Login ID and Password.", "danger");
         const candidates = await findPartnersByLogin(loginId);
+        if (!candidates.length) {
+          try {
+            partnerSession = await managementPartnerSession(loginId, password);
+            partnerAccessMode = "authenticated";
+            sessionStorage.setItem("rkPartnerSession", JSON.stringify(partnerSession));
+            renderPartnerAccess();
+            showAccessMessage("Partner management session recognized.", "success");
+            return;
+          } catch (error) {
+            return showAccessMessage(`Secure login failed: ${error.code || error.message}`, "danger");
+          }
+        }
         const authPartner = candidates.find((row) => row.authUid && (row.authEmail || row.email));
         let partner = null;
         if (authPartner) {
@@ -292,6 +337,7 @@
       }
 
       function rowMatchesPartner(row, phone) {
+        if (partnerSession?.managementAccess) return true;
         if (!phone) return false;
         const id = String(partnerSession?.id || "");
         return (id && [row.partnerId, row.supplierId, row.id].some((value) => String(value || "") === id))
@@ -299,6 +345,7 @@
       }
 
       function orderMatchesPartner(order, phone) {
+        if (partnerSession?.managementAccess) return true;
         if (!phone) return false;
         const id = String(partnerSession?.id || "");
         const direct = (id && [order.partnerId, order.supplierId].some((value) => String(value || "") === id))
@@ -308,6 +355,7 @@
       }
 
       function partnerLineMatches(line, phone = partnerPhone()) {
+        if (partnerSession?.managementAccess) return true;
         const id = String(partnerSession?.id || "");
         const source = String(line.fulfillmentSource || line.source || "").toLowerCase();
         return source === "partner" && ((id && [line.partnerId, line.supplierId].some((value) => String(value || "") === id))
