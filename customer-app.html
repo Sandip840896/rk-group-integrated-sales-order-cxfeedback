@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="rk-app.css?v=20260713-customer-drawer-fix">
+  <link rel="stylesheet" href="rk-app.css?v=20260714-customer-history-cod">
   <style>
     .hidden{display:none!important}
     .customer-app-header{position:sticky;top:0;z-index:34;display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:10px;margin:-18px -18px 12px;padding:12px 14px;background:#071e3a;color:#fff;border-bottom:1px solid rgba(148,163,184,.28);box-shadow:0 12px 28px rgba(15,23,42,.18)}
@@ -82,7 +82,7 @@
         <span>Authorised service support for onboard meal ordering.</span>
       </div>
     </aside>
-    <section class="brand-cover-strip compact-customer-brand">
+    <section class="brand-cover-strip compact-customer-brand" id="customerBrandPanel">
       <div class="brand-cover-copy">
         <div class="brand-mark">MEALS <span>ON</span> WHEELS</div>
         <h2>Meals On Wheels</h2>
@@ -322,7 +322,8 @@
         </div>
         <button class="icon-btn" id="refreshTrackBtn" title="Refresh"><i data-lucide="refresh-cw"></i></button>
       </div>
-      <div class="row mobile-stack">
+      <div class="ack success hidden" id="trackAccountChip"></div>
+      <div class="row mobile-stack" id="trackSearchRow">
         <label class="field grow"><span data-i18n="phone_number">Phone Number</span><input class="input" id="trackPhone" inputmode="tel" placeholder="10 digit phone number"></label>
         <button class="btn secondary" id="trackSearchBtn"><i data-lucide="search"></i> <span data-i18n="search">Search</span></button>
       </div>
@@ -392,6 +393,7 @@
       let marketingSettings = null;
       let trainRoutes = [];
       let serviceSwitches = [];
+      let supplierPaymentSettings = [];
       let couponApplied = null;
       const urlParams = new URLSearchParams(location.search);
       const journeyContext = {
@@ -893,6 +895,9 @@
       function updateCustomerNavigation(name) {
         const label = customerViewLabels[name] || customerViewLabels.order;
         $("customerCurrentViewLabel").textContent = label;
+        const showHomeChrome = name === "order";
+        $("customerBrandPanel").classList.toggle("hidden", !showHomeChrome);
+        $("customerPromoCarousel").classList.toggle("hidden", !showHomeChrome);
         document.querySelectorAll("[data-drawer-nav]").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.tab === name);
         });
@@ -1530,6 +1535,50 @@
         document.querySelector(".cart-bar")?.classList.toggle("show", count > 0);
       }
 
+      function supplierPaymentDocId(type, id) {
+        return `${String(type || "supplier").replace(/[^a-z0-9-]/gi, "_")}_${String(id || "").replace(/[^a-z0-9-]/gi, "_")}`;
+      }
+
+      function lineSupplierPaymentSetting(line) {
+        const ids = [
+          line.supplierId,
+          line.partnerId,
+          line.baseKitchenId,
+          line.id && fulfillmentSourceOf(line) !== "pantry" ? line.id : ""
+        ].map((value) => String(value || "")).filter(Boolean);
+        const phones = [line.supplierPhone, line.partnerPhone, line.phone].map(cleanPhone).filter(Boolean);
+        return supplierPaymentSettings.find((setting) => {
+          const settingType = String(setting.supplierType || setting.type || "").toLowerCase();
+          if (settingType && !["partner", "base-kitchen", "restaurant"].includes(settingType)) return false;
+          if (ids.includes(String(setting.supplierId || setting.partnerId || setting.baseKitchenId || ""))) return true;
+          if (phones.includes(cleanPhone(setting.supplierPhone || setting.phone || setting.partnerPhone || ""))) return true;
+          return false;
+        });
+      }
+
+      function restaurantCodBlockedLines(lines) {
+        return lines.filter((line) => {
+          if (menuSourceOf(line) !== "restaurant") return false;
+          const setting = lineSupplierPaymentSetting(line);
+          return setting?.codEnabled === false;
+        });
+      }
+
+      function refreshPaymentModes(lines = [...cart.values()]) {
+        const blocked = restaurantCodBlockedLines(lines);
+        const current = $("paymentMode").value || "COD";
+        $("paymentMode").innerHTML = `
+          ${blocked.length ? "" : `<option value="COD" data-i18n="pay_cod">COD - Cash on Delivery</option>`}
+          <option value="UPI" data-i18n="pay_upi">UPI on Delivery</option>
+          <option value="QR" data-i18n="pay_qr">Scan QR Code on Delivery</option>
+          <option value="Card" data-i18n="pay_card">Debit / Credit Card on Delivery</option>`;
+        $("paymentMode").value = blocked.length && current === "COD" ? "UPI" : (current && [...$("paymentMode").options].some((opt) => opt.value === current) ? current : $("paymentMode").options[0]?.value || "UPI");
+        $("codRestrictionNotice")?.remove();
+        if (blocked.length) {
+          $("paymentMode").closest(".field").insertAdjacentHTML("afterend", `<div class="ack danger-soft" id="codRestrictionNotice">COD is currently disabled by Control Tower for ${escapeHtml(blocked.map((line) => line.supplierName || line.partnerName || line.baseKitchenName || line.name).filter(Boolean).join(", ") || "one restaurant item")}. Please choose UPI, QR or Card on delivery.</div>`);
+        }
+      }
+
       function renderCartReview() {
         const lines = [...cart.values()];
         const pricing = cartPricing(lines);
@@ -1566,6 +1615,7 @@
           ${pricing.highDemandCharge ? `<div class="row between"><span>High demand charge</span><b>${money(pricing.highDemandCharge)}</b></div>` : ""}
           ${pricing.discount ? `<div class="row between success-text"><span>Coupon discount ${escapeHtml(pricing.couponCode)}</span><b>- ${money(pricing.discount)}</b></div>` : pricing.couponCode ? `<div class="ack danger-soft">Coupon not valid for this train/cart.</div>` : ""}`;
         $("cartReviewTotal").textContent = money(pricing.total);
+        refreshPaymentModes(lines);
         $("confirmOrderBtn").disabled = !lines.length;
         $("confirmOrderBtn").innerHTML = `<i data-lucide="send"></i> ${textFor("confirm_order")}`;
         lucide.createIcons();
@@ -1775,7 +1825,6 @@
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = `<i data-lucide="loader-2"></i> Placing`;
         lucide.createIcons();
-        const paymentMode = $("paymentMode").value || "COD";
         const items = [...cart.values()].map((line) => ({
           itemId: line.id,
           name: line.name,
@@ -1798,6 +1847,14 @@
           baseKitchenName: line.baseKitchenName || (fulfillmentSourceOf(line) === "base-kitchen" ? line.supplierName || "" : ""),
           mealSlots: itemMealSlots(line)
         }));
+        refreshPaymentModes([...cart.values()]);
+        const paymentMode = $("paymentMode").value || "UPI";
+        if (paymentMode === "COD" && restaurantCodBlockedLines([...cart.values()]).length) {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = `<i data-lucide="send"></i> ${textFor("confirm_order")}`;
+          lucide.createIcons();
+          return toast("COD is disabled for one or more restaurant items. Please choose another payment mode.");
+        }
         const pricing = cartPricing([...cart.values()]);
         const total = pricing.total;
         const orderSources = [...new Set(items.map((line) => line.fulfillmentSource || "pantry"))];
@@ -2174,14 +2231,28 @@
         lucide.createIcons();
       }
 
+      function setTrackSearchVisibility(phone, forceSearch = false) {
+        const clean = cleanPhone(phone || "");
+        const hasSavedPhone = clean.length === 10;
+        $("trackSearchRow").classList.toggle("hidden", hasSavedPhone && !forceSearch);
+        $("trackAccountChip").classList.toggle("hidden", !hasSavedPhone || forceSearch);
+        if (hasSavedPhone && !forceSearch) {
+          $("trackAccountChip").innerHTML = `<b>Showing orders for ${escapeHtml(clean)}</b><br><small>This phone is taken from saved passenger details on this device.</small><div class="row wrap" style="margin-top:8px;"><button class="btn secondary" id="changeTrackPhoneBtn" type="button"><i data-lucide="pencil"></i> Change phone</button></div>`;
+          $("changeTrackPhoneBtn").addEventListener("click", () => setTrackSearchVisibility(clean, true));
+          lucide.createIcons();
+        }
+      }
+
       async function loadTracking(phoneValue) {
         const formPhone = passenger().phone;
         const phone = cleanPhone(phoneValue || $("trackPhone").value || formPhone);
         if (!phone || phone.length !== 10) {
+          setTrackSearchVisibility("", true);
           $("trackList").innerHTML = `<div class="empty">Enter your 10 digit phone number to track orders.</div>`;
           return;
         }
         $("trackPhone").value = phone;
+        setTrackSearchVisibility(phone);
         localStorage.setItem("rkTrackPhone", phone);
         if (unsubscribeTrack) unsubscribeTrack();
         if (unsubscribeFeedbackPhoneTrack) unsubscribeFeedbackPhoneTrack();
@@ -2441,6 +2512,10 @@
         serviceSwitches = rows;
         renderMenu();
       }, "updatedAt", "desc", 200);
+      onLive("supplierPaymentSettings", (rows) => {
+        supplierPaymentSettings = rows;
+        if (!$("cartReviewModal").classList.contains("hidden")) renderCartReview();
+      }, "updatedAt", "desc", 300);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((train) => train.active !== false);
         renderCustomerTrainSelect();

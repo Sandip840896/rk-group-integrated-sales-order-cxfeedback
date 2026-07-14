@@ -46,6 +46,7 @@
         <button class="tab-btn" data-tab="passwordReset"><i data-lucide="key-round"></i> Password Reset <span class="tab-badge hidden" id="passwordResetTabBadge">0</span></button>
         <button class="tab-btn" data-tab="riders"><i data-lucide="bike"></i> Rider Approval <span class="tab-badge hidden" id="riderTabBadge">0</span></button>
         <button class="tab-btn" data-tab="marketing"><i data-lucide="badge-percent"></i> Marketing</button>
+        <button class="tab-btn" data-tab="codControl"><i data-lucide="banknote"></i> COD Control</button>
         <button class="tab-btn" data-tab="service"><i data-lucide="power"></i> Restaurant On-Off <span class="tab-badge hidden" id="serviceTabBadge">0</span></button>
         <button class="tab-btn" data-tab="route"><i data-lucide="train-front"></i> Train Route</button>
       </div>
@@ -120,6 +121,17 @@
         <button class="btn" type="submit"><i data-lucide="save"></i> Save Marketing Settings</button>
       </form>
       <div id="marketingList" class="list"></div>
+    </section>
+
+    <section class="panel pad stack hidden" data-tab-panel="codControl">
+      <div class="section-title">
+        <div><h2>Restaurant COD Control</h2><p>Switch Cash on Delivery on or off for any Base Kitchen or RK Partner. Customer checkout will follow this setting immediately.</p></div>
+      </div>
+      <div class="row mobile-stack">
+        <label class="field grow"><span>Search Restaurant</span><input class="input" id="codSupplierSearch" placeholder="Search base kitchen, partner, phone, station or city"></label>
+        <button class="btn secondary" id="refreshCodControlBtn" type="button"><i data-lucide="refresh-cw"></i> Refresh</button>
+      </div>
+      <div id="codControlList" class="list"></div>
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="service">
@@ -249,6 +261,7 @@
       let marketingSettings = [];
       let passwordResetRequests = [];
       let serviceSwitches = [];
+      let supplierPaymentSettings = [];
       let marketingSelectedTrains = new Set();
       const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
 
@@ -663,6 +676,72 @@
           </div>`;
       }
 
+      function supplierPaymentDocId(type, id) {
+        return `${String(type || "supplier").replace(/[^a-z0-9-]/gi, "_")}_${String(id || "").replace(/[^a-z0-9-]/gi, "_")}`;
+      }
+
+      function restaurantSupplierRows() {
+        const partnerRows = partners.map((row) => ({
+          id: row.id,
+          supplierId: row.id,
+          supplierType: "partner",
+          label: row.restaurantName || row.name || row.loginId || row.id,
+          phone: cleanPhone(row.phone || row.supplierPhone || row.partnerPhone || ""),
+          location: row.station || row.nearestStation || row.address || "",
+          status: registrationStatus(row)
+        }));
+        const kitchenRows = kitchens.map((row) => ({
+          id: row.id,
+          supplierId: row.id,
+          supplierType: "base-kitchen",
+          label: row.name || row.baseKitchenName || row.loginId || row.id,
+          phone: cleanPhone(row.phone || row.supplierPhone || ""),
+          location: row.city || row.station || row.address || "",
+          status: registrationStatus(row, row.active === false ? "pending" : "approved")
+        }));
+        return [...partnerRows, ...kitchenRows];
+      }
+
+      function paymentSettingForSupplier(row) {
+        const docId = supplierPaymentDocId(row.supplierType, row.supplierId);
+        return supplierPaymentSettings.find((setting) => setting.id === docId)
+          || supplierPaymentSettings.find((setting) => String(setting.supplierId || "") === String(row.supplierId))
+          || supplierPaymentSettings.find((setting) => row.phone && cleanPhone(setting.supplierPhone || setting.phone || "") === row.phone)
+          || {};
+      }
+
+      function renderCodControl() {
+        const query = String($("codSupplierSearch")?.value || "").toLowerCase().trim();
+        const rows = restaurantSupplierRows()
+          .filter((row) => !query || `${row.label} ${row.phone} ${row.location} ${row.supplierType}`.toLowerCase().includes(query))
+          .sort((a, b) => String(a.label).localeCompare(String(b.label)));
+        $("codControlList").innerHTML = rows.map((row) => {
+          const setting = paymentSettingForSupplier(row);
+          const codEnabled = setting.codEnabled !== false;
+          return `<div class="item">
+            <div class="row between">
+              <div>
+                <h3>${escapeHtml(row.label)}</h3>
+                <p>${escapeHtml(row.supplierType === "base-kitchen" ? "Base Kitchen" : "RK Partner")} | ${escapeHtml(row.location || "Location not mapped")} | ${escapeHtml(row.phone || "No phone")}</p>
+              </div>
+              ${statusBadge(codEnabled ? "COD ON" : "COD OFF")}
+            </div>
+            <div class="grid two" style="margin-top:10px;">
+              <label class="field"><span>COD Status</span><select class="select" data-cod-status="${escapeHtml(row.supplierType)}:${escapeHtml(row.supplierId)}">
+                <option value="true" ${codEnabled ? "selected" : ""}>COD Enabled</option>
+                <option value="false" ${!codEnabled ? "selected" : ""}>COD Disabled</option>
+              </select></label>
+              <label class="field"><span>Reason / Note</span><input class="input" data-cod-reason="${escapeHtml(row.supplierType)}:${escapeHtml(row.supplierId)}" value="${escapeHtml(setting.reason || "")}" placeholder="Example: cash collection stopped by restaurant"></label>
+            </div>
+            <div class="row wrap" style="margin-top:10px;">
+              <button class="btn" data-save-cod="${escapeHtml(row.supplierType)}:${escapeHtml(row.supplierId)}"><i data-lucide="save"></i> Save COD Setting</button>
+              <span class="badge info">${escapeHtml(row.status || "approved")}</span>
+            </div>
+          </div>`;
+        }).join("") || `<div class="empty">No Base Kitchen or RK Partner found.</div>`;
+        lucide.createIcons();
+      }
+
       function renderServiceSwitches() {
         $("serviceSwitchList").innerHTML = serviceSwitches.map((row) => `
           <div class="item ${row.active === false ? "urgent-item" : ""}">
@@ -1001,6 +1080,30 @@
         toast("Service/product reactivated.");
       });
 
+      $("codSupplierSearch").addEventListener("input", renderCodControl);
+      $("refreshCodControlBtn").addEventListener("click", renderCodControl);
+      $("codControlList").addEventListener("click", async (event) => {
+        const save = event.target.closest("[data-save-cod]");
+        if (!save) return;
+        const [supplierType, supplierId] = String(save.dataset.saveCod || "").split(":");
+        const row = restaurantSupplierRows().find((entry) => entry.supplierType === supplierType && String(entry.supplierId) === String(supplierId));
+        if (!row) return toast("Supplier not found for COD setting.");
+        const codEnabled = document.querySelector(`[data-cod-status="${supplierType}:${supplierId}"]`)?.value !== "false";
+        const reason = document.querySelector(`[data-cod-reason="${supplierType}:${supplierId}"]`)?.value.trim() || "";
+        await db.collection("supplierPaymentSettings").doc(supplierPaymentDocId(supplierType, supplierId)).set({
+          supplierType,
+          supplierId,
+          supplierName: row.label,
+          supplierPhone: row.phone || "",
+          location: row.location || "",
+          codEnabled,
+          reason,
+          updatedBy: secureProfile.email || "Control Tower",
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        toast(`${row.label} COD ${codEnabled ? "enabled" : "disabled"}.`);
+      });
+
       document.querySelector("[data-tab-panel='masters']").addEventListener("click", async (event) => {
         const viewBtn = event.target.closest("[data-master-view]");
         const saveMenu = event.target.closest("[data-save-menu-master]");
@@ -1100,14 +1203,15 @@
         toast(firebaseAccessMessage("trainRoutes", error));
       }
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { requests = rows; renderCatalog(); }, "createdAt", "desc", 250);
-      onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); renderMasters(); }, "createdAt", "desc", 250);
+      onLiveCompat("partners", "partner", (rows) => { partners = rows; renderPartners(); renderMasters(); renderCodControl(); }, "createdAt", "desc", 250);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { riders = rows; renderRiders(); }, "updatedAt", "desc", 250);
       onLive("marketingSettings", (rows) => { marketingSettings = rows; renderMarketing(); }, "updatedAt", "desc", 50);
       onLive("serviceSwitches", (rows) => { serviceSwitches = rows; renderServiceSwitches(); renderControlTabBadges(); }, "updatedAt", "desc", 200);
+      onLive("supplierPaymentSettings", (rows) => { supplierPaymentSettings = rows; renderCodControl(); }, "updatedAt", "desc", 300);
       renderMasters();
       renderRouteTrainSelect();
       onLive("menuItems", (rows) => { menuItems = rows; renderMetrics(); renderMasters(); }, "name", "asc", 300);
-      onLive("baseKitchens", (rows) => { kitchens = rows; renderMasters(); renderPartners(); }, "name", "asc", 300);
+      onLive("baseKitchens", (rows) => { kitchens = rows; renderMasters(); renderPartners(); renderCodControl(); }, "name", "asc", 300);
       onLiveCompat("passwordResetRequests", "passwordResetRequest", (rows) => { passwordResetRequests = rows; renderPasswordResetRequests(); }, "createdAt", "desc", 300);
       onLive("trainMasters", (rows) => { trainMasters = rows.filter((train) => train.active !== false); renderRouteTrainSelect(); renderMarketingTrainPicker(); }, "trainNumber", "asc", 300);
       onLive("trainRoutes", (rows) => { trainRoutes = rows; renderRoute(); }, "updatedAt", "desc", 300);
