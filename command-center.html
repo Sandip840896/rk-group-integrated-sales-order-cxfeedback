@@ -225,7 +225,7 @@
     <section data-tab-panel="masters" class="grid two hidden">
       <div class="panel pad stack">
         <div class="section-title">
-          <div><h2>Food Item Master</h2><p>Items added here show in customer order and indent screens.</p></div>
+          <div><h2>Food Item Master</h2><p>New items go to Control Tower for approval. Approved items appear in customer order and indent screens.</p></div>
           <button class="btn secondary" id="downloadFoodMasterBtn" type="button"><i data-lucide="download"></i> Food CSV</button>
         </div>
         <form id="masterForm" class="stack">
@@ -249,12 +249,12 @@
             <label class="field"><span>Product Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
           </div>
           <div class="row wrap">
-            <button class="btn" type="submit"><i data-lucide="save"></i> Save Item</button>
+            <button class="btn" type="submit"><i data-lucide="send"></i> Send New Item for Approval</button>
             <button class="btn secondary hidden" id="cancelMenuEditBtn" type="button"><i data-lucide="x"></i> Cancel Edit</button>
           </div>
         </form>
         <div class="panel pad stack soft-panel">
-          <div class="section-title"><div><h3>Bulk Food Master Upload</h3><p>Upload CSV or Excel to add many Rake Manager food items together.</p></div></div>
+          <div class="section-title"><div><h3>Bulk Food Master Upload</h3><p>Upload CSV or Excel to send many Rake Manager food items to Control Tower together.</p></div></div>
           <div class="row wrap">
             <button class="btn secondary" id="commandDownloadCatalogCsvBtn" type="button"><i data-lucide="file-down"></i> Sample CSV</button>
             <a class="btn secondary" href="catalog-bulk-upload-template.xlsx" download><i data-lucide="sheet"></i> Sample Excel</a>
@@ -263,9 +263,11 @@
             <label class="field"><span>Filled CSV / Excel</span><input class="input" id="commandCatalogBulkFile" type="file" accept=".csv,.xlsx,.xls"></label>
             <label class="field"><span>Product Images (optional)</span><input class="input" id="commandCatalogBulkImages" type="file" accept="image/*" multiple><small>Image filenames must match the imageFileName column.</small></label>
           </div>
-          <button class="btn" id="commandUploadCatalogBulkBtn" type="button"><i data-lucide="upload"></i> Upload All Food Items</button>
-          <div class="empty" id="commandCatalogBulkStatus">Use source pantry for onboard items. Duplicate item names will be skipped.</div>
+          <button class="btn" id="commandUploadCatalogBulkBtn" type="button"><i data-lucide="upload"></i> Send All Items for Approval</button>
+          <div class="empty" id="commandCatalogBulkStatus">Use source pantry for onboard items. Every item remains editable until Control Tower approval.</div>
         </div>
+        <div class="master-list-head"><div><h3>My Catalog Approval Requests</h3><p>Pending, returned and rejected requests can be edited. Approved requests are locked.</p></div></div>
+        <div id="commandCatalogRequestList" class="list"></div>
         <div class="master-list-head">
           <div>
             <h3>Food Item List</h3>
@@ -325,11 +327,11 @@
 
     <section data-tab-panel="admin" class="grid two hidden">
       <div class="panel pad stack">
-        <div class="section-title"><div><h2>Admin User Master</h2><p>Create prototype users for page-level access. Production must use Firebase Auth.</p></div></div>
+        <div class="section-title"><div><h2>Secure Staff User Master</h2><p>New users are created in Firebase Authentication and linked by UID. Passwords are never stored in Firestore.</p></div></div>
         <form id="adminUserForm" class="stack">
           <div class="grid two">
             <label class="field"><span>Email ID</span><input class="input" name="email" type="email" required placeholder="manager@rkgroup.in"></label>
-            <label class="field"><span>Password</span><input class="input" name="password" required placeholder="temporary password"></label>
+            <label class="field"><span>Initial Password</span><input class="input" name="password" type="password" minlength="8" required autocomplete="new-password" placeholder="Minimum 8 characters"></label>
           </div>
           <div class="grid two">
             <label class="field"><span>User Name</span><input class="input" name="name" required placeholder="Manager / kitchen user name"></label>
@@ -406,6 +408,7 @@
       await ensureSeedData();
 
       let menuItems = [];
+      let rakeCatalogRequests = [];
       let kitchens = [];
       let trainMasters = [];
       let orders = [];
@@ -443,6 +446,7 @@
         $("loginRoleBadge").textContent = currentUser ? `${currentUser.email} | ${currentUser.role}` : "not logged in";
         $("loginPanelTitle").textContent = isLoggedIn ? "Rake Manager Command Center" : "Rake Manager Command Center Login";
         $("loginPanelHint").textContent = isLoggedIn ? `Secure session active for ${currentUser.name || currentUser.email}.` : "Sign in with your approved Firebase account.";
+        if ($("commandCatalogRequestList")) renderCommandCatalogRequests();
         $("loginEmail").classList.toggle("hidden", isLoggedIn);
         $("loginPassword").classList.toggle("hidden", isLoggedIn);
         $("loginBtn").classList.toggle("hidden", isLoggedIn);
@@ -1346,8 +1350,10 @@
       });
 
       function clearMenuEditForm() {
-        $("masterForm").reset();
-        $("masterForm").elements.editingItemId.value = "";
+        const form = $("masterForm");
+        form.reset();
+        form.elements.editingItemId.value = "";
+        form.querySelector("button[type='submit']").innerHTML = `<i data-lucide="send"></i> Send New Item for Approval`;
         document.querySelectorAll("#masterCategory input").forEach((box, idx) => { box.checked = idx === 0; });
         $("masterEditNotice").classList.add("hidden");
         $("cancelMenuEditBtn").classList.add("hidden");
@@ -1372,6 +1378,8 @@
         $("masterEditNotice").textContent = `Editing: ${item.name || item.id}. Upload a new image only if you want to replace the current one.`;
         $("masterEditNotice").classList.remove("hidden");
         $("cancelMenuEditBtn").classList.remove("hidden");
+        form.querySelector("button[type='submit']").innerHTML = `<i data-lucide="save"></i> Update Approved Item`;
+        lucide.createIcons();
         form.scrollIntoView({ behavior: "smooth", block: "start" });
       }
 
@@ -1411,8 +1419,21 @@
           await db.collection("menuItems").doc(data.editingItemId).update(payload);
           toast("Food item updated everywhere.");
         } else {
-          await db.collection("menuItems").add(payload);
-          toast("Food item saved and reflected live.");
+          await compatAdd("catalogRequests", "catalogRequest", {
+            ...payload,
+            sourceType: "rake manager",
+            source: data.source || "pantry",
+            supplierId: currentUser?.uid || currentUser?.id || "rake-manager",
+            supplierName: currentUser?.name || currentUser?.email || "Rake Manager",
+            rakeManagerUid: currentUser?.uid || currentUser?.id || "",
+            rakeManagerEmail: currentUser?.email || "",
+            linkedTrain: hasAllAccess() ? "All" : (accessValue() || "All"),
+            linkedTrains: [hasAllAccess() ? "All" : (accessValue() || "All")],
+            status: "pending",
+            masterItem: false,
+            createdAt: FieldValue.serverTimestamp()
+          });
+          toast("Catalog item sent to Control Tower for approval.");
         }
         clearMenuEditForm();
       });
@@ -1426,7 +1447,7 @@
         try {
           const rows = await readCatalogBulkFile($("commandCatalogBulkFile").files[0]);
           const images = catalogBulkImageFiles($("commandCatalogBulkImages"));
-          const existingNames = new Set(menuItems.map((item) => String(item.name || "").trim().toLowerCase()));
+          const existingNames = new Set([...menuItems, ...rakeCatalogRequests].map((item) => String(item.name || "").trim().toLowerCase()));
           let saved = 0;
           let skipped = 0;
           const errors = [];
@@ -1441,12 +1462,18 @@
               if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error("invalid sellingPrice");
               if (!Number.isFinite(costPrice) || costPrice < 0) throw new Error("invalid costPrice");
               const itemImage = await catalogBulkImage(row, images);
-              await db.collection("menuItems").add({
+              const linkedTrains = catalogBulkList(row.linkedTrains, [hasAllAccess() ? "All" : (accessValue() || "All")]);
+              await compatAdd("catalogRequests", "catalogRequest", {
                 name: row.itemName, category: mealSlots[0], mealSlots,
                 type: row.foodType || "veg", cuisine: row.cuisine || "Other",
                 source: row.source || "pantry", price: sellingPrice, sellingPrice, costPrice,
                 stockQty: Math.max(0, Number(row.openingQty || 0)), available: true,
-                description: row.description || "", itemImage, masterItem: true, bulkUpload: true,
+                description: row.description || "", itemImage, masterItem: false, bulkUpload: true,
+                sourceType: "rake manager", supplierId: currentUser?.uid || currentUser?.id || "rake-manager",
+                supplierName: currentUser?.name || currentUser?.email || "Rake Manager",
+                rakeManagerUid: currentUser?.uid || currentUser?.id || "", rakeManagerEmail: currentUser?.email || "",
+                linkedTrains, linkedTrain: linkedTrains.includes("All") ? "All" : linkedTrains.join(", "),
+                status: "pending",
                 createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
               });
               existingNames.add(itemKey);
@@ -1456,14 +1483,93 @@
               errors.push(`Row ${row._rowNumber}: ${error.message}`);
             }
           }
-          status.innerHTML = `<b>${saved} item(s) saved.</b> ${skipped} duplicate name(s) skipped.${errors.length ? `<br>${escapeHtml(errors.slice(0, 6).join(" | "))}` : ""}`;
-          if (saved) toast(`${saved} food master items uploaded.`);
+          status.innerHTML = `<b>${saved} item(s) sent for approval.</b> ${skipped} duplicate name(s) skipped.${errors.length ? `<br>${escapeHtml(errors.slice(0, 6).join(" | "))}` : ""}`;
+          if (saved) toast(`${saved} catalog items sent to Control Tower.`);
         } catch (error) {
           console.error(error);
           status.textContent = error.message;
           toast(error.message);
         } finally {
           button.disabled = false;
+        }
+      });
+
+      function visibleRakeCatalogRequests() {
+        return rakeCatalogRequests.filter((row) => {
+          const source = String(row.sourceType || "").toLowerCase();
+          if (!source.includes("rake")) return false;
+          if (currentUser?.role === "super-admin") return true;
+          const owner = String(row.rakeManagerUid || row.supplierId || "");
+          return !owner || owner === String(currentUser?.uid || currentUser?.id || "") || trainMatches(row.linkedTrain, accessValue());
+        });
+      }
+
+      function renderCommandCatalogRequests() {
+        const rows = visibleRakeCatalogRequests();
+        $("commandCatalogRequestList").innerHTML = rows.map((row) => {
+          const requestStatus = String(row.status || "pending").toLowerCase();
+          const editable = ["pending", "resubmitted", "returned", "rejected"].includes(requestStatus);
+          const needsResubmit = ["returned", "rejected"].includes(requestStatus);
+          const slots = row.mealSlots?.length ? row.mealSlots : [row.category || "Other"];
+          const trains = Array.isArray(row.linkedTrains) ? row.linkedTrains.join("; ") : (row.linkedTrain || "All");
+          return `<div class="item">
+            <div class="row between"><h3>${escapeHtml(row.name || row.id)}</h3>${statusBadge(row.status || "pending")}</div>
+            <p>${escapeHtml(slots.join(", "))} | ${escapeHtml(row.cuisine || "")} | Sell ${money(row.sellingPrice)} | Cost ${money(row.costPrice)} | Train ${escapeHtml(row.linkedTrain || "All")}</p>
+            ${row.reworkRemarks ? `<div class="ack danger-soft"><b>Control Tower Rework:</b> ${escapeHtml(row.reworkRemarks)}</div>` : ""}
+            ${row.rejectionReason ? `<div class="ack danger-soft"><b>Control Tower Note:</b> ${escapeHtml(row.rejectionReason)}</div>` : ""}
+            ${editable ? `<div class="ack success" style="margin-top:10px;"><b>Editable before approval:</b> Save corrections here. Approved requests are locked.</div>
+              <div class="grid two" style="margin-top:10px;">
+                <label class="field"><span>Item</span><input class="input" value="${escapeHtml(row.name || "")}" data-command-request="${row.id}" data-field="name"></label>
+                <label class="field"><span>Selling Price</span><input class="input" type="number" min="0" value="${Number(row.sellingPrice || 0)}" data-command-request="${row.id}" data-field="sellingPrice"></label>
+                <label class="field"><span>Cost Price</span><input class="input" type="number" min="0" value="${Number(row.costPrice || 0)}" data-command-request="${row.id}" data-field="costPrice"></label>
+                <label class="field"><span>Opening Qty</span><input class="input" type="number" min="0" value="${Number(row.stockQty || 0)}" data-command-request="${row.id}" data-field="stockQty"></label>
+                <label class="field"><span>Food Type</span><select class="select" data-command-request="${row.id}" data-field="type">${["veg", "non-veg", "beverage", "other"].map((type) => `<option value="${type}" ${String(row.type || "veg") === type ? "selected" : ""}>${type}</option>`).join("")}</select></label>
+                <label class="field"><span>Cuisine</span><select class="select" data-command-request="${row.id}" data-field="cuisine">${cuisineOptions.map((cuisine) => `<option value="${escapeHtml(cuisine)}" ${String(row.cuisine || "North Indian") === cuisine ? "selected" : ""}>${escapeHtml(cuisine)}</option>`).join("")}</select></label>
+                <label class="field"><span>Source</span><select class="select" data-command-request="${row.id}" data-field="source">${["pantry", "base kitchen"].map((source) => `<option value="${source}" ${String(row.source || "pantry") === source ? "selected" : ""}>${source}</option>`).join("")}</select></label>
+                <label class="field"><span>Linked Trains</span><input class="input" value="${escapeHtml(trains)}" data-command-request="${row.id}" data-field="linkedTrains"></label>
+                <label class="field" style="grid-column:1/-1;"><span>Meal Categories</span><div class="check-grid">${mealSlots.map((slot) => `<label class="check-pill"><input type="checkbox" value="${escapeHtml(slot)}" data-command-request-meal="${row.id}" ${slots.includes(slot) ? "checked" : ""}> ${escapeHtml(slot)}</label>`).join("")}</div></label>
+                <label class="field" style="grid-column:1/-1;"><span>Product Detail</span><textarea class="textarea" data-command-request="${row.id}" data-field="description">${escapeHtml(row.description || "")}</textarea></label>
+                <label class="field" style="grid-column:1/-1;"><span>Replace Product Image (optional)</span><input class="input" type="file" accept="image/*" data-command-request-image="${row.id}"></label>
+              </div>
+              <div class="row wrap" style="margin-top:10px;">
+                <button class="btn" data-save-command-catalog="${row.id}"><i data-lucide="save"></i> ${needsResubmit ? "Save & Resend Request" : "Save Changes"}</button>
+                <button class="btn danger" data-withdraw-command-catalog="${row.id}"><i data-lucide="trash-2"></i> Withdraw Request</button>
+              </div>` : `<div class="ack" style="margin-top:10px;">${requestStatus === "approved" ? "Approved and published. This request is locked." : "This request is no longer editable."}</div>`}
+          </div>`;
+        }).join("") || `<div class="empty">No Rake Manager catalog approval request yet.</div>`;
+        lucide.createIcons();
+      }
+
+      $("commandCatalogRequestList").addEventListener("click", async (event) => {
+        const save = event.target.closest("[data-save-command-catalog]");
+        const withdraw = event.target.closest("[data-withdraw-command-catalog]");
+        if (save) {
+          const row = rakeCatalogRequests.find((entry) => entry.id === save.dataset.saveCommandCatalog);
+          if (!row) return;
+          const field = (name) => document.querySelector(`[data-command-request="${row.id}"][data-field="${name}"]`)?.value || "";
+          const slots = [...document.querySelectorAll(`[data-command-request-meal="${row.id}"]:checked`)].map((box) => box.value);
+          if (!slots.length) return toast("Choose at least one meal category.");
+          const linkedTrains = catalogBulkList(field("linkedTrains"), ["All"]);
+          const replacementImage = await compressImage(document.querySelector(`[data-command-request-image="${row.id}"]`)?.files?.[0], 520, 0.7);
+          const nextStatus = ["returned", "rejected"].includes(String(row.status || "").toLowerCase()) ? "resubmitted" : String(row.status || "pending").toLowerCase();
+          const payload = {
+            name: field("name"), category: slots[0], mealSlots: slots,
+            sellingPrice: Number(field("sellingPrice") || 0), price: Number(field("sellingPrice") || 0),
+            costPrice: Number(field("costPrice") || 0), stockQty: Number(field("stockQty") || 0),
+            type: field("type") || "veg", cuisine: field("cuisine") || "North Indian", source: field("source") || "pantry",
+            linkedTrains, linkedTrain: linkedTrains.includes("All") ? "All" : linkedTrains.join(", "),
+            description: field("description"), status: nextStatus, senderEditedAt: FieldValue.serverTimestamp(),
+            resubmittedAt: nextStatus === "resubmitted" ? FieldValue.serverTimestamp() : (row.resubmittedAt || null)
+          };
+          if (replacementImage) payload.itemImage = replacementImage;
+          await compatUpdate(row, "catalogRequests", payload);
+          toast(nextStatus === "resubmitted" ? "Catalog request corrected and resent to Control Tower." : "Pending catalog request updated.");
+        }
+        if (withdraw) {
+          const row = rakeCatalogRequests.find((entry) => entry.id === withdraw.dataset.withdrawCommandCatalog);
+          if (!row || !confirm("Withdraw this catalog request?")) return;
+          await compatUpdate(row, "catalogRequests", { status: "withdrawn", withdrawnAt: FieldValue.serverTimestamp() });
+          toast("Catalog request withdrawn.");
         }
       });
 
@@ -1909,37 +2015,70 @@
         event.preventDefault();
         const form = event.currentTarget;
         const data = getForm(form);
-        await db.collection("systemSettings").doc(`adminUser__${data.email.trim().toLowerCase()}`).set({
-          type: "adminUser",
-          email: data.email.trim().toLowerCase(),
-          name: data.name,
-          password: data.password,
-          role: data.role,
-          access: data.access || "",
-          accessScope: data.accessScope || "all",
-          accessValue: data.accessScope === "all" ? "" : String(data.accessValue || "").trim(),
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        form.reset();
-        toast("Admin user saved.");
+        const email = data.email.trim().toLowerCase();
+        if (!data.password || data.password.length < 8) return toast("Initial password must contain at least 8 characters.");
+        setSubmitState(form, "saving", "Creating secure account...");
+        let registrationApp = null;
+        let credential = null;
+        let profileSaved = false;
+        try {
+          registrationApp = firebase.initializeApp(firebase.app().options, `command-staff-registration-${Date.now()}`);
+          credential = await registrationApp.auth().createUserWithEmailAndPassword(email, data.password);
+          await db.collection("adminUsers").doc(credential.user.uid).set({
+            uid: credential.user.uid,
+            authUid: credential.user.uid,
+            authProvider: "firebase-password",
+            email,
+            name: data.name,
+            role: data.role,
+            access: data.access || "",
+            allowedApps: String(data.access || "").split(",").map((value) => value.trim()).filter(Boolean),
+            accessScope: data.accessScope || "all",
+            accessValue: data.accessScope === "all" ? "" : String(data.accessValue || "").trim(),
+            permissionLevel: "read-write",
+            canRead: true,
+            canWrite: true,
+            canApprove: ["admin", "control-tower"].includes(String(data.role || "").toLowerCase()),
+            active: true,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          profileSaved = true;
+          await registrationApp.auth().signOut();
+          await registrationApp.delete();
+          registrationApp = null;
+          form.reset();
+          finishSubmitState(form, "User Created");
+          toast("Secure Firebase staff account created.");
+        } catch (error) {
+          if (!profileSaved && credential?.user) await credential.user.delete().catch(() => {});
+          if (registrationApp) await registrationApp.delete().catch(() => {});
+          setSubmitState(form, "idle");
+          toast(`Account creation failed: ${error.code || error.message}`);
+        }
       });
 
       function renderAdminUsers() {
-        $("adminUserList").innerHTML = adminUsers.map((user) => `
+        const secureRows = accessUsers.map((user) => ({ ...user, identitySource: "firebase" }));
+        const secureEmails = new Set(secureRows.map((user) => String(user.email || "").toLowerCase()));
+        const legacyRows = adminUsers.filter((user) => !secureEmails.has(String(user.email || "").toLowerCase())).map((user) => ({ ...user, identitySource: "legacy" }));
+        $("adminUserList").innerHTML = [...secureRows, ...legacyRows].map((user) => `
           <div class="item">
             <div class="row between"><h3>${escapeHtml(user.email)}</h3><span class="badge info">${escapeHtml(user.role || "viewer")}</span></div>
             <p>${escapeHtml(user.name || "")}</p>
+            <p><b>Identity:</b> ${user.identitySource === "firebase" ? "Firebase UID linked" : "Legacy migration required"}</p>
             <p>Page access: ${escapeHtml(user.access || "")} | Scope: ${escapeHtml(user.accessScope || "all")} ${user.accessValue ? `- ${escapeHtml(user.accessValue)}` : ""}</p>
-            <button class="btn danger" data-delete-admin-user="${escapeHtml(user.id)}"><i data-lucide="trash-2"></i> Delete</button>
+            <button class="btn danger" data-disable-admin-user="${escapeHtml(user.identitySource)}:${escapeHtml(user.id)}"><i data-lucide="ban"></i> Disable Access</button>
           </div>`).join("") || `<div class="empty">No admin user created yet.</div>`;
         lucide.createIcons();
       }
 
       $("adminUserList").addEventListener("click", async (event) => {
-        const del = event.target.closest("[data-delete-admin-user]");
-        if (!del || !confirm("Delete this admin user?")) return;
-        await db.collection("systemSettings").doc(del.dataset.deleteAdminUser).delete();
-        toast("Admin user deleted.");
+        const disable = event.target.closest("[data-disable-admin-user]");
+        if (!disable || !confirm("Disable this user's application access?")) return;
+        const [source, id] = disable.dataset.disableAdminUser.split(":");
+        await db.collection(source === "firebase" ? "adminUsers" : "systemSettings").doc(id).update({ active: false, updatedAt: FieldValue.serverTimestamp() });
+        toast("Application access disabled. Firebase Authentication removal remains a Super Admin console task.");
       });
 
       async function collectCollection(name) {
@@ -2047,6 +2186,10 @@
         deliveryPartners = rows;
         if (deliveryAssignOrderId) renderDeliveryAssignList();
       }, "updatedAt", "desc", 250);
+      onLiveCompat("catalogRequests", "catalogRequest", (rows) => {
+        rakeCatalogRequests = rows;
+        renderCommandCatalogRequests();
+      }, "createdAt", "desc", 300);
       onLive("indents", (rows) => { indents = rows; renderIndents(); }, "createdAt", "desc", 200);
       onLive("invoices", (rows) => { invoices = rows; renderInvoices(); }, "createdAt", "desc", 200);
       onLive("cashPurchases", (rows) => { cashPurchases = rows; renderPurchases(); }, "createdAt", "desc", 200);
@@ -2074,6 +2217,7 @@
       });
       onLive("adminUsers", (rows) => {
         accessUsers = rows;
+        renderAdminUsers();
       }, "email", "asc", 300);
       renderPendingIndentItems();
     });
