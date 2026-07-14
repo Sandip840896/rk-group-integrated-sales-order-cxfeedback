@@ -10,11 +10,26 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script defer src="rk-common.js?v=20260713-identity2"></script>
+  <script defer src="rk-common.js?v=20260713-secure-auth1"></script>
 </head>
 <body>
   <main class="main stack">
+    <section class="panel pad" id="centralSecureLoginPanel">
+      <div class="section-title">
+        <div><h2 id="centralSecureLoginTitle">Central Command Secure Login</h2><p id="centralSecureLoginHint">Sign in with an approved Firebase account.</p></div>
+        <span class="badge warn" id="centralSecureLoginBadge">not logged in</span>
+      </div>
+      <div class="row mobile-stack">
+        <input class="input grow" id="centralSecureLoginEmail" type="email" placeholder="email id" autocomplete="username">
+        <input class="input grow" id="centralSecureLoginPassword" type="password" placeholder="password" autocomplete="current-password">
+        <button class="btn" id="centralSecureLoginBtn" type="button"><i data-lucide="log-in"></i> Login</button>
+        <button class="btn secondary hidden" id="centralSecureLogoutBtn" type="button"><i data-lucide="log-out"></i> Logout</button>
+      </div>
+    </section>
+
+    <div class="stack hidden" id="centralSecureContent">
     <div class="grid four">
       <div class="metric"><b id="kOrders">0</b><span>Total customer orders</span></div>
       <div class="metric"><b id="kSales">Rs 0</b><span>Gross sales</span></div>
@@ -68,12 +83,97 @@
       <div class="section-title"><div><h2>Password Reset Requests</h2><p>Admin can reset the linked account password, contact the user manually, and close the request.</p></div></div>
       <div id="adminPasswordResetQueue" class="list"></div>
     </section>
+    </div>
   </main>
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
       appHeader("Meals On Wheels Central Command", "Management dashboard, margin model and ecosystem control");
       lucide.createIcons();
+
+      await new Promise((resolve) => {
+        let accessGranted = false;
+
+        function showLoggedOut(message = "Sign in with an approved Firebase account.") {
+          $("centralSecureLoginTitle").textContent = "Central Command Secure Login";
+          $("centralSecureLoginHint").textContent = message;
+          $("centralSecureLoginBadge").textContent = "not logged in";
+          $("centralSecureLoginEmail").classList.remove("hidden");
+          $("centralSecureLoginPassword").classList.remove("hidden");
+          $("centralSecureLoginBtn").classList.remove("hidden");
+          $("centralSecureLogoutBtn").classList.add("hidden");
+          $("centralSecureContent").classList.add("hidden");
+        }
+
+        function grantAccess(authUser, profile) {
+          if (accessGranted) return;
+          accessGranted = true;
+          $("centralSecureLoginTitle").textContent = "Meals On Wheels Central Command";
+          $("centralSecureLoginHint").textContent = `Secure session active for ${profile.name || authUser.email}.`;
+          $("centralSecureLoginBadge").textContent = `${authUser.email} | ${profile.role}`;
+          $("centralSecureLoginEmail").classList.add("hidden");
+          $("centralSecureLoginPassword").classList.add("hidden");
+          $("centralSecureLoginBtn").classList.add("hidden");
+          $("centralSecureLogoutBtn").classList.remove("hidden");
+          $("centralSecureContent").classList.remove("hidden");
+          resolve();
+        }
+
+        async function verifyAndGrant(authUser) {
+          const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
+          const profile = snapshot.exists ? snapshot.data() : null;
+          const role = String(profile?.role || "").toLowerCase();
+          const allowedApps = Array.isArray(profile?.allowedApps)
+            ? profile.allowedApps
+            : String(profile?.access || "").split(",").map((value) => value.trim()).filter(Boolean);
+          const roleAllowed = ["super-admin", "admin", "central-command"].includes(role);
+          const appAllowed = role === "super-admin" || allowedApps.includes("all") || allowedApps.includes("central-command");
+          if (!profile || profile.active !== true || !roleAllowed || !appAllowed) {
+            await firebase.auth().signOut();
+            showLoggedOut("This account does not have active Central Command access.");
+            return false;
+          }
+          grantAccess(authUser, { ...profile, role, allowedApps });
+          return true;
+        }
+
+        async function login() {
+          const email = $("centralSecureLoginEmail").value.trim().toLowerCase();
+          const password = $("centralSecureLoginPassword").value;
+          if (!email || !password) return toast("Enter your email ID and password.");
+          $("centralSecureLoginBtn").disabled = true;
+          try {
+            const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+            await verifyAndGrant(credential.user);
+            $("centralSecureLoginPassword").value = "";
+          } catch (error) {
+            const code = String(error?.code || "unknown-error").replace(/^auth\//, "");
+            showLoggedOut(`Secure login failed: ${code}.`);
+            toast(`Secure login failed: ${code}.`);
+          } finally {
+            $("centralSecureLoginBtn").disabled = false;
+          }
+        }
+
+        $("centralSecureLoginBtn").addEventListener("click", login);
+        $("centralSecureLoginPassword").addEventListener("keydown", (event) => {
+          if (event.key === "Enter") login();
+        });
+        $("centralSecureLogoutBtn").addEventListener("click", async () => {
+          await firebase.auth().signOut();
+          window.location.reload();
+        });
+        firebase.auth().onAuthStateChanged(async (authUser) => {
+          if (!authUser) return showLoggedOut();
+          try {
+            await verifyAndGrant(authUser);
+          } catch (error) {
+            await firebase.auth().signOut();
+            showLoggedOut("Unable to verify Central Command access.");
+          }
+        });
+      });
+
       await ensureSeedData();
 
       const state = {
