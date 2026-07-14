@@ -70,6 +70,18 @@ service cloud.firestore {
       allow read, create, update: if true;
       allow delete: if false;
     }
+    match /supplierPaymentSettings/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /trainRoutes/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /trainRakeQRCodes/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
     match /systemSettings/{docId} {
       allow read, create, update: if true;
       allow delete: if false;
