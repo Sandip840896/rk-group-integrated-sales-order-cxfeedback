@@ -33,6 +33,10 @@
         <button class="btn secondary" id="rakeForgotPasswordBtn" type="button"><i data-lucide="key-round"></i> Forgot Password</button>
         <button class="btn secondary hidden" id="logoutBtn"><i data-lucide="log-out"></i> Logout</button>
       </div>
+      <div class="ack success hidden" id="loginAccessAssignment" style="margin-top:12px;">
+        <div class="row between wrap"><b><i data-lucide="train-front"></i> Assigned Access</b><span class="badge info" id="loginPermissionBadge">read-write</span></div>
+        <p id="loginAccessAssignmentText" style="margin:8px 0 0;">No assignment loaded.</p>
+      </div>
     </section>
 
     <div class="management-shell hidden" id="managementShell">
@@ -453,10 +457,29 @@
         $("rakeForgotPasswordBtn").classList.toggle("hidden", isLoggedIn);
         $("logoutBtn").classList.toggle("hidden", !isLoggedIn);
         $("managementShell").classList.toggle("hidden", !isLoggedIn);
+        renderLoginAccessAssignment();
         $("superAdminTabBtn").classList.toggle("hidden", !isSuper);
         if (!isSuper && document.querySelector("[data-tab-panel='super']") && !document.querySelector("[data-tab-panel='super']").classList.contains("hidden")) {
           showTab("overview");
         }
+      }
+
+      function renderLoginAccessAssignment() {
+        const panel = $("loginAccessAssignment");
+        if (!panel) return;
+        panel.classList.toggle("hidden", !currentUser);
+        if (!currentUser) return;
+        const scope = String(currentUser.accessScope || "all").toLowerCase();
+        const value = String(currentUser.accessValue || "").trim();
+        const matchedTrain = value ? trainMasters.find((train) => trainMatches(train.trainNumber || train.id, value)) : null;
+        const trainName = matchedTrain?.trainName ? ` - ${matchedTrain.trainName}` : "";
+        const yardName = matchedTrain?.yardName ? ` | Yard ${matchedTrain.yardName}` : "";
+        const scopeLabel = scope === "train" ? "Train" : scope === "train-rake" ? "Train / Rake" : scope === "yard" ? "Yard" : scope === "basekitchen" ? "Base Kitchen" : "All operations";
+        $("loginAccessAssignmentText").innerHTML = currentUser.role === "super-admin"
+          ? `<b>All applications and all operational records</b> | Super Admin`
+          : `<b>${escapeHtml(scopeLabel)}:</b> ${escapeHtml(value || "Not assigned")}${escapeHtml(trainName)}${escapeHtml(yardName)} | <b>Role:</b> ${escapeHtml(currentUser.role || "viewer")}`;
+        $("loginPermissionBadge").textContent = currentUser.permissionLevel || "read-write";
+        lucide.createIcons();
       }
 
       function commandAccessSession(authUser, profile) {
@@ -2202,6 +2225,7 @@
       onLive("menuItems", (rows) => { menuItems = rows.sort((a, b) => String(a.name).localeCompare(String(b.name))); renderIndentItemSelect(); renderMenuAdmin(); renderStaffSaleItemSelect(); }, "name", "asc", 300);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        renderLoginAccessAssignment();
         renderTrainSelects();
         renderTrainAdmin();
         renderOrders();
