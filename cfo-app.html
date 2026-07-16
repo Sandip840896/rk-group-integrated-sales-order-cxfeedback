@@ -17,7 +17,7 @@
 <body class="cfo-body">
   <main class="main stack" id="cfoSecureGate">
     <section class="panel pad stack" style="max-width:760px;margin:8vh auto 0">
-      <div class="section-title"><div><h2>CFO Secure Access</h2><p>Finance information loads only after Firebase verifies an active CFO or Super Admin account.</p></div><span class="badge warn" id="cfoLoginBadge">not logged in</span></div>
+      <div class="section-title"><div><h2>CFO Secure Access</h2><p>Finance information loads only after Firebase verifies an explicitly authorized finance, Admin or Super Admin account.</p></div><span class="badge warn" id="cfoLoginBadge">not logged in</span></div>
       <div class="row wrap">
         <input class="input grow" id="cfoLoginEmail" type="email" placeholder="Approved email ID" autocomplete="username">
         <input class="input grow" id="cfoLoginPassword" type="password" placeholder="Password" autocomplete="current-password">
@@ -76,8 +76,13 @@
       const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
       const profile = snapshot.exists ? snapshot.data() : null;
       const role = String(profile?.role || "").toLowerCase();
-      if (!profile || profile.active !== true || !["cfo", "super-admin"].includes(role)) return null;
-      return { uid: authUser.uid, email: authUser.email, ...profile, role };
+      const allowedApps = Array.isArray(profile?.allowedApps)
+        ? profile.allowedApps.map((app) => String(app).toLowerCase())
+        : String(profile?.access || "").split(",").map((app) => app.trim().toLowerCase()).filter(Boolean);
+      const roleAllowed = ["cfo", "admin", "super-admin"].includes(role);
+      const appAllowed = role === "super-admin" || role === "cfo" || allowedApps.includes("all") || allowedApps.includes("cfo-app");
+      if (!profile || profile.active !== true || !roleAllowed || !appAllowed) return null;
+      return { uid: authUser.uid, email: authUser.email, ...profile, role, allowedApps };
     }
     const cfoAuthorization = new Promise((resolve) => {
       let resolved = false;

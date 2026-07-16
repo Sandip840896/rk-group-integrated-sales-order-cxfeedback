@@ -124,6 +124,7 @@
     window.addEventListener("DOMContentLoaded", async () => {
       appHeader("Meals On Wheels Admin Console", "Staff ID, password and rights management");
       lucide.createIcons();
+      let currentAdminAccessProfile = null;
 
       await new Promise((resolve) => {
         let accessGranted = false;
@@ -142,6 +143,7 @@
         function grantAccess(authUser, profile) {
           if (accessGranted) return;
           accessGranted = true;
+          currentAdminAccessProfile = { uid: authUser.uid, email: authUser.email, ...profile };
           $("adminSecureLoginTitle").textContent = "Meals On Wheels Admin Console";
           $("adminSecureLoginHint").textContent = `Secure session active for ${profile.name || authUser.email}.`;
           $("adminSecureLoginBadge").textContent = `${authUser.email} | ${profile.role}`;
@@ -156,7 +158,12 @@
         async function verifyAndGrant(authUser) {
           const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
           const profile = snapshot.exists ? snapshot.data() : null;
-          if (!profile || profile.active !== true || profile.role !== "super-admin") {
+          const role = String(profile?.role || "").toLowerCase();
+          const allowedApps = Array.isArray(profile?.allowedApps)
+            ? profile.allowedApps.map((app) => String(app).toLowerCase())
+            : String(profile?.access || "").split(",").map((app) => app.trim().toLowerCase()).filter(Boolean);
+          const consoleAllowed = role === "super-admin" || (role === "admin" && (allowedApps.includes("admin-app") || allowedApps.includes("all")));
+          if (!profile || profile.active !== true || !consoleAllowed) {
             await firebase.auth().signOut();
             showLoggedOut("This account does not have active Admin Console access.");
             return false;
@@ -212,7 +219,9 @@
         ["delivery-app", "Delivery App"],
         ["partner-app", "Partner App"],
         ["central-command", "Central Command"],
-        ["qr-code-app", "QR Creator"]
+        ["qr-code-app", "QR Creator"],
+        ["cfo-app", "CFO App"],
+        ["admin-app", "Admin Console"]
       ];
       const defaultsByRole = {
         "rake-manager": ["command-center"],
@@ -221,7 +230,7 @@
         "control-tower": ["control-tower"],
         "delivery-supervisor": ["delivery-app", "command-center"],
         viewer: ["central-command"],
-        admin: appOptions.map(([id]) => id)
+        admin: appOptions.map(([id]) => id).filter((id) => id !== "admin-app")
       };
       let users = [];
       let trainMasters = [];
@@ -259,6 +268,14 @@
 
       let editingUserId = "";
 
+      function isSuperAdminSession() {
+        return String(currentAdminAccessProfile?.role || "").toLowerCase() === "super-admin";
+      }
+
+      function protectedAdminTarget(user) {
+        return ["admin", "super-admin"].includes(String(user?.role || "").toLowerCase());
+      }
+
       function renderUsers() {
         $("adminUserAccessList").innerHTML = users.map((user) => `
           <div class="item">
@@ -287,6 +304,10 @@
         delete data.password;
         const allowedApps = selectedApps();
         if (!allowedApps.length) return toast("Select at least one allowed app.");
+        const existingTarget = users.find((user) => user.id === editingUserId);
+        if (!isSuperAdminSession() && (protectedAdminTarget(existingTarget) || data.role === "admin" || allowedApps.includes("admin-app"))) {
+          return toast("Only Super Admin can create or modify Admin Console access.");
+        }
         if (data.role === "rake-manager") {
           data.accessScope = "train";
           data.accessValue = $("adminTrainSelect").value || data.accessValue || "";
@@ -362,6 +383,7 @@
         const migrate = event.target.closest("[data-migrate-admin-user]");
         if (migrate) {
           const user = users.find((row) => row.id === migrate.dataset.migrateAdminUser);
+          if (!isSuperAdminSession() && protectedAdminTarget(user)) return toast("Only Super Admin can migrate an administrator account.");
           const passwordInput = document.querySelector(`[data-migration-password="${migrate.dataset.migrateAdminUser}"]`);
           const temporaryPassword = passwordInput?.value || "";
           if (!user?.email) return toast("This legacy record has no valid email ID.");
@@ -411,6 +433,7 @@
         if (edit) {
           const user = users.find((row) => row.id === edit.dataset.editAdminUser);
           if (!user) return;
+          if (!isSuperAdminSession() && protectedAdminTarget(user)) return toast("Only Super Admin can edit an administrator account.");
           editingUserId = user.id;
           const form = $("adminAccessForm");
           form.email.value = user.email || "";
@@ -429,6 +452,8 @@
           form.scrollIntoView({ behavior: "smooth", block: "start" });
         }
         if (disable) {
+          const user = users.find((row) => row.id === disable.dataset.disableAdminUser);
+          if (!isSuperAdminSession() && protectedAdminTarget(user)) return toast("Only Super Admin can disable an administrator account.");
           await db.collection("adminUsers").doc(disable.dataset.disableAdminUser).update({
             active: false,
             updatedAt: FieldValue.serverTimestamp()
