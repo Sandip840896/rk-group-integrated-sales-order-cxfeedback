@@ -316,10 +316,13 @@
         const email = String(data.email || "").trim().toLowerCase();
         const phone = cleanPhone(data.phone || "");
         if (phone.length !== 10) return toast("Enter a valid unique 10 digit mobile number.");
-        try {
-          await assertUniqueRegistrationPhone(phone, { userType: data.role || "staff", recordId: editingUserId || "" });
-        } catch (error) {
-          return toast(error.message);
+        const phoneUnchanged = Boolean(editingUserId && existingTarget && cleanPhone(existingTarget.phone || "") === phone);
+        if (!phoneUnchanged) {
+          try {
+            await assertUniqueRegistrationPhone(phone, { userType: data.role || "staff", recordId: editingUserId || "" });
+          } catch (error) {
+            return toast(error.message);
+          }
         }
         setSubmitState(form, "saving", "Saving...");
         let registrationApp = null;
