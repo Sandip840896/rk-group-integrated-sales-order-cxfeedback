@@ -113,6 +113,7 @@
           <label class="field"><span>Delivery Charge Below Minimum</span><input class="input" name="deliveryChargeBelowMin" type="number" value="20"></label>
           <label class="field"><span>Processing Charge</span><input class="input" name="processingCharge" type="number" value="20"></label>
           <label class="field"><span>High Demand Charge</span><input class="input" name="highDemandCharge" type="number" value="0"></label>
+          <label class="field"><span>Maximum Total Cart Quantity</span><input class="input" name="maxTotalCartQty" type="number" min="1" value="20"></label>
           <label class="field"><span>Coupon Code</span><input class="input" name="couponCode" placeholder="MOW5"></label>
           <label class="field"><span>Coupon Type</span><select class="select" name="couponType"><option value="percent">Percent</option><option value="flat">Flat Amount</option></select></label>
           <label class="field"><span>Coupon Value</span><input class="input" name="couponValue" type="number" value="5"></label>
@@ -255,6 +256,7 @@
         });
       });
 
+      applyPageRightsToTabs(secureProfile, "control-tower", "catalog");
       await ensureSeedData();
 
       let requests = [];
@@ -311,9 +313,27 @@
         return [...merged.values()].sort((a, b) => String(a.trainNumber || a.id).localeCompare(String(b.trainNumber || b.id), undefined, { numeric: true }));
       }
 
+      function supplierStationPayload(req) {
+        const directStation = req.station || req.stationName || req.nearestStation || req.nearestStationName || req.supplierStation || req.baseKitchenStation || req.partnerStation || req.city || "";
+        const directCode = req.stationCode || req.nearestStationCode || req.supplierStationCode || "";
+        if (directStation || directCode) return { station: directStation, stationCode: directCode };
+        const ids = [req.supplierId, req.baseKitchenId, req.partnerId].map((value) => String(value || "")).filter(Boolean);
+        const phones = [req.supplierPhone, req.partnerPhone, req.phone].map(cleanPhone).filter(Boolean);
+        const supplier = [...kitchens, ...partners].find((row) => {
+          if (ids.some((id) => [row.id, row.supplierId, row.baseKitchenId, row.partnerId].some((value) => String(value || "") === id))) return true;
+          if (phones.some((phone) => [row.phone, row.supplierPhone, row.partnerPhone].some((value) => cleanPhone(value) === phone))) return true;
+          return false;
+        });
+        return {
+          station: supplier?.station || supplier?.nearestStation || supplier?.nearestStationName || supplier?.stationName || supplier?.city || "",
+          stationCode: supplier?.stationCode || supplier?.nearestStationCode || ""
+        };
+      }
+
       function requestPayload(req) {
         const sell = Number(req.sellingPrice || req.price || 0);
         const cost = Number(req.costPrice || 0);
+        const supplierStation = supplierStationPayload(req);
         return {
           name: req.name,
           category: req.category || (req.mealSlots || [])[0] || "Other",
@@ -333,6 +353,11 @@
           supplierName: req.supplierName || req.baseKitchenName || req.partnerName || "",
           supplierPhone: req.supplierPhone || req.partnerPhone || req.phone || "",
           partnerPhone: String(req.source || req.sourceType || "").toLowerCase().includes("partner") ? req.supplierPhone || req.partnerPhone || req.phone || "" : "",
+          station: supplierStation.station,
+          stationName: supplierStation.station,
+          nearestStation: supplierStation.station,
+          supplierStation: supplierStation.station,
+          stationCode: supplierStation.stationCode,
           linkedTrain: req.linkedTrain || "",
           linkedTrains: req.linkedTrains?.length ? req.linkedTrains : String(req.linkedTrain || "All").split(",").map((value) => value.trim()).filter(Boolean),
           approvedAt: FieldValue.serverTimestamp(),
@@ -368,6 +393,7 @@
           supplierName: requestValue(req, "supplierName") || req.supplierName || req.baseKitchenName || req.partnerName || req.supplierPhone || "",
           supplierPhone: req.supplierPhone || req.partnerPhone || req.phone || "",
           partnerPhone: String(req.source || req.sourceType || "").toLowerCase().includes("partner") ? req.supplierPhone || req.partnerPhone || req.phone || "" : "",
+          ...supplierStationPayload(req),
           sourceType: req.sourceType || req.source || "base kitchen",
           source: req.source || req.sourceType || "base kitchen",
           itemImage: req.itemImage || ""
@@ -671,12 +697,13 @@
         $("marketingForm").deliveryChargeBelowMin.value = Number(row.deliveryChargeBelowMin || 20);
         $("marketingForm").processingCharge.value = Number(row.processingCharge || 20);
         $("marketingForm").highDemandCharge.value = Number(row.highDemandCharge || 0);
+        $("marketingForm").maxTotalCartQty.value = Number(row.maxTotalCartQty || 20);
         renderMarketingTrainPicker();
         const coupons = row.coupons || [];
         $("marketingList").innerHTML = `
           <div class="item">
             <div class="row between"><h3>Cart Charges</h3><span class="badge info">${marketingSelectedTrains.size ? `${marketingSelectedTrains.size} trains` : "all trains"}</span></div>
-            <p>Free delivery above ${money(row.freeDeliveryMin || 150)} | Delivery ${money(row.deliveryChargeBelowMin || 20)} | Processing ${money(row.processingCharge || 20)} | High demand ${money(row.highDemandCharge || 0)}</p>
+            <p>Free delivery above ${money(row.freeDeliveryMin || 150)} | Delivery ${money(row.deliveryChargeBelowMin || 20)} | Processing ${money(row.processingCharge || 20)} | High demand ${money(row.highDemandCharge || 0)} | Max total qty ${Number(row.maxTotalCartQty || 20)}</p>
             ${marketingSelectedTrains.size ? `<p><b>Selected trains:</b> ${[...marketingSelectedTrains].map(escapeHtml).join(", ")}</p>` : `<p><b>Selected trains:</b> All train master records</p>`}
             <p><b>Coupons:</b> ${coupons.map((coupon) => `${escapeHtml(coupon.code)} ${coupon.type === "percent" ? `${coupon.value}%` : money(coupon.value)} ${coupon.active === false ? "(inactive)" : ""}`).join(", ") || "No coupon configured"}</p>
           </div>`;
@@ -1045,13 +1072,15 @@
           deliveryChargeBelowMin: Number(data.deliveryChargeBelowMin || 20),
           processingCharge: Number(data.processingCharge || 20),
           highDemandCharge: Number(data.highDemandCharge || 0),
+          maxTotalCartQty: Math.max(1, Number(data.maxTotalCartQty || 20)),
           coupons: coupon ? [coupon] : [],
           trainConfigs: selectedTrains.map((train) => ({
             train,
             freeDeliveryMin: Number(data.freeDeliveryMin || 150),
             deliveryChargeBelowMin: Number(data.deliveryChargeBelowMin || 20),
             processingCharge: Number(data.processingCharge || 20),
-            highDemandCharge: Number(data.highDemandCharge || 0)
+            highDemandCharge: Number(data.highDemandCharge || 0),
+            maxTotalCartQty: Math.max(1, Number(data.maxTotalCartQty || 20))
           })),
           updatedAt: FieldValue.serverTimestamp()
         };

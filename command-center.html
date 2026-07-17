@@ -96,6 +96,17 @@
         <button class="btn secondary" id="refreshOrdersBtn"><i data-lucide="refresh-cw"></i> Refresh</button>
       </div>
       <label class="field"><span>Show Orders For Train</span><select class="select" id="commandTrainFilter"></select></label>
+      <div class="row wrap" id="orderStatusTabs">
+        <button class="tab-btn active" type="button" data-order-filter="pending">🔴 Pending to Accept <span class="tab-badge" data-order-count="pending">0</span></button>
+        <button class="tab-btn" type="button" data-order-filter="preparing">🟡 Preparing <span class="tab-badge" data-order-count="preparing">0</span></button>
+        <button class="tab-btn" type="button" data-order-filter="out">🚚 Out for Delivery <span class="tab-badge" data-order-count="out">0</span></button>
+        <button class="tab-btn" type="button" data-order-filter="breached">⚠️ Breached <span class="tab-badge" data-order-count="breached">0</span></button>
+        <button class="tab-btn" type="button" data-order-filter="pantry">🍽️ Pending at Pantry <span class="tab-badge" data-order-count="pantry">0</span></button>
+        <button class="tab-btn" type="button" data-order-filter="delivered">✅ Delivered <span class="tab-badge" data-order-count="delivered">0</span></button>
+        <button class="tab-btn" type="button" data-order-filter="cancelled">❌ Cancelled <span class="tab-badge" data-order-count="cancelled">0</span></button>
+        <button class="tab-btn" type="button" data-order-filter="all">📦 All Orders <span class="tab-badge" data-order-count="all">0</span></button>
+      </div>
+      <label class="check-pill"><input type="checkbox" id="orderSoundEnabled" checked> Audible alert for new orders</label>
       <div id="ordersList" class="list"></div>
     </section>
 
@@ -427,6 +438,10 @@
       let trainMasterSearchTerm = "";
       let deliveryAssignOrderId = "";
       let deliveryAssignSearchTerm = "";
+      let deliveryAssignMode = "assign";
+      let deliveryReassignReason = "";
+      let activeOrderFilter = "pending";
+      const highlightedNewOrderIds = new Set();
       let menuMasterSearchTerm = "";
       let kitchenMasterSearchTerm = "";
       let adminUsers = [];
@@ -549,7 +564,11 @@
         sessionStorage.setItem("rkCurrentUser", JSON.stringify(currentUser));
         $("loginPassword").value = "";
         updateLoginUi();
+        applyPageRightsToTabs(currentUser, "command-center", "orders");
         refreshAccessViews();
+        activeOrderFilter = "pending";
+        document.querySelectorAll("[data-order-filter]").forEach((tab) => tab.classList.toggle("active", tab.dataset.orderFilter === "pending"));
+        if (canAccessAppPage(currentUser, "command-center", "orders")) showTab("orders");
         toast(`Logged in as ${currentUser.role}.`);
       });
       $("rakeForgotPasswordBtn").addEventListener("click", () => openPasswordResetRequest("rake-manager"));
@@ -577,7 +596,10 @@
           currentUser = secureSession;
           sessionStorage.setItem("rkCurrentUser", JSON.stringify(currentUser));
           updateLoginUi();
+          applyPageRightsToTabs(currentUser, "command-center", "orders");
           refreshAccessViews();
+          activeOrderFilter = "pending";
+          if (canAccessAppPage(currentUser, "command-center", "orders")) showTab("orders");
         } catch (error) {
           await firebase.auth().signOut();
         }
@@ -825,8 +847,13 @@
         const orderStatus = String(order.status || "new").toLowerCase();
         const canMove = !["cancelled", "delivered"].includes(orderStatus);
         const canCancel = canCommandCancelCustomerOrder(order);
-        return `<div class="item">
+        const breached = orderIsBreached(order);
+        const highlighted = orderStatus === "new";
+        const canReassign = Boolean(order.assignedRiderPhone || order.deliveryPersonPhone) && canMove;
+        return `<div class="item ${breached ? "urgent-item" : ""}" style="${highlighted ? "box-shadow:0 0 0 3px rgba(220,38,38,.28);background:#fff7ed;" : ""}">
           <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status)}</div>
+          ${highlighted ? `<div class="ack danger-soft"><b>New order:</b> Awaiting acknowledgement and acceptance.</div>` : ""}
+          ${breached ? `<div class="ack danger-soft"><b>SLA breached:</b> Immediate action required.</div>` : ""}
           <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")} | Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
           ${order.rakeNumber || order.qrId ? `<p><b>QR Context:</b> Rake ${escapeHtml(order.rakeNumber || "")}${order.qrId ? ` | ${escapeHtml(order.qrId)}` : ""}${order.rakeManagerPhone ? ` | Manager ${escapeHtml(order.rakeManagerPhone)}` : ""}</p>` : ""}
           ${order.deliveryWindow ? `<p><b>Delivery Slot:</b> ${escapeHtml(order.deliveryWindow.replace("-", " to "))}</p>` : ""}
@@ -835,6 +862,7 @@
           <p><b>Payment:</b> ${escapeHtml(order.paymentMode || "COD")} | ${escapeHtml(order.paymentStatus || "cash-on-delivery")}</p>
           <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${line.qty}`).join(", ")} | ${money(order.total)}</p>
           ${order.deliveryPersonName ? `<p><b>Delivery:</b> ${escapeHtml(order.deliveryPersonName)} | ${escapeHtml(order.deliveryPersonPhone || "")}</p>` : ""}
+          ${canReassign ? `<button class="btn secondary" data-reassign-rider="${order.id}"><i data-lucide="refresh-cw"></i> Reassign Rider</button>` : ""}
           ${order.cancelReason ? `<p><b>Cancel reason:</b> ${escapeHtml(order.cancelReason)}</p>` : ""}
           ${canMove ? `<div class="row wrap" style="margin-top:10px;">
             ${["accepted", "preparing", "delivered"].map((status) => `<button class="btn secondary" data-order-status="${status}" data-id="${order.id}">${status}</button>`).join("")}
@@ -844,11 +872,44 @@
         </div>`;
       }
 
+      function orderIsBreached(order) {
+        const status = String(order.status || "new").toLowerCase();
+        if (["delivered", "cancelled"].includes(status)) return false;
+        const deadline = deliveryDeadlineMillis(order);
+        if (deadline && deadline < Date.now()) return true;
+        return status === "new" && timestampMillis(order.createdAt) > 0 && Date.now() - timestampMillis(order.createdAt) > 10 * 60000;
+      }
+
+      function orderBucket(order) {
+        const status = String(order.status || "new").toLowerCase();
+        if (orderIsBreached(order)) return "breached";
+        if (status === "new") return "pending";
+        if (["accepted", "preparing"].includes(status)) return "preparing";
+        if (status === "out-for-delivery") return "out";
+        if (status === "delivered") return "delivered";
+        if (status === "cancelled") return "cancelled";
+        if (["restaurant-accepted", "restaurant-preparing", "restaurant-handover", "supplier-ready-for-rider", "supplier-rider-assigned", "supplier-rider-accepted", "supplier-delivered-to-rake"].includes(status)) return "pantry";
+        return "preparing";
+      }
+
+      function orderPriority(order) {
+        const status = String(order.status || "new").toLowerCase();
+        if (status === "new") return 0;
+        if (["accepted", "preparing", "restaurant-accepted", "restaurant-preparing", "restaurant-handover", "supplier-ready-for-rider", "supplier-rider-assigned", "supplier-rider-accepted", "supplier-delivered-to-rake"].includes(status)) return 1;
+        if (status === "out-for-delivery") return 2;
+        return 3;
+      }
+
       function renderOrders() {
         const trainFilter = $("commandTrainFilter")?.value || "all";
         const accessOrders = visibleOrdersForAccess();
-        const directOrders = accessOrders.filter((order) => !orderHasRestaurantSource(order));
-        const visibleOrders = trainFilter === "all" ? directOrders : directOrders.filter((order) => trainMatches(order.train, trainFilter));
+        const trainOrders = trainFilter === "all" ? accessOrders : accessOrders.filter((order) => trainMatches(order.train, trainFilter));
+        const counts = { pending: 0, preparing: 0, out: 0, breached: 0, pantry: 0, delivered: 0, cancelled: 0, all: trainOrders.length };
+        trainOrders.forEach((order) => { counts[orderBucket(order)] += 1; });
+        document.querySelectorAll("[data-order-count]").forEach((badge) => { badge.textContent = counts[badge.dataset.orderCount] || 0; });
+        const visibleOrders = trainOrders
+          .filter((order) => activeOrderFilter === "all" || orderBucket(order) === activeOrderFilter)
+          .sort((a, b) => orderPriority(a) - orderPriority(b) || timestampMillis(b.createdAt) - timestampMillis(a.createdAt));
         $("ordersList").innerHTML = visibleOrders.map(orderCard).join("") || `<div class="empty">No live customer order for this train.</div>`;
         updateOrderClocks();
         renderMetrics();
@@ -856,6 +917,10 @@
       }
 
       setInterval(updateOrderClocks, 1000);
+      setInterval(renderOrders, 30000);
+      setInterval(() => {
+        if (deliveryAssignOrderId && !$("deliveryAssignModal").classList.contains("hidden")) renderDeliveryAssignList();
+      }, 30000);
 
       function restaurantHandoverCard(order) {
         const status = String(order.status || "new").toLowerCase();
@@ -929,6 +994,37 @@
         return false;
       }
 
+      function riderLastSeenMillis(rider) {
+        return timestampMillis(rider.lastSeenAt || rider.lastSeen || rider.updatedAt);
+      }
+
+      function riderActiveOrders(rider) {
+        const phone = cleanPhone(rider.phone || rider.id);
+        return orders.filter((order) =>
+          [order.assignedRiderPhone, order.deliveryPersonPhone, order.supplierDispatchRiderPhone].some((value) => cleanPhone(value) === phone)
+          && !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())
+          && order.id !== deliveryAssignOrderId
+        );
+      }
+
+      function riderAvailability(rider) {
+        const lastSeenMs = riderLastSeenMillis(rider);
+        const connected = Boolean(rider.loggedIn) && lastSeenMs > 0 && Date.now() - lastSeenMs <= 2 * 60000;
+        const activeOrders = riderActiveOrders(rider).length;
+        const capacity = Math.max(1, Number(rider.deliveryCapacity || rider.capacity || 1));
+        if (!connected) return { key: "not-logged-in", label: "⚫ Not Logged In", available: false, activeOrders, lastSeenMs };
+        if (!rider.online) return { key: "offline", label: "🟡 Logged In but Offline", available: false, activeOrders, lastSeenMs };
+        if (!rider.gpsSharing) return { key: "gps-off", label: "🔴 Offline · GPS Off", available: false, activeOrders, lastSeenMs };
+        if (activeOrders >= capacity) return { key: "busy", label: "🔵 Busy", available: false, activeOrders, lastSeenMs };
+        return { key: "available", label: "🟢 Available", available: true, activeOrders, lastSeenMs };
+      }
+
+      function riderLastSeenText(ms) {
+        if (!ms) return "Never active";
+        const minutes = Math.max(0, Math.floor((Date.now() - ms) / 60000));
+        return minutes < 1 ? "Active now" : `Last active ${minutes} min${minutes === 1 ? "" : "s"} ago`;
+      }
+
       function renderDeliveryAssignList() {
         const order = orders.find((entry) => entry.id === deliveryAssignOrderId);
         if (!order) {
@@ -938,25 +1034,32 @@
         const query = deliveryAssignSearchTerm.toLowerCase().trim();
         const riders = deliveryPartners
           .filter((rider) => riderMatchesOrder(rider, order))
-          .filter((rider) => `${rider.name || ""} ${rider.phone || ""} ${rider.assignmentLabel || ""} ${rider.baseKitchenName || ""} ${rider.partnerName || ""} ${rider.train || ""}`.toLowerCase().includes(query));
-        $("deliveryAssignHint").textContent = `${order.orderNo || order.id} | Train ${order.train || ""}${order.trainName ? ` - ${order.trainName}` : ""}`;
-        $("deliveryAssignList").innerHTML = riders.map((rider) => `
+          .filter((rider) => `${rider.name || ""} ${rider.phone || ""} ${rider.assignmentLabel || ""} ${rider.baseKitchenName || ""} ${rider.partnerName || ""} ${rider.train || ""}`.toLowerCase().includes(query))
+          .sort((a, b) => Number(riderAvailability(b).available) - Number(riderAvailability(a).available));
+        $("deliveryAssignHint").textContent = `${deliveryAssignMode === "reassign" ? "Reassign" : "Assign"} ${order.orderNo || order.id} | Train ${order.train || ""}${order.trainName ? ` - ${order.trainName}` : ""}`;
+        $("deliveryAssignList").innerHTML = riders.map((rider) => {
+          const availability = riderAvailability(rider);
+          return `
           <div class="item">
             <div class="row between">
               <div>
                 <h3>${escapeHtml(rider.name || rider.phone || rider.id)}</h3>
                 <p>${escapeHtml(rider.phone || "")} | ${escapeHtml(rider.roleLabel || rider.assignmentType || "Delivery person")}</p>
                 <p>${escapeHtml(rider.assignmentLabel || rider.baseKitchenName || rider.partnerName || rider.train || "")}${rider.rakeNumber ? ` | Rake ${escapeHtml(rider.rakeNumber)}` : ""}</p>
+                <p>${escapeHtml(riderLastSeenText(availability.lastSeenMs))} | Active orders ${availability.activeOrders}/${Math.max(1, Number(rider.deliveryCapacity || rider.capacity || 1))} | GPS ${rider.gpsSharing ? "on" : "off"}${rider.batteryLevel != null ? ` | Battery ${Number(rider.batteryLevel)}%` : ""}</p>
               </div>
-              <span class="badge ok">available</span>
+              <span class="badge ${availability.available ? "ok" : "warn"}">${escapeHtml(availability.label)}</span>
             </div>
-            <button class="btn" data-choose-delivery-rider="${escapeHtml(rider.id)}"><i data-lucide="check"></i> Assign This Rider</button>
-          </div>`).join("") || `<div class="empty danger-soft">No approved delivery person found for this order mapping. Ask rider to register/login for the same train, base kitchen or RK Partner and get Control Tower approval.</div>`;
+            <button class="btn" data-choose-delivery-rider="${escapeHtml(rider.id)}" ${availability.available ? "" : "disabled"}><i data-lucide="check"></i> ${deliveryAssignMode === "reassign" ? "Reassign to Rider" : "Assign This Rider"}</button>
+          </div>`;
+        }).join("") || `<div class="empty danger-soft">No mapped rider found. A rider must be approved and mapped to the same train/rake (and station where applicable).</div>`;
         lucide.createIcons();
       }
 
-      function openDeliveryAssign(orderId) {
+      function openDeliveryAssign(orderId, mode = "assign", reason = "") {
         deliveryAssignOrderId = orderId;
+        deliveryAssignMode = mode;
+        deliveryReassignReason = reason;
         deliveryAssignSearchTerm = "";
         $("deliveryAssignSearch").value = "";
         renderDeliveryAssignList();
@@ -967,9 +1070,18 @@
         const order = orders.find((entry) => entry.id === deliveryAssignOrderId);
         const rider = deliveryPartners.find((entry) => entry.id === riderId);
         if (!order || !rider) return toast("Select a valid order and rider.");
+        if (!riderMatchesOrder(rider, order) || !riderAvailability(rider).available) {
+          renderDeliveryAssignList();
+          return toast("This rider is no longer online, GPS-enabled, mapped, or within capacity.");
+        }
         const phone = cleanPhone(rider.phone || rider.id);
+        const previousPhone = cleanPhone(order.assignedRiderPhone || order.deliveryPersonPhone);
+        const previousName = order.assignedRiderName || order.deliveryPersonName || "";
+        const isReassignment = deliveryAssignMode === "reassign" && Boolean(previousPhone);
+        if (isReassignment && previousPhone === phone) return toast("Choose a different rider for reassignment.");
         const deliveryOtp = order.deliveryOtp || String(Math.floor(100000 + Math.random() * 900000));
-        await db.collection("customerOrders").doc(order.id).update({
+        const nowIso = new Date().toISOString();
+        const payload = {
           status: "out-for-delivery",
           deliveryPersonName: rider.name || "",
           deliveryPersonPhone: phone,
@@ -982,16 +1094,42 @@
           deliveryOtpStatus: "active",
           deliveryStartedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
-          statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: new Date().toISOString(), note: `Delivery assigned to ${rider.name || phone}. OTP released to customer app.` })
+          statusLog: FieldValue.arrayUnion({ status: "out-for-delivery", at: nowIso, note: `${isReassignment ? `Reassigned from ${previousName || previousPhone} to` : "Delivery assigned to"} ${rider.name || phone}. ${deliveryReassignReason || "OTP released to customer app."}` })
+        };
+        if (isReassignment) {
+          payload.reassignmentHistory = FieldValue.arrayUnion({
+            previousRider: previousName, previousRiderPhone: previousPhone,
+            newRider: rider.name || "", newRiderPhone: phone,
+            reassignedAt: nowIso,
+            reassignedBy: currentUser?.name || currentUser?.email || "Rake Manager",
+            reason: deliveryReassignReason
+          });
+          payload.lastReassignedAt = FieldValue.serverTimestamp();
+          payload.lastReassignedBy = currentUser?.name || currentUser?.email || "Rake Manager";
+          payload.lastReassignmentReason = deliveryReassignReason;
+        }
+        const batch = db.batch();
+        batch.update(db.collection("customerOrders").doc(order.id), payload);
+        const notification = { orderId: order.id, orderNo: order.orderNo || order.id, at: nowIso };
+        batch.update(db.collection(rider.compatSource === "systemSettings" ? "systemSettings" : "deliveryPartners").doc(rider.id), {
+          assignmentNotifications: FieldValue.arrayUnion({ ...notification, type: isReassignment ? "reassigned-to-you" : "assigned", message: `Order ${order.orderNo || order.id} assigned to you.` })
         });
+        if (isReassignment) {
+          const previousRider = deliveryPartners.find((entry) => cleanPhone(entry.phone || entry.id) === previousPhone);
+          if (previousRider) batch.update(db.collection(previousRider.compatSource === "systemSettings" ? "systemSettings" : "deliveryPartners").doc(previousRider.id), {
+            assignmentNotifications: FieldValue.arrayUnion({ ...notification, type: "unassigned", message: `You were reassigned off order ${order.orderNo || order.id}. Reason: ${deliveryReassignReason}` })
+          });
+        }
+        await batch.commit();
         $("deliveryAssignModal").classList.add("hidden");
-        toast("Delivery assigned and OTP visible to customer.");
+        toast(isReassignment ? "Rider reassigned and both riders notified." : "Delivery assigned and OTP visible to customer.");
       }
 
       async function handleCustomerOrderAction(event) {
         const btn = event.target.closest("[data-order-status]");
         const cancel = event.target.closest("[data-cancel-customer-order]");
         const initDelivery = event.target.closest("[data-init-delivery]");
+        const reassign = event.target.closest("[data-reassign-rider]");
         if (btn) {
           const payload = {
             status: btn.dataset.orderStatus,
@@ -1001,12 +1139,20 @@
           if (btn.dataset.orderStatus === "accepted") {
             payload.acceptedAt = FieldValue.serverTimestamp();
             payload.acceptedBy = currentUser?.name || currentUser?.email || "Rake Manager";
+            highlightedNewOrderIds.delete(btn.dataset.id);
           }
           await db.collection("customerOrders").doc(btn.dataset.id).update(payload);
           toast("Order status updated.");
         }
         if (initDelivery) {
-          openDeliveryAssign(initDelivery.dataset.initDelivery);
+          openDeliveryAssign(initDelivery.dataset.initDelivery, "assign");
+        }
+        if (reassign) {
+          const order = orders.find((entry) => entry.id === reassign.dataset.reassignRider);
+          if (!order || ["delivered", "cancelled"].includes(String(order.status || "").toLowerCase())) return toast("This order cannot be reassigned.");
+          const reason = prompt("Reason for rider reassignment", "Manual reassignment by Rake Manager.");
+          if (!reason) return;
+          openDeliveryAssign(order.id, "reassign", reason.trim());
         }
         if (cancel) {
           const order = orders.find((entry) => entry.id === cancel.dataset.cancelCustomerOrder);
@@ -1025,6 +1171,17 @@
       $("recentOrders").addEventListener("click", handleCustomerOrderAction);
       $("restaurantHandoverList").addEventListener("click", handleCustomerOrderAction);
       $("commandTrainFilter").addEventListener("change", renderOrders);
+      $("orderStatusTabs").addEventListener("click", (event) => {
+        const tab = event.target.closest("[data-order-filter]");
+        if (!tab) return;
+        activeOrderFilter = tab.dataset.orderFilter;
+        document.querySelectorAll("[data-order-filter]").forEach((button) => button.classList.toggle("active", button === tab));
+        renderOrders();
+      });
+      $("orderSoundEnabled").checked = localStorage.getItem("rkRakeOrderSound") !== "off";
+      $("orderSoundEnabled").addEventListener("change", (event) => {
+        localStorage.setItem("rkRakeOrderSound", event.target.checked ? "on" : "off");
+      });
       $("closeDeliveryAssignBtn").addEventListener("click", () => $("deliveryAssignModal").classList.add("hidden"));
       $("deliveryAssignSearch").addEventListener("input", (event) => {
         deliveryAssignSearchTerm = event.target.value || "";
@@ -2194,7 +2351,12 @@
 
       onLive("customerOrders", (rows) => {
         const incoming = rows.filter((row) => !seenOrders.has(row.id));
-        if (seenOrders.size && incoming.length) playBuzz(`${incoming.length} new customer order received.`);
+        if (seenOrders.size && incoming.length) {
+          incoming.forEach((order) => highlightedNewOrderIds.add(order.id));
+          const message = `${incoming.length} new customer order${incoming.length === 1 ? "" : "s"} received.`;
+          if ($("orderSoundEnabled").checked) playBuzz(message);
+          else toast(message);
+        }
         seenOrders = new Set(rows.map((row) => row.id));
         orders = rows;
         renderOrders();

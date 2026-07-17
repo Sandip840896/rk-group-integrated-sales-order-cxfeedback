@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="rk-app.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script defer src="rk-common.js"></script>
   <style>
@@ -263,7 +264,22 @@
   </style>
 </head>
 <body class="super-body">
-  <div class="super-shell">
+  <main class="page-shell" id="superSecureGate">
+    <section class="panel pad stack" style="max-width:720px;margin:8vh auto 0">
+      <div class="section-title">
+        <div><h2>Super Admin Security Check</h2><p>Sign in with the approved Firebase Super Admin account. No console data loads before UID and role verification.</p></div>
+        <span class="badge warn" id="superSecureBadge">not logged in</span>
+      </div>
+      <div class="row wrap">
+        <input class="input grow" id="superSecureEmail" type="email" placeholder="Super Admin email" autocomplete="username">
+        <input class="input grow" id="superSecurePassword" type="password" placeholder="Password" autocomplete="current-password">
+        <button class="btn" id="superSecureLoginBtn" type="button"><i data-lucide="log-in"></i> Secure Login</button>
+      </div>
+      <div class="notice hidden" id="superSecureMessage"></div>
+    </section>
+  </main>
+
+  <div class="super-shell hidden" id="superSecureContent">
     <header class="super-topbar">
       <div class="super-topbar-inner">
         <div class="brand">
@@ -274,8 +290,10 @@
           </div>
         </div>
         <div class="row wrap">
+          <span class="badge success" id="superSecureIdentity">verified super-admin</span>
           <span class="badge info" id="cloudBadge">checking cloud</span>
           <button class="btn secondary" id="syncBtn"><i data-lucide="refresh-cw"></i> Force Sync</button>
+          <button class="btn danger" id="superSecureLogoutBtn" type="button"><i data-lucide="log-out"></i> Logout</button>
         </div>
       </div>
     </header>
@@ -501,7 +519,79 @@
   </div>
 
   <script>
-    window.addEventListener("DOMContentLoaded", () => {
+    window.addEventListener("DOMContentLoaded", async () => {
+      const secureGate = document.getElementById("superSecureGate");
+      const secureContent = document.getElementById("superSecureContent");
+      const secureBadge = document.getElementById("superSecureBadge");
+      const secureMessage = document.getElementById("superSecureMessage");
+      const secureEmail = document.getElementById("superSecureEmail");
+      const securePassword = document.getElementById("superSecurePassword");
+      const secureLoginBtn = document.getElementById("superSecureLoginBtn");
+
+      function showSecureMessage(message, kind = "danger") {
+        secureMessage.textContent = message;
+        secureMessage.className = `notice ${kind}`;
+      }
+
+      async function verifySuperAdmin(authUser) {
+        if (!authUser) return null;
+        const snapshot = await db.collection("adminUsers").doc(authUser.uid).get();
+        const profile = snapshot.exists ? snapshot.data() : null;
+        if (!profile || profile.active !== true || profile.role !== "super-admin") return null;
+        return { uid: authUser.uid, email: authUser.email, ...profile };
+      }
+
+      const authorization = new Promise((resolve) => {
+        let resolved = false;
+        async function accept(authUser) {
+          try {
+            const profile = await verifySuperAdmin(authUser);
+            if (!profile) {
+              if (authUser) await firebase.auth().signOut();
+              secureGate.classList.remove("hidden");
+              secureContent.classList.add("hidden");
+              secureBadge.textContent = "not authorized";
+              secureBadge.className = "badge danger";
+              return;
+            }
+            secureGate.classList.add("hidden");
+            secureContent.classList.remove("hidden");
+            document.getElementById("superSecureIdentity").textContent = `${profile.email} | super-admin`;
+            if (!resolved) { resolved = true; resolve(profile); }
+          } catch (error) {
+            showSecureMessage(`Security verification failed: ${error.code || error.message}`);
+          }
+        }
+        firebase.auth().onAuthStateChanged(accept);
+        secureLoginBtn.addEventListener("click", async () => {
+          const email = secureEmail.value.trim().toLowerCase();
+          const password = securePassword.value;
+          if (!email || !password) return showSecureMessage("Enter your Super Admin email and password.");
+          secureLoginBtn.disabled = true;
+          try {
+            const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+            const profile = await verifySuperAdmin(credential.user);
+            if (!profile) throw new Error("This Firebase account is not an active Super Admin.");
+            securePassword.value = "";
+            await accept(credential.user);
+          } catch (error) {
+            await firebase.auth().signOut().catch(() => {});
+            showSecureMessage(`Login failed: ${error.code || error.message}`);
+          } finally {
+            secureLoginBtn.disabled = false;
+          }
+        });
+        securePassword.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") secureLoginBtn.click();
+        });
+      });
+
+      await authorization;
+      document.getElementById("superSecureLogoutBtn").addEventListener("click", async () => {
+        await firebase.auth().signOut();
+        window.location.reload();
+      });
+
       const apps = [
         { id: "index", name: "Main Launcher", file: "index.html", area: "Suite", collections: [] },
         { id: "customer", name: "Customer App", file: "customer-app.html", area: "Passenger", collections: ["customerOrders", "feedbacks", "stockInterests"] },

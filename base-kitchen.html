@@ -14,6 +14,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="rk-common.js?v=20260714-bulk-catalog1"></script>
+  <script defer src="route-master-data.js"></script>
 </head>
 <body>
   <main class="main supplier-portal">
@@ -128,7 +129,8 @@
           <label class="field"><span>Cuisine</span><select class="select" name="cuisine" id="bkCatalogCuisine"></select></label>
           <div class="field"><span>Linked Trains</span>
             <input class="input" id="bkCatalogTrainSearch" type="search" placeholder="Search train number, name or yard">
-            <label class="check-pill"><input type="checkbox" id="bkCatalogAllTrains" checked> All Trains</label>
+            <label class="check-pill"><input type="checkbox" id="bkCatalogAllTrains"> Select All Eligible Trains</label>
+            <small id="bkCatalogTrainHelp">Only trains halting at this kitchen's station for at least 4 minutes are shown.</small>
             <div id="bkCatalogTrainPicker" class="picker-list"></div>
           </div>
           <label class="field"><span>Product Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
@@ -185,6 +187,7 @@
 
       let kitchens = [];
       let bkSession = JSON.parse(sessionStorage.getItem("rkBaseKitchenSession") || "null");
+      if (bkSession?.managementAccess) applyPageRightsToTabs(bkSession, "base-kitchen", "incoming");
       let activeKitchenId = bkSession?.id || "";
       let indents = [];
       let invoices = [];
@@ -193,6 +196,8 @@
       let feedbacks = [];
       let deliveryPartners = [];
       let trainMasters = [];
+      let trainRoutes = [];
+      const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
       const bkCatalogSelectedTrains = new Set();
       let pendingInvoiceIndentId = "";
       let bkRiderMode = "invoice";
@@ -205,15 +210,26 @@
 
       function renderBkCatalogTrainPicker() {
         const query = $("bkCatalogTrainSearch").value.trim().toLowerCase();
-        const rows = trainMasters
-          .filter((train) => train.active !== false)
+        const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
+        const station = catalogStationValue(kitchen);
+        const eligible = eligibleCatalogTrains(station, trainRoutes, trainMasters, indianRailRoutes);
+        const eligibleNumbers = new Set(eligible.map((train) => train.trainNumber));
+        [...bkCatalogSelectedTrains].forEach((number) => {
+          if (!eligibleNumbers.has(number)) bkCatalogSelectedTrains.delete(number);
+        });
+        const rows = eligible
           .filter((train) => `${train.trainNumber || train.id || ""} ${train.trainName || ""} ${train.yardName || ""}`.toLowerCase().includes(query))
           .slice(0, 100);
+        $("bkCatalogAllTrains").disabled = !eligible.length;
+        $("bkCatalogAllTrains").checked = Boolean(eligible.length) && bkCatalogSelectedTrains.size === eligible.length;
+        $("bkCatalogTrainHelp").textContent = station
+          ? `${eligible.length} eligible train(s) at ${station}. Minimum scheduled halt: 4 minutes.`
+          : "This base kitchen has no station configured. Update its station before cataloging.";
         $("bkCatalogTrainPicker").innerHTML = rows.map((train) => {
           const value = String(train.trainNumber || train.id || "");
           const label = `${value}${train.trainName ? ` - ${train.trainName}` : ""}${train.yardName ? ` | ${train.yardName}` : ""}`;
-          return `<label class="check-pill"><input type="checkbox" data-bk-catalog-train="${escapeHtml(value)}" ${bkCatalogSelectedTrains.has(value) ? "checked" : ""}> ${escapeHtml(label)}</label>`;
-        }).join("") || `<div class="empty">No train found in Train Master.</div>`;
+          return `<label class="check-pill"><input type="checkbox" data-bk-catalog-train="${escapeHtml(value)}" ${bkCatalogSelectedTrains.has(value) ? "checked" : ""}> ${escapeHtml(label)} · ${train.haltMinutes} min halt</label>`;
+        }).join("") || `<div class="empty">No eligible train found for this station and search.</div>`;
       }
 
       db.collection("baseKitchens").orderBy("name").onSnapshot((snapshot) => {
@@ -289,11 +305,13 @@
               authUid: credential.user.uid,
               authMode: "firebase-management",
               managementAccess: true,
-              role
+              role,
+              pageRights: admin.pageRights || {}
             };
             sessionStorage.setItem("rkBaseKitchenSession", JSON.stringify(bkSession));
             $("bkLoginPassword").value = "";
             renderKitchenAccess();
+            applyPageRightsToTabs(bkSession, "base-kitchen", "incoming");
             showKitchenLoginMessage(`Management session opened for ${kitchen.name || kitchen.id}.`, "success");
             renderAll();
             return;
@@ -986,9 +1004,8 @@
         const data = getForm(form);
         const selectedMealSlots = [...form.querySelectorAll("[name='mealSlots']:checked")].map((box) => box.value);
         if (!selectedMealSlots.length) return toast("Choose at least one meal category.");
-        const allTrains = $("bkCatalogAllTrains").checked;
-        const linkedTrains = allTrains ? ["All"] : [...bkCatalogSelectedTrains];
-        if (!linkedTrains.length) return toast("Choose at least one train or select All Trains.");
+        const linkedTrains = [...bkCatalogSelectedTrains];
+        if (!linkedTrains.length) return toast("Choose at least one eligible train.");
         const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
         setSubmitState(form, "saving", "Submitting...");
         try {
@@ -1002,7 +1019,7 @@
           sellingPrice: Number(data.sellingPrice || 0),
           costPrice: Number(data.costPrice || 0),
           stockQty: Number(data.stockQty || 0),
-          linkedTrain: allTrains ? "All" : linkedTrains.join(", "),
+          linkedTrain: linkedTrains.join(", "),
           linkedTrains,
           description: data.description || "",
           itemImage: image,
@@ -1019,7 +1036,6 @@
         form.reset();
         document.querySelectorAll("#bkCatalogCategories [name='mealSlots']").forEach((box, index) => { box.checked = index === 0; });
         bkCatalogSelectedTrains.clear();
-        $("bkCatalogAllTrains").checked = true;
         renderBkCatalogTrainPicker();
         finishSubmitState(form, "Submitted");
         toast("Product sent to Control Tower for approval.");
@@ -1051,7 +1067,15 @@
               const costPrice = Number(row.costPrice);
               if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error("invalid sellingPrice");
               if (!Number.isFinite(costPrice) || costPrice < 0) throw new Error("invalid costPrice");
-              const linkedTrains = catalogBulkList(row.linkedTrains, ["All"]);
+              const requestedTrains = catalogBulkList(row.linkedTrains, ["All"]);
+              const station = catalogStationValue(kitchen);
+              const eligibleNumbers = eligibleCatalogTrains(station, trainRoutes, trainMasters, indianRailRoutes).map((train) => train.trainNumber);
+              const linkedTrains = requestedTrains.includes("All")
+                ? eligibleNumbers
+                : requestedTrains.filter((number) => eligibleNumbers.includes(number));
+              if (!linkedTrains.length || linkedTrains.length !== (requestedTrains.includes("All") ? eligibleNumbers.length : requestedTrains.length)) {
+                throw new Error("Linked trains must halt at the base-kitchen station for at least 4 minutes.");
+              }
               const image = await catalogBulkImage(row, images);
               await compatAdd("catalogRequests", "catalogRequest", {
                 name: row.itemName, category: mealSlots[0], mealSlots,
@@ -1083,7 +1107,11 @@
 
       $("bkCatalogTrainSearch").addEventListener("input", renderBkCatalogTrainPicker);
       $("bkCatalogAllTrains").addEventListener("change", () => {
-        if ($("bkCatalogAllTrains").checked) bkCatalogSelectedTrains.clear();
+        const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
+        const station = catalogStationValue(kitchen);
+        const eligible = eligibleCatalogTrains(station, trainRoutes, trainMasters, indianRailRoutes);
+        bkCatalogSelectedTrains.clear();
+        if ($("bkCatalogAllTrains").checked) eligible.forEach((train) => bkCatalogSelectedTrains.add(train.trainNumber));
         renderBkCatalogTrainPicker();
       });
       $("bkCatalogTrainPicker").addEventListener("change", (event) => {
@@ -1091,7 +1119,6 @@
         if (!box) return;
         if (box.checked) bkCatalogSelectedTrains.add(box.dataset.bkCatalogTrain);
         else bkCatalogSelectedTrains.delete(box.dataset.bkCatalogTrain);
-        $("bkCatalogAllTrains").checked = bkCatalogSelectedTrains.size === 0;
         renderBkCatalogTrainPicker();
       });
 
@@ -1145,7 +1172,16 @@
           const field = (name) => document.querySelector(`[data-bk-request="${row.id}"][data-field="${name}"]`)?.value || "";
           const slots = [...document.querySelectorAll(`[data-bk-request-meal="${row.id}"]:checked`)].map((box) => box.value);
           if (!slots.length) return toast("Choose at least one meal category.");
-          const linkedTrains = catalogBulkList(field("linkedTrains"), ["All"]);
+          const requestedTrains = catalogBulkList(field("linkedTrains"), ["All"]);
+          const kitchen = kitchens.find((entry) => entry.id === activeKitchenId);
+          const station = catalogStationValue(kitchen);
+          const eligibleNumbers = eligibleCatalogTrains(station, trainRoutes, trainMasters, indianRailRoutes).map((train) => train.trainNumber);
+          const linkedTrains = requestedTrains.includes("All")
+            ? eligibleNumbers
+            : requestedTrains.filter((number) => eligibleNumbers.includes(number));
+          if (!linkedTrains.length || linkedTrains.length !== (requestedTrains.includes("All") ? eligibleNumbers.length : requestedTrains.length)) {
+            return toast("Every linked train must halt at this station for at least 4 minutes.");
+          }
           const replacementImage = await compressImage(document.querySelector(`[data-bk-request-image="${row.id}"]`)?.files?.[0], 520, 0.7);
           const nextStatus = ["returned", "rejected"].includes(String(row.status || "").toLowerCase()) ? "resubmitted" : String(row.status || "pending").toLowerCase();
           const payload = {
@@ -1158,7 +1194,7 @@
             cuisine: field("cuisine") || "North Indian",
             type: field("type") || "veg",
             linkedTrains,
-            linkedTrain: linkedTrains.includes("All") ? "All" : linkedTrains.join(", "),
+            linkedTrain: linkedTrains.join(", "),
             description: field("description"),
             status: nextStatus,
             senderEditedAt: FieldValue.serverTimestamp(),
@@ -1256,6 +1292,7 @@
       onLive("feedbacks", (rows) => { feedbacks = rows; renderAll(); }, "timestamp", "desc", 250);
       onLiveCompat("catalogRequests", "catalogRequest", (rows) => { catalogRequests = rows; renderAll(); }, "createdAt", "desc", 250);
       onLive("trainMasters", (rows) => { trainMasters = rows; renderBkCatalogTrainPicker(); }, "trainNumber", "asc", 300);
+      onLive("trainRoutes", (rows) => { trainRoutes = rows; renderBkCatalogTrainPicker(); }, "updatedAt", "desc", 300);
     });
   </script>
 </body>

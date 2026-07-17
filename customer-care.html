@@ -45,6 +45,19 @@
       <button class="tab-btn" data-tab="complaints"><i data-lucide="messages-square"></i> Complaints <span class="tab-badge hidden" id="careComplaintBadge">0</span></button>
     </div>
 
+    <section class="panel pad care-filter-panel">
+      <div class="section-title">
+        <div><h2>Order Filters</h2><p>Filter the complete customer-care order feed by order date, yard, train number or train name.</p></div>
+        <button class="btn secondary" id="careClearFilters" type="button"><i data-lucide="rotate-ccw"></i> Clear</button>
+      </div>
+      <div class="grid three">
+        <label class="field"><span>Order Date</span><input class="input" id="careDateFilter" type="date"></label>
+        <label class="field"><span>Yard</span><select class="select" id="careYardFilter"><option value="">All yards</option></select></label>
+        <label class="field"><span>Train Number / Name</span><input class="input" id="careTrainFilter" type="search" placeholder="e.g. 12859 or Gitanjali Express"></label>
+      </div>
+      <div class="muted-text" id="careFilterSummary">Showing all orders</div>
+    </section>
+
     <section class="panel pad stack" data-tab-panel="dashboard">
       <div class="section-title"><div><h2>Escalation Board</h2><p>Unaccepted orders and unattended complaints buzz here for customer care action.</p></div></div>
       <div id="careEscalationList" class="list"></div>
@@ -77,6 +90,7 @@
       let feedbacks = [];
       let currentUser = null;
       let seenEscalations = new Set();
+      const careFilters = { date: "", yard: "", train: "" };
 
       function isLoggedIn() {
         return Boolean(currentUser);
@@ -140,6 +154,33 @@
         return `${source} | ${order.baseKitchenName || order.supplierName || "Rake manager / pantry"}`;
       }
 
+      function orderCreatedDate(order) {
+        const value = order.createdAt;
+        const date = value?.toDate ? value.toDate() : value ? new Date(value) : null;
+        return date && !Number.isNaN(date.getTime()) ? date : null;
+      }
+
+      function filteredOrders() {
+        const trainQuery = careFilters.train.trim().toLowerCase();
+        return orders.filter((order) => {
+          const created = orderCreatedDate(order);
+          const dateMatches = !careFilters.date || (created && created.toLocaleDateString("en-CA") === careFilters.date);
+          const yardMatches = !careFilters.yard || String(order.yardName || "").toLowerCase() === careFilters.yard.toLowerCase();
+          const trainText = `${order.train || ""} ${order.trainName || ""}`.toLowerCase();
+          return dateMatches && yardMatches && (!trainQuery || trainText.includes(trainQuery));
+        });
+      }
+
+      function renderFilterOptions() {
+        const select = $("careYardFilter");
+        const yards = [...new Set(orders.map((order) => String(order.yardName || "").trim()).filter(Boolean))]
+          .sort((a, b) => a.localeCompare(b));
+        const current = careFilters.yard;
+        select.innerHTML = `<option value="">All yards</option>${yards.map((yard) => `<option value="${escapeHtml(yard)}">${escapeHtml(yard)}</option>`).join("")}`;
+        select.value = yards.includes(current) ? current : "";
+        if (current && !yards.includes(current)) careFilters.yard = "";
+      }
+
       function renderMetrics() {
         const openOrders = orders.filter((order) => !["delivered", "cancelled"].includes(String(order.status || "").toLowerCase()));
         const openComplaints = feedbacks.filter((fb) => !["resolved", "closed"].includes(String(fb.status || "").toLowerCase()));
@@ -170,10 +211,11 @@
       }
 
       function orderCard(order) {
-        return `<div class="item ${orderEscalated(order) ? "urgent-item" : ""}">
-          <div class="row between"><h3>${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
+        const isNew = String(order.status || "").toLowerCase() === "new";
+        return `<div class="item ${orderEscalated(order) ? "urgent-item" : ""} ${isNew ? "care-new-order" : ""}">
+          <div class="row between"><h3>${isNew ? `<span class="care-new-label">NEW</span> ` : ""}${escapeHtml(order.orderNo || order.id)}</h3>${statusBadge(order.status || "new")}</div>
           <p>${escapeHtml(order.customer?.name || "")} | ${escapeHtml(order.customer?.phone || "")} | PNR ${escapeHtml(order.pnr || order.customer?.pnr || "")}</p>
-          <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
+          <p>Train ${escapeHtml(order.train || "")}${order.trainName ? ` - ${escapeHtml(order.trainName)}` : ""} | Yard ${escapeHtml(order.yardName || "Not assigned")} | ${escapeHtml(order.coach || "")}/${escapeHtml(order.seat || "")}</p>
           <p><b>Source:</b> ${escapeHtml(supplierText(order))} | <b>Slot:</b> ${escapeHtml(order.deliveryWindow || "")}</p>
           <p>${(order.items || []).map((line) => `${escapeHtml(line.name)} x ${Number(line.qty || 0)}`).join(", ")} | ${money(order.total)}</p>
           ${orderEscalated(order) ? `<div class="ack danger-soft" style="margin-top:10px;">Order not accepted within 10 minutes. Customer care should call/coordinate now.</div>` : ""}
@@ -185,7 +227,7 @@
       }
 
       function complaintCard(fb) {
-        return `<div class="item ${complaintEscalated(fb) ? "urgent-item" : ""}">
+        return `<div class="item ${complaintEscalated(fb) ? "urgent-item" : ""}" data-care-complaint-card="${fb.id}">
           <div class="row between"><h3>${escapeHtml(fb.ticketNo || fb.id)} | ${escapeHtml(fb.type || "feedback")} | Overall ${escapeHtml(fb.overallRating || fb.rating || "-")}/10</h3>${statusBadge(fb.status || "open")}</div>
           <p>${escapeHtml(fb.customer?.name || "")} | ${escapeHtml(fb.customer?.phone || "")} | Train ${escapeHtml(fb.customer?.train || fb.train || "")}</p>
           <p><b>Order:</b> ${escapeHtml(fb.orderNo || "General")} | <b>Nature:</b> ${escapeHtml(fb.nature || fb.category || "Feedback")}</p>
@@ -205,19 +247,36 @@
       }
 
       function render() {
+        renderFilterOptions();
         renderMetrics();
-        const incomingOrders = orders.filter((order) => String(order.status || "").toLowerCase() === "new");
+        const visibleOrders = filteredOrders();
+        const incomingOrders = visibleOrders.filter((order) => String(order.status || "").toLowerCase() === "new");
         $("careIncomingOrderList").innerHTML = incomingOrders.map(orderCard).join("") || `<div class="empty success">No incoming order waiting for action.</div>`;
-        $("careOrderList").innerHTML = orders.map(orderCard).join("") || `<div class="empty">No customer order yet.</div>`;
+        $("careOrderList").innerHTML = visibleOrders.map(orderCard).join("") || `<div class="empty">No customer order matches the selected filters.</div>`;
         $("careComplaintList").innerHTML = feedbacks.map(complaintCard).join("") || `<div class="empty">No complaint or feedback yet.</div>`;
-        const escalatedOrders = orders.filter(orderEscalated);
+        const escalatedOrders = visibleOrders.filter(orderEscalated);
         const escalatedFeedbacks = feedbacks.filter(complaintEscalated);
         $("careEscalationList").innerHTML = [
           ...escalatedOrders.map(orderCard),
           ...escalatedFeedbacks.map(complaintCard)
         ].join("") || `<div class="empty success">No escalated order or complaint right now.</div>`;
+        const activeFilterCount = [careFilters.date, careFilters.yard, careFilters.train].filter(Boolean).length;
+        $("careFilterSummary").textContent = `Showing ${visibleOrders.length} of ${orders.length} orders${activeFilterCount ? ` with ${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""}` : ""}.`;
         lucide.createIcons();
       }
+
+      $("careDateFilter").addEventListener("change", (event) => { careFilters.date = event.target.value; render(); });
+      $("careYardFilter").addEventListener("change", (event) => { careFilters.yard = event.target.value; render(); });
+      $("careTrainFilter").addEventListener("input", (event) => { careFilters.train = event.target.value; render(); });
+      $("careClearFilters").addEventListener("click", () => {
+        careFilters.date = "";
+        careFilters.yard = "";
+        careFilters.train = "";
+        $("careDateFilter").value = "";
+        $("careYardFilter").value = "";
+        $("careTrainFilter").value = "";
+        render();
+      });
 
       $("careLoginBtn").addEventListener("click", async () => {
         const email = $("careEmail").value.trim().toLowerCase();
@@ -258,9 +317,13 @@
         }
         if (save) {
           const id = save.dataset.careSaveTicket;
-          const note = document.querySelector(`[data-care-reply="${id}"]`).value.trim();
-          const status = document.querySelector(`[data-care-status="${id}"]`).value;
+          const card = save.closest("[data-care-complaint-card]");
+          const replyInput = card?.querySelector("[data-care-reply]");
+          const statusInput = card?.querySelector("[data-care-status]");
+          const note = replyInput?.value.trim() || "";
+          const status = statusInput?.value || "";
           if (!note) return toast("Write a reply before updating customer.");
+          if (!complaintStatuses.includes(status)) return toast("Select a valid complaint status.");
           const payload = {
             status,
             managerResponse: note,
@@ -272,8 +335,16 @@
             updatedAt: FieldValue.serverTimestamp()
           };
           if (["resolved", "closed"].includes(status)) payload.resolvedAt = FieldValue.serverTimestamp();
-          await db.collection("feedbacks").doc(id).update(payload);
-          toast("Customer reply updated live.");
+          save.disabled = true;
+          try {
+            await db.collection("feedbacks").doc(id).update(payload);
+            toast(`Complaint ${status === "closed" ? "closed" : "updated"} successfully.`);
+          } catch (error) {
+            console.error("Customer care complaint update failed", error);
+            toast(`Update failed: ${error.code || error.message}`);
+          } finally {
+            if (save.isConnected) save.disabled = false;
+          }
         }
       });
 
@@ -290,6 +361,7 @@
           }
           currentUser = profile;
           updateLogin();
+          applyPageRightsToTabs(currentUser, "customer-care", "dashboard");
           if (careStarted) return;
           careStarted = true;
           await ensureSeedData();

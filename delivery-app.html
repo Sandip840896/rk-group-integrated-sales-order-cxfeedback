@@ -77,6 +77,16 @@
     </section>
 
     <section class="panel pad stack hidden" data-tab-panel="orders">
+      <div class="panel pad stack soft-panel">
+        <div class="row between wrap">
+          <div><h3>Rider Availability</h3><p id="riderPresenceText">Login to publish your live availability.</p></div>
+          <label class="check-pill"><input type="checkbox" id="riderOnlineToggle"> Online for assignments</label>
+        </div>
+        <div class="row wrap">
+          <button class="btn secondary" id="enableRiderGpsBtn" type="button"><i data-lucide="map-pin"></i> Enable GPS Sharing</button>
+          <span class="badge" id="riderGpsBadge">GPS off</span>
+        </div>
+      </div>
       <div class="row mobile-stack">
         <label class="field grow"><span>Delivery Mobile</span><input class="input" id="deliveryPhone" inputmode="tel"></label>
         <button class="btn secondary" id="loadMyOrders"><i data-lucide="search"></i> Load</button>
@@ -122,7 +132,44 @@
       let deliverySessionProfile = null;
       let deliveryManagementProfile = null;
       let deliveryRegistrationMode = false;
+      let riderHeartbeatTimer = null;
       const DELIVERY_RATE = 30;
+      const RIDER_HEARTBEAT_MS = 45000;
+
+      function activeRiderProfile() {
+        return deliverySessionProfile;
+      }
+
+      async function updateRiderPresence(fields = {}) {
+        const profile = activeRiderProfile();
+        if (!profile?.id) return;
+        const payload = { ...fields, lastSeenAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+        await db.collection(profile.compatSource === "systemSettings" ? "systemSettings" : "deliveryPartners").doc(profile.id).update(payload);
+        Object.assign(profile, fields, { lastSeenLocal: new Date().toISOString() });
+        renderRiderPresence();
+      }
+
+      function renderRiderPresence() {
+        const profile = activeRiderProfile();
+        const loggedIn = Boolean(profile);
+        $("riderOnlineToggle").disabled = !loggedIn;
+        $("enableRiderGpsBtn").disabled = !loggedIn;
+        $("riderOnlineToggle").checked = Boolean(profile?.online);
+        $("riderGpsBadge").textContent = profile?.gpsSharing ? "GPS sharing" : "GPS off";
+        $("riderGpsBadge").className = profile?.gpsSharing ? "badge ok" : "badge warn";
+        $("riderPresenceText").textContent = !loggedIn
+          ? "Login to publish your live availability."
+          : profile.online && profile.gpsSharing
+            ? "Available while this app remains connected. Presence refreshes automatically."
+            : "Turn Online on and enable GPS to become assignable.";
+      }
+
+      function startRiderHeartbeat() {
+        clearInterval(riderHeartbeatTimer);
+        if (!activeRiderProfile()) return;
+        updateRiderPresence({ loggedIn: true }).catch(console.warn);
+        riderHeartbeatTimer = setInterval(() => updateRiderPresence({ loggedIn: true }).catch(console.warn), RIDER_HEARTBEAT_MS);
+      }
 
       function showDeliveryAccessMessage(message, tone = "warn") {
         $("deliveryAccessMessage").textContent = message;
@@ -154,13 +201,14 @@
           $("deliveryPhone").value = deliverySessionProfile.phone || "";
           localStorage.setItem("rkDeliveryPhone", cleanPhone(deliverySessionProfile.phone));
         }
+        renderRiderPresence();
       }
 
       async function riderProfileForAuth(authUser) {
         const snapshot = await db.collection("deliveryPartners").where("authUid", "==", authUser.uid).limit(1).get();
-        if (!snapshot.empty) return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        if (!snapshot.empty) return { id: snapshot.docs[0].id, compatSource: "deliveryPartners", ...snapshot.docs[0].data() };
         const fallback = await db.collection("systemSettings").where("type", "==", "deliveryPartner").where("authUid", "==", authUser.uid).limit(1).get();
-        return fallback.empty ? null : { id: fallback.docs[0].id, ...fallback.docs[0].data() };
+        return fallback.empty ? null : { id: fallback.docs[0].id, compatSource: "systemSettings", ...fallback.docs[0].data() };
       }
 
       async function activateDeliveryAuth(authUser) {
@@ -186,6 +234,7 @@
           deliverySessionProfile = null;
           deliveryRegistrationMode = false;
           renderDeliveryAccess();
+          applyPageRightsToTabs(deliveryManagementProfile, "delivery-app", "profile");
           showDeliveryAccessMessage("Delivery management session recognized.", "success");
           return;
         }
@@ -206,6 +255,7 @@
         renderDeliveryAccess();
         renderMine();
         renderEarnings();
+        startRiderHeartbeat();
         showDeliveryAccessMessage("Delivery rider login successful.", "success");
       }
 
@@ -654,6 +704,10 @@
         }
       });
       $("deliveryLogoutBtn").addEventListener("click", async () => {
+        clearInterval(riderHeartbeatTimer);
+        if (deliverySessionProfile?.id) {
+          await updateRiderPresence({ loggedIn: false, online: false }).catch(console.warn);
+        }
         if (firebase.auth().currentUser) await firebase.auth().signOut();
         deliverySessionProfile = null;
         deliveryManagementProfile = null;
@@ -661,6 +715,34 @@
         localStorage.removeItem("rkDeliveryPhone");
         $("deliveryPhone").value = "";
         renderDeliveryAccess();
+      });
+      $("riderOnlineToggle").addEventListener("change", async (event) => {
+        if (!activeRiderProfile()) return;
+        await updateRiderPresence({ loggedIn: true, online: event.target.checked });
+        toast(event.target.checked ? "You are online. Enable GPS to receive assignments." : "You are offline.");
+      });
+      $("enableRiderGpsBtn").addEventListener("click", () => {
+        if (!activeRiderProfile()) return;
+        if (!navigator.geolocation) return toast("GPS is not supported on this device.");
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          await updateRiderPresence({
+            loggedIn: true,
+            gpsSharing: true,
+            currentLocation: {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              capturedAt: new Date().toISOString()
+            }
+          });
+          toast("GPS sharing enabled.");
+        }, (error) => toast(`GPS permission is required: ${error.message}`), { enableHighAccuracy: true, timeout: 12000 });
+      });
+      window.addEventListener("beforeunload", () => {
+        if (deliverySessionProfile?.id) {
+          db.collection(deliverySessionProfile.compatSource === "systemSettings" ? "systemSettings" : "deliveryPartners")
+            .doc(deliverySessionProfile.id).update({ online: false, loggedIn: false, updatedAt: FieldValue.serverTimestamp() }).catch(() => {});
+        }
       });
       const today = new Date().toISOString().slice(0, 10);
       $("earnFrom").value = today;

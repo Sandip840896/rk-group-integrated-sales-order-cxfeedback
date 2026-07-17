@@ -82,6 +82,14 @@ service cloud.firestore {
       allow read, create, update: if true;
       allow delete: if false;
     }
+    match /marketingSettings/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+    match /serviceSwitches/{docId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
     match /systemSettings/{docId} {
       allow read, create, update: if true;
       allow delete: if false;

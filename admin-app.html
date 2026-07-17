@@ -69,6 +69,10 @@
             </select></label>
           </div>
           <label class="field"><span>Allowed Apps</span><div class="check-grid" id="allowedApps"></div></label>
+          <div class="panel pad stack soft-panel" id="pageAccessPanel">
+            <div class="section-title"><div><h3>Page Access</h3><p>Select all pages or selected pages inside each allowed app.</p></div></div>
+            <div id="pageAccessList" class="list"></div>
+          </div>
           <div class="grid two" id="trainAttachFields">
             <label class="field"><span>Search Train to Attach</span><input class="input" id="adminTrainSearch" placeholder="Search train number, name or yard"></label>
             <label class="field"><span>Attached Train</span><select class="select" id="adminTrainSelect"></select></label>
@@ -223,6 +227,89 @@
         ["cfo-app", "CFO App"],
         ["admin-app", "Admin Console"]
       ];
+      const appPageOptions = {
+        "command-center": [
+          ["all", "All Pages"],
+          ["overview", "Overview"],
+          ["orders", "Customer Orders"],
+          ["restaurantHandover", "Restaurant Handover"],
+          ["feedback", "Feedback"],
+          ["indent", "Base Kitchen Indent"],
+          ["invoice", "Delivery Invoice"],
+          ["purchase", "Purchases / Store"],
+          ["staffsale", "Staff Sales"],
+          ["masters", "Masters"],
+          ["admin", "Admin Page"]
+        ],
+        "base-kitchen": [
+          ["all", "All Pages"],
+          ["incoming", "Incoming Indents"],
+          ["customer", "Customer Orders"],
+          ["dashboard", "Dashboard"],
+          ["accounting", "Accounting"],
+          ["catalog", "Catalog Requests"],
+          ["invoice", "Invoices"],
+          ["dispute", "Disputes"]
+        ],
+        "customer-care": [
+          ["all", "All Pages"],
+          ["dashboard", "Dashboard"],
+          ["incoming", "Incoming Orders"],
+          ["orders", "Orders"],
+          ["complaints", "Complaints"]
+        ],
+        "control-tower": [
+          ["all", "All Pages"],
+          ["catalog", "Catalog Approval"],
+          ["masters", "Master Rectification"],
+          ["partners", "Partner Onboarding"],
+          ["passwordReset", "Password Reset"],
+          ["riders", "Rider Approval"],
+          ["marketing", "Marketing"],
+          ["codControl", "COD Control"],
+          ["service", "Restaurant On-Off"],
+          ["route", "Train Route"]
+        ],
+        "delivery-app": [
+          ["all", "All Pages"],
+          ["profile", "Rider Profile"],
+          ["orders", "Jobs"],
+          ["open", "Open Jobs"],
+          ["earnings", "Earnings"]
+        ],
+        "partner-app": [
+          ["all", "All Pages"],
+          ["dashboard", "Dashboard"],
+          ["incoming", "Incoming Orders"],
+          ["complaints", "Complaints"],
+          ["accounting", "Accounting"],
+          ["catalog", "Catalog Request"],
+          ["status", "Request Status"]
+        ],
+        "central-command": [
+          ["all", "All Pages"],
+          ["dashboard", "Dashboard"],
+          ["orders", "Orders"],
+          ["complaints", "Complaints"],
+          ["analytics", "Analytics"]
+        ],
+        "qr-code-app": [
+          ["all", "All Pages"],
+          ["create", "Create QR"],
+          ["history", "QR History"]
+        ],
+        "cfo-app": [
+          ["all", "All Pages"],
+          ["overview", "Overview"],
+          ["approvals", "Final Approval"],
+          ["advice", "Payment Advice"]
+        ],
+        "admin-app": [
+          ["all", "All Pages"],
+          ["users", "User Creation"],
+          ["rights", "Rights Management"]
+        ]
+      };
       const defaultsByRole = {
         "rake-manager": ["command-center"],
         "base-kitchen": ["base-kitchen"],
@@ -237,18 +324,84 @@
 
       $("allowedApps").innerHTML = appOptions.map(([id, label]) => `<label class="check-pill"><input type="checkbox" value="${id}"> ${label}</label>`).join("");
 
-      function setAllowedApps(values) {
+      function setupAdminCreationControls() {
+        const adminRoleOption = [...$("adminRole").options].find((option) => option.value === "admin");
+        const adminPermissionOption = [...$("adminAccessForm").permissionLevel.options].find((option) => option.value === "admin");
+        if (!isSuperAdminSession()) {
+          if (adminRoleOption) adminRoleOption.hidden = true;
+          if (adminPermissionOption) adminPermissionOption.hidden = true;
+          if ($("adminRole").value === "admin") $("adminRole").value = "viewer";
+          if ($("adminAccessForm").permissionLevel.value === "admin") $("adminAccessForm").permissionLevel.value = "read-write";
+          document.querySelector('#allowedApps input[value="admin-app"]')?.closest("label")?.classList.add("hidden");
+        }
+      }
+
+      function setAllowedApps(values, pageRights = null) {
         const selected = new Set(values || []);
         document.querySelectorAll("#allowedApps input").forEach((box) => {
           box.checked = selected.has(box.value);
         });
+        renderPageAccess(pageRights);
+      }
+
+      function pageLabelsForApp(appId) {
+        return appPageOptions[appId] || [["all", "All Pages"]];
+      }
+
+      function renderPageAccess(existingRights = null) {
+        const allowed = selectedApps();
+        if (!allowed.length) {
+          $("pageAccessList").innerHTML = `<div class="empty">Select an app first. Page options will appear here.</div>`;
+          return;
+        }
+        $("pageAccessList").innerHTML = allowed.map((appId) => {
+          const label = appOptions.find(([id]) => id === appId)?.[1] || appId;
+          const saved = existingRights?.[appId];
+          const selectedPages = new Set(Array.isArray(saved) && saved.length ? saved : ["all"]);
+          return `
+            <div class="item" data-page-app="${escapeHtml(appId)}">
+              <div class="row between"><h3>${escapeHtml(label)}</h3><span class="badge info">page rights</span></div>
+              <div class="check-grid" style="margin-top:10px;">
+                ${pageLabelsForApp(appId).map(([pageId, pageLabel]) => `
+                  <label class="check-pill">
+                    <input type="checkbox" value="${escapeHtml(pageId)}" data-page-right="${escapeHtml(appId)}" ${selectedPages.has("all") || selectedPages.has(pageId) ? "checked" : ""}>
+                    ${escapeHtml(pageLabel)}
+                  </label>`).join("")}
+              </div>
+            </div>`;
+        }).join("");
+        lucide.createIcons();
+      }
+
+      function selectedPageRights() {
+        const rights = {};
+        selectedApps().forEach((appId) => {
+          const values = [...document.querySelectorAll(`[data-page-right="${CSS.escape(appId)}"]:checked`)].map((box) => box.value);
+          rights[appId] = values.includes("all") || !values.length ? ["all"] : values.filter((value) => value !== "all");
+        });
+        return rights;
+      }
+
+      function activeTrainMasters() {
+        const merged = new Map();
+        seedTrainMasters.forEach((train) => merged.set(String(train.trainNumber || train.id), train));
+        trainMasters.filter((train) => train.active !== false).forEach((train) => merged.set(String(train.trainNumber || train.id), train));
+        return [...merged.values()].sort((a, b) => String(a.trainNumber || a.id).localeCompare(String(b.trainNumber || b.id), undefined, { numeric: true }));
       }
 
       function applyRoleDefaults() {
         setAllowedApps(defaultsByRole[$("adminRole").value] || []);
         const isRake = $("adminRole").value === "rake-manager";
         $("trainAttachFields").classList.toggle("hidden", !isRake);
-        if (isRake) $("adminAccessForm").accessScope.value = "train";
+        if (isRake) {
+          $("adminAccessForm").accessScope.value = "train";
+          renderAdminTrainSelect($("adminAccessForm").accessValue.value);
+        } else if (!editingUserId) {
+          $("adminTrainSearch").value = "";
+          $("adminTrainSelect").innerHTML = `<option value="">Train not required for this role</option>`;
+          $("adminAccessForm").accessScope.value = ["base-kitchen"].includes($("adminRole").value) ? "baseKitchen" : ["partner-app"].includes($("adminRole").value) ? "partner" : "all";
+          $("adminAccessForm").accessValue.value = "";
+        }
       }
 
       function trainSearchMatch(train, query) {
@@ -257,7 +410,7 @@
 
       function renderAdminTrainSelect(selected = "") {
         const query = $("adminTrainSearch").value;
-        const rows = trainMasters.filter((train) => train.active !== false && trainSearchMatch(train, query)).slice(0, 80);
+        const rows = activeTrainMasters().filter((train) => trainSearchMatch(train, query)).slice(0, 80);
         $("adminTrainSelect").innerHTML = rows.map((train) => `<option value="${escapeHtml(train.trainNumber || train.id)}">${escapeHtml(trainLabel(train))}</option>`).join("") || `<option value="">No matching train</option>`;
         if (selected && rows.some((train) => String(train.trainNumber || train.id) === String(selected))) $("adminTrainSelect").value = selected;
       }
@@ -283,6 +436,7 @@
             <p>${escapeHtml(user.name || "")} | ${escapeHtml(user.role || "viewer")} | ${escapeHtml(user.permissionLevel || "read-write")}</p>
             <p><b>Identity:</b> ${user.authUid || user.uid || user.id === firebase.auth().currentUser?.uid ? "Firebase UID linked" : "Legacy migration required"}</p>
             <p>Apps: ${escapeHtml((user.allowedApps || String(user.access || "").split(",")).filter(Boolean).join(", ") || "not set")}</p>
+            <p>Pages: ${escapeHtml(Object.entries(user.pageRights || {}).map(([app, pages]) => `${app}: ${(pages || []).join("/")}`).join(", ") || "all pages")}</p>
             <p>Scope: ${escapeHtml(user.accessScope || "all")} ${user.accessValue ? `| ${escapeHtml(user.accessValue)}` : ""}</p>
             ${!(user.authUid || user.uid || user.id === firebase.auth().currentUser?.uid) ? `<div class="row wrap" style="margin-top:10px;"><input class="input grow" type="password" minlength="8" autocomplete="new-password" data-migration-password="${escapeHtml(user.id)}" placeholder="New temporary password (minimum 8)"><button class="btn info" data-migrate-admin-user="${escapeHtml(user.id)}"><i data-lucide="shield-check"></i> Migrate to Firebase</button></div>` : ""}
             <div class="row wrap" style="margin-top:10px;">
@@ -294,6 +448,18 @@
       }
 
       $("adminRole").addEventListener("change", applyRoleDefaults);
+      $("allowedApps").addEventListener("change", () => renderPageAccess());
+      $("pageAccessList").addEventListener("change", (event) => {
+        const box = event.target.closest("[data-page-right]");
+        if (!box) return;
+        const appId = box.dataset.pageRight;
+        const allBox = document.querySelector(`[data-page-right="${CSS.escape(appId)}"][value="all"]`);
+        const pageBoxes = [...document.querySelectorAll(`[data-page-right="${CSS.escape(appId)}"]`)].filter((item) => item.value !== "all");
+        if (box.value === "all" && box.checked) pageBoxes.forEach((item) => { item.checked = true; });
+        if (box.value !== "all" && !box.checked && allBox) allBox.checked = false;
+        if (box.value !== "all" && pageBoxes.every((item) => item.checked) && allBox) allBox.checked = true;
+      });
+      setupAdminCreationControls();
       applyRoleDefaults();
 
       $("adminAccessForm").addEventListener("submit", async (event) => {
@@ -304,8 +470,9 @@
         delete data.password;
         const allowedApps = selectedApps();
         if (!allowedApps.length) return toast("Select at least one allowed app.");
+        const pageRights = selectedPageRights();
         const existingTarget = users.find((user) => user.id === editingUserId);
-        if (!isSuperAdminSession() && (protectedAdminTarget(existingTarget) || data.role === "admin" || allowedApps.includes("admin-app"))) {
+        if (!isSuperAdminSession() && (protectedAdminTarget(existingTarget) || ["admin", "super-admin"].includes(data.role) || allowedApps.includes("admin-app"))) {
           return toast("Only Super Admin can create or modify Admin Console access.");
         }
         if (data.role === "rake-manager") {
@@ -349,6 +516,7 @@
           phone,
           role: data.role || "viewer",
           allowedApps,
+          pageRights,
           access: allowedApps.join(","),
           accessScope: data.accessScope || "all",
           accessValue: data.accessValue || "",
@@ -451,7 +619,9 @@
           if (user.role === "rake-manager" && user.accessValue) $("adminTrainSelect").value = String(user.accessValue).split("-")[0];
           form.permissionLevel.value = user.permissionLevel || "read-write";
           form.active.value = user.active === false ? "false" : "true";
-          setAllowedApps(user.allowedApps || String(user.access || "").split(",").map((value) => value.trim()).filter(Boolean));
+          setAllowedApps(user.allowedApps || String(user.access || "").split(",").map((value) => value.trim()).filter(Boolean), user.pageRights || null);
+          applyRoleDefaults();
+          setAllowedApps(user.allowedApps || String(user.access || "").split(",").map((value) => value.trim()).filter(Boolean), user.pageRights || null);
           form.scrollIntoView({ behavior: "smooth", block: "start" });
         }
         if (disable) {

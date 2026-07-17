@@ -27,6 +27,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script defer src="rk-common.js?v=20260713-identity2"></script>
+  <script defer src="route-master-data.js"></script>
 </head>
 <body>
   <div class="brand-splash" id="brandSplash" aria-label="Meals On Wheels opening cover">
@@ -188,6 +189,10 @@
         <label class="field grow"><span data-i18n="field_meal">Now Serving</span><select id="mealFilter" class="select"></select></label>
         <label class="field grow"><span data-i18n="field_delivery_slot">Preferred Delivery Slot</span><select id="deliveryWindow" class="select"></select></label>
         <button class="btn secondary" id="savePassengerBtn"><i data-lucide="save"></i> <span data-i18n="save">Save</span></button>
+      </div>
+      <div class="food-search-panel">
+        <label class="field"><span>Search Food</span><div class="search-input-wrap"><i data-lucide="search"></i><input class="input" id="foodSearchInput" placeholder="Search Biryani, Dosa, Chicken, Tea, Veg Thali"></div></label>
+        <div id="foodSearchHint" class="muted-text">Search across Restaurant and Train Pantry menus.</div>
       </div>
       <div id="restaurantStationPanel" class="restaurant-station-panel hidden"></div>
       <div class="source-segments" id="sourceSegments">
@@ -403,11 +408,16 @@
       let trainMasters = [];
       let selectedMenuSource = "all";
       let selectedPreference = "all";
+      let foodSearchTerm = "";
+      let searchAnalyticsTimer = null;
+      let lastLoggedSearchKey = "";
       let registrationMode = "pnr";
       let marketingSettings = null;
       let trainRoutes = [];
       let serviceSwitches = [];
       let supplierPaymentSettings = [];
+      let baseKitchens = [];
+      let partners = [];
       let couponApplied = null;
       const urlParams = new URLSearchParams(location.search);
       const journeyContext = {
@@ -431,6 +441,45 @@
       let unsubscribeFeedbackPhoneTrack = null;
       let unsubscribeFeedbackNestedTrack = null;
       let unsubscribeFeedbackDocTracks = [];
+      const routeMasterRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
+      const customerRouteFallbacks = {
+        "11099": {
+          trainNumber: "11099",
+          trainName: "LTT Madgaon Express",
+          stops: [
+            { seq: 1, station: "Lokmanya Tilak Terminus", code: "LTT", day: 1, arrival: "", departure: "00:45", haltMinutes: 0, km: 0 },
+            { seq: 2, station: "Thane", code: "TNA", day: 1, arrival: "01:07", departure: "01:10", haltMinutes: 3, km: 18 },
+            { seq: 3, station: "Panvel", code: "PNVL", day: 1, arrival: "01:42", departure: "01:45", haltMinutes: 3, km: 53 },
+            { seq: 4, station: "Roha", code: "ROHA", day: 1, arrival: "03:00", departure: "03:02", haltMinutes: 2, km: 130 },
+            { seq: 5, station: "Khed", code: "KHED", day: 1, arrival: "04:30", departure: "04:32", haltMinutes: 2, km: 268 },
+            { seq: 6, station: "Chiplun", code: "CHI", day: 1, arrival: "05:08", departure: "05:10", haltMinutes: 2, km: 309 },
+            { seq: 7, station: "Ratnagiri", code: "RN", day: 1, arrival: "07:55", departure: "08:00", haltMinutes: 5, km: 415 },
+            { seq: 8, station: "Kankavali", code: "KKW", day: 1, arrival: "10:10", departure: "10:12", haltMinutes: 2, km: 571 },
+            { seq: 9, station: "Sawantwadi Road", code: "SWV", day: 1, arrival: "11:10", departure: "11:12", haltMinutes: 2, km: 640 },
+            { seq: 10, station: "Thivim", code: "THVM", day: 1, arrival: "12:30", departure: "12:32", haltMinutes: 2, km: 685 },
+            { seq: 11, station: "Karmali", code: "KRMI", day: 1, arrival: "13:00", departure: "13:02", haltMinutes: 2, km: 710 },
+            { seq: 12, station: "Madgaon", code: "MAO", day: 1, arrival: "14:40", departure: "", haltMinutes: 0, km: 750 }
+          ]
+        },
+        "11100": {
+          trainNumber: "11100",
+          trainName: "Madgaon LTT Express",
+          stops: [
+            { seq: 1, station: "Madgaon", code: "MAO", day: 1, arrival: "", departure: "11:30", haltMinutes: 0, km: 0 },
+            { seq: 2, station: "Karmali", code: "KRMI", day: 1, arrival: "12:00", departure: "12:02", haltMinutes: 2, km: 41 },
+            { seq: 3, station: "Thivim", code: "THVM", day: 1, arrival: "12:20", departure: "12:22", haltMinutes: 2, km: 65 },
+            { seq: 4, station: "Sawantwadi Road", code: "SWV", day: 1, arrival: "12:50", departure: "12:52", haltMinutes: 2, km: 111 },
+            { seq: 5, station: "Kankavali", code: "KKW", day: 1, arrival: "13:48", departure: "13:50", haltMinutes: 2, km: 179 },
+            { seq: 6, station: "Ratnagiri", code: "RN", day: 1, arrival: "16:30", departure: "16:35", haltMinutes: 5, km: 335 },
+            { seq: 7, station: "Chiplun", code: "CHI", day: 1, arrival: "17:56", departure: "17:58", haltMinutes: 2, km: 441 },
+            { seq: 8, station: "Khed", code: "KHED", day: 1, arrival: "18:26", departure: "18:28", haltMinutes: 2, km: 482 },
+            { seq: 9, station: "Roha", code: "ROHA", day: 1, arrival: "20:30", departure: "20:33", haltMinutes: 3, km: 606 },
+            { seq: 10, station: "Panvel", code: "PNVL", day: 1, arrival: "21:37", departure: "21:40", haltMinutes: 3, km: 697 },
+            { seq: 11, station: "Thane", code: "TNA", day: 1, arrival: "22:23", departure: "22:25", haltMinutes: 2, km: 732 },
+            { seq: 12, station: "Lokmanya Tilak Terminus", code: "LTT", day: 1, arrival: "23:45", departure: "", haltMinutes: 0, km: 750 }
+          ]
+        }
+      };
       const customerViewLabels = {
         order: "Order Food",
         track: "Track Order",
@@ -1089,7 +1138,7 @@
       const faqContent = {
         en: [
           ["How do I order food in train?", "Scan the Meals On Wheels QR in your train or open this app, save passenger details, choose Pantry or Restaurant items, add food to cart and confirm the order."],
-          ["Why should I scan the train QR code?", "The QR links your train number, rake number, Rake Manager and assigned rider so your order or complaint reaches the correct onboard team."],
+          ["Why should I scan the train QR code?", "The QR links your train number, rake number and Rake Manager so your order or complaint reaches the correct onboard team. The delivery rider is assigned separately for each order."],
           ["Where will I see my delivery OTP?", "When the rider starts delivery, the OTP appears in Track tab against your order. Share it only after you receive the food."],
           ["Can I order for multiple passengers?", "Yes. Increase item quantity in the cart based on the number of passengers traveling with you."],
           ["What if my train is delayed?", "The onboard team and Rake Manager can see the train/rake context. Use Feedback or Need Help from Track tab if timing needs attention."],
@@ -1099,7 +1148,7 @@
         ],
         hi: [
           ["ट्रेन में खाना कैसे ऑर्डर करूं?", "ट्रेन में Meals On Wheels QR स्कैन करें या यह ऐप खोलें, यात्री विवरण सेव करें, ट्रेन पैंट्री, बेस किचन या RK पार्टनर आइटम चुनें, कार्ट में भोजन जोड़ें और ऑर्डर पुष्टि करें।"],
-          ["ट्रेन QR कोड स्कैन करना क्यों जरूरी है?", "QR आपके ट्रेन नंबर, रेक नंबर, रेक मैनेजर और असाइन किए गए राइडर को लिंक करता है, ताकि आपका ऑर्डर या शिकायत सही ऑनबोर्ड टीम तक पहुंचे।"],
+          ["ट्रेन QR कोड स्कैन करना क्यों जरूरी है?", "QR आपके ट्रेन नंबर, रेक नंबर और रेक मैनेजर को लिंक करता है, ताकि आपका ऑर्डर या शिकायत सही ऑनबोर्ड टीम तक पहुंचे। डिलीवरी राइडर हर ऑर्डर के लिए अलग से असाइन किया जाता है।"],
           ["मेरा डिलीवरी OTP कहां दिखेगा?", "जब राइडर डिलीवरी शुरू करेगा, तो OTP आपके ऑर्डर के सामने ट्रैक टैब में दिखेगा। भोजन मिलने के बाद ही OTP साझा करें।"],
           ["क्या मैं कई यात्रियों के लिए ऑर्डर कर सकता हूं?", "हां। साथ यात्रा कर रहे यात्रियों के हिसाब से कार्ट में आइटम की मात्रा बढ़ाएं।"],
           ["अगर मेरी ट्रेन लेट हो जाए तो?", "ऑनबोर्ड टीम और रेक मैनेजर ट्रेन और रेक संदर्भ देख सकते हैं। समय से जुड़ी सहायता के लिए फीडबैक या ट्रैक टैब से सहायता चाहिए विकल्प उपयोग करें।"],
@@ -1109,7 +1158,7 @@
         ],
         bn: [
           ["ট্রেনে খাবার কীভাবে অর্ডার করব?", "ট্রেনে Meals On Wheels QR স্ক্যান করুন বা এই অ্যাপ খুলুন, যাত্রীর বিবরণ সেভ করুন, ট্রেন প্যান্ট্রি, বেস কিচেন বা RK পার্টনার আইটেম বেছে নিন, খাবার কার্টে যোগ করুন এবং অর্ডার নিশ্চিত করুন।"],
-          ["ট্রেন QR কোড স্ক্যান করা কেন দরকার?", "QR আপনার ট্রেন নম্বর, রেক নম্বর, রেক ম্যানেজার এবং নির্ধারিত রাইডারকে যুক্ত করে, যাতে আপনার অর্ডার বা অভিযোগ সঠিক অনবোর্ড টিমের কাছে যায়।"],
+          ["ট্রেন QR কোড স্ক্যান করা কেন দরকার?", "QR আপনার ট্রেন নম্বর, রেক নম্বর এবং রেক ম্যানেজারকে যুক্ত করে, যাতে আপনার অর্ডার বা অভিযোগ সঠিক অনবোর্ড টিমের কাছে যায়। ডেলিভারি রাইডার প্রতিটি অর্ডারের জন্য আলাদাভাবে নির্ধারিত হয়।"],
           ["আমার ডেলিভারি OTP কোথায় দেখব?", "রাইডার ডেলিভারি শুরু করলে OTP আপনার অর্ডারের পাশে ট্র্যাক ট্যাবে দেখা যাবে। খাবার পাওয়ার পরেই OTP শেয়ার করুন।"],
           ["আমি কি একাধিক যাত্রীর জন্য অর্ডার করতে পারি?", "হ্যাঁ। সঙ্গে ভ্রমণ করা যাত্রীদের সংখ্যার অনুযায়ী কার্টে আইটেমের পরিমাণ বাড়ান।"],
           ["আমার ট্রেন দেরি হলে কী হবে?", "অনবোর্ড টিম এবং রেক ম্যানেজার ট্রেন ও রেক তথ্য দেখতে পারবেন। সময় সংক্রান্ত সাহায্যের জন্য ফিডব্যাক বা ট্র্যাক ট্যাব থেকে সহায়তা চাই ব্যবহার করুন।"],
@@ -1129,9 +1178,72 @@
         lucide.createIcons();
       }
 
+      function stationKey(value) {
+        return String(value || "")
+          .toLowerCase()
+          .replace(/\b(jn|junction|station|railway|rly|road|rd)\b/g, "")
+          .replace(/[^a-z0-9]+/g, "")
+          .trim();
+      }
+
+      function stationMatches(stop, value) {
+        const key = stationKey(value);
+        if (!key) return false;
+        return [stop.code, stop.station, stop.stationName, stop.name].some((part) => stationKey(part) === key);
+      }
+
+      function itemSupplierStationRaw(item) {
+        const direct = item.station || item.stationName || item.nearestStation || item.nearestStationName || item.supplierStation || item.supplierStationName || item.baseKitchenStation || item.partnerStation || item.city || "";
+        if (direct) return direct;
+        const ids = [item.supplierId, item.baseKitchenId, item.partnerId].map((value) => String(value || "")).filter(Boolean);
+        const phones = [item.supplierPhone, item.partnerPhone, item.phone].map(cleanPhone).filter(Boolean);
+        const supplierRows = [...baseKitchens, ...partners];
+        const row = supplierRows.find((entry) => {
+          if (ids.some((id) => [entry.id, entry.supplierId, entry.baseKitchenId, entry.partnerId].some((value) => String(value || "") === id))) return true;
+          if (phones.some((phone) => [entry.phone, entry.supplierPhone, entry.partnerPhone].some((value) => cleanPhone(value) === phone))) return true;
+          return false;
+        });
+        return row?.station || row?.nearestStation || row?.nearestStationName || row?.stationName || row?.city || "";
+      }
+
+      function restaurantRouteMatch(item) {
+        if (menuSourceOf(item) !== "restaurant") return { eligible: true, stop: null, reason: "pantry" };
+        const station = itemSupplierStationRaw(item);
+        const stops = selectedRouteStops();
+        if (!stops.length) return { eligible: false, stop: null, reason: "route-missing", station };
+        if (!station) return { eligible: false, stop: null, reason: "station-missing", station };
+        const stopIndex = stops.findIndex((stop) => stationMatches(stop, station));
+        if (stopIndex < 0) return { eligible: false, stop: null, reason: "not-on-route", station };
+        const currentIndex = Number($("currentStationSelect").value || 0);
+        if (stopIndex <= currentIndex) return { eligible: false, stop: stops[stopIndex], reason: "already-passed", station, stopIndex };
+        const stop = stops[stopIndex];
+        if (Number(stop.haltMinutes || 0) < 4) return { eligible: false, stop, reason: "short-halt", station, stopIndex };
+        return { eligible: true, stop, reason: "matched", station, stopIndex };
+      }
+
+      function stopDisplayName(stop, fallback = "") {
+        const raw = stop?.station || stop?.stationName || stop?.name || fallback || stop?.code || "upcoming";
+        return String(raw).replace(/\s+Jn$/i, " Junction");
+      }
+
+      function plannedMinutesUntilStop(stop) {
+        const time = String(stop?.arrival || stop?.departure || "").match(/(\d{1,2}):(\d{2})/);
+        if (!time) return null;
+        const target = Number(time[1]) * 60 + Number(time[2]);
+        const now = new Date();
+        const current = now.getHours() * 60 + now.getMinutes();
+        let diff = target - current;
+        if (diff < 0) diff += 24 * 60;
+        return diff;
+      }
+
       function menuDeliveryEstimate(item) {
         const source = menuSourceOf(item);
-        if (source === "restaurant") return "30-75 min at upcoming restaurant station";
+        if (source === "restaurant") {
+          const match = restaurantRouteMatch(item);
+          if (match.stop) return `30-75 min from ${stopDisplayName(match.stop, match.station)} Station`;
+          return "Restaurant route validation pending";
+        }
         return "15-30 min from train pantry";
       }
 
@@ -1195,6 +1307,7 @@
           deliveryChargeBelowMin: 20,
           processingCharge: 20,
           highDemandCharge: 0,
+          maxTotalCartQty: 20,
           offers: [],
           coupons: []
         };
@@ -1231,6 +1344,29 @@
         };
       }
 
+      function totalCartQty(lines = [...cart.values()]) {
+        return lines.reduce((sum, line) => sum + Number(line.qty || 0), 0);
+      }
+
+      function maxTotalCartQty() {
+        const cfg = marketingConfigForTrain(passenger().train);
+        return Math.max(1, Number(cfg.maxTotalCartQty || 20));
+      }
+
+      function cartLimitReached(lines = [...cart.values()]) {
+        return totalCartQty(lines) >= maxTotalCartQty();
+      }
+
+      function cartLimitMessage() {
+        return "You have reached the maximum allowed quantity for a single order.";
+      }
+
+      function canAddMoreToCart() {
+        if (!cartLimitReached()) return true;
+        toast(cartLimitMessage());
+        return false;
+      }
+
       function deliverySlotsForMeal(meal, source = selectedMenuSource) {
         if (source === "base-kitchen") return ["Upcoming station - 45 to 75 min", "Next major halt - 75 to 120 min"];
         if (source === "partner") return ["Upcoming station partner - 30 to 60 min", "Next partner station - 60 to 90 min"];
@@ -1249,7 +1385,9 @@
 
       function selectedRouteStops() {
         const trainNo = passenger().train || $("customerTrainSelect").value;
-        const route = trainRoutes.find((row) => String(row.trainNumber || row.id) === String(trainNo));
+        const route = trainRoutes.find((row) => String(row.trainNumber || row.id) === String(trainNo))
+          || routeMasterRoutes.find((row) => String(row.trainNumber || row.id) === String(trainNo))
+          || customerRouteFallbacks[String(trainNo)];
         return route?.stops || [];
       }
 
@@ -1275,7 +1413,10 @@
         const stops = upcomingRestaurantStops();
         panel.innerHTML = stops.length ? `
           <div class="section-title compact-title"><div><h2>Upcoming Restaurant Stations</h2><p>Restaurant menu is planned around the next halts of 4 minutes or more.</p></div></div>
-          <div class="station-chip-row">${stops.map((stop) => `<span class="badge info">${escapeHtml(stop.station || stop.code)} | Halt ${Number(stop.haltMinutes || 0)} min</span>`).join("")}</div>
+          <div class="station-chip-row">${stops.map((stop) => {
+            const mins = plannedMinutesUntilStop(stop);
+            return `<span class="badge info">${escapeHtml(stop.station || stop.code)} | Halt ${Number(stop.haltMinutes || 0)} min${mins !== null ? ` | Planned ${mins} min` : ""}</span>`;
+          }).join("")}</div>
         ` : `<div class="empty">Select train and current / last station to see upcoming restaurant stops.</div>`;
       }
       $("mealFilter").innerHTML = [`${currentMealByClock()}`].map((m) => `<option>${m}</option>`).join("");
@@ -1439,6 +1580,11 @@
             changed = true;
             return;
           }
+          if (!restaurantRouteMatch(live).eligible) {
+            cart.delete(id);
+            changed = true;
+            return;
+          }
           if (Number(line.qty || 0) > maxQty) {
             cart.set(id, { ...line, ...live, qty: maxQty });
             changed = true;
@@ -1471,6 +1617,63 @@
         });
       }
 
+      function matchesFoodSearch(item) {
+        const query = foodSearchTerm.trim().toLowerCase();
+        if (!query) return true;
+        const haystack = [
+          item.name,
+          item.description,
+          item.category,
+          item.cuisine,
+          item.type,
+          item.productRemark,
+          item.supplierName,
+          item.baseKitchenName,
+          item.partnerName,
+          sourceLabel(menuSourceOf(item)),
+          itemMealSlots(item).join(" "),
+          itemCuisineTags(item).join(" ")
+        ].join(" ").toLowerCase();
+        return query.split(/\s+/).filter(Boolean).every((word) => haystack.includes(word));
+      }
+
+      function visibleMenuItems() {
+        const selectedMeal = $("mealFilter").value;
+        return menuItems.filter((item) => item.available !== false
+          && serviceIsActiveForItem(item)
+          && (selectedMeal === "All" || itemMealSlots(item).includes(selectedMeal))
+          && matchesMenuPreference(item, selectedPreference)
+          && matchesFoodSearch(item)
+          && (selectedMenuSource === "all" || menuSourceOf(item) === selectedMenuSource)
+          && restaurantRouteMatch(item).eligible);
+      }
+
+      async function captureFoodSearchAnalytics(resultCount) {
+        const query = foodSearchTerm.trim();
+        if (query.length < 2) return;
+        const customer = passenger();
+        const key = `${query.toLowerCase()}|${customer.train || ""}|${selectedMenuSource}|${selectedPreference}|${resultCount}`;
+        if (key === lastLoggedSearchKey) return;
+        lastLoggedSearchKey = key;
+        try {
+          await db.collection("foodSearchAnalytics").add({
+            query,
+            normalizedQuery: query.toLowerCase(),
+            resultCount,
+            selectedSource: selectedMenuSource,
+            selectedPreference,
+            mealSlot: $("mealFilter").value || "",
+            train: customer.train || "",
+            trainName: customer.trainName || "",
+            phone: customer.phone || "",
+            currentStationIndex: $("currentStationSelect").value || "",
+            createdAt: FieldValue.serverTimestamp()
+          });
+        } catch (error) {
+          console.warn("Unable to capture food search analytics", error);
+        }
+      }
+
       function sourceLabel(source) {
         if (source === "restaurant") return "Restaurant";
         return textFor("source_pantry_label");
@@ -1487,6 +1690,7 @@
         const stock = Number(item.stockQty || 0);
         const maxQty = maxQtyForItem(item);
         const soldOut = stock <= 0;
+        const totalLimitReached = cartLimitReached();
         return `
           <div class="item menu-card">
             <div class="menu-card-media" data-product-detail="${item.id}" title="${textFor("view_food_detail")}">
@@ -1509,22 +1713,18 @@
                   ${soldOut ? `<button class="btn secondary compact-btn" data-notify-item="${item.id}" title="${textFor("notify")}"><i data-lucide="bell"></i></button>` : `
                     <button class="icon-btn" data-minus="${item.id}" title="${textFor("reduce")}"><i data-lucide="minus"></i></button>
                     <b>${inCart}</b>
-                    <button class="icon-btn" data-plus="${item.id}" title="${textFor("add")}" ${inCart >= maxQty ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
+                    <button class="icon-btn" data-plus="${item.id}" title="${textFor("add")}" ${inCart >= maxQty || totalLimitReached ? "disabled" : ""}><i data-lucide="plus"></i></button>`}
                 </div>
               </div>
               ${!soldOut && maxQty < stock ? `<p class="sold-out-note">${textFor("max_units_prefix")} ${maxQty} ${textFor("max_units_suffix")}</p>` : ""}
+              ${!soldOut && totalLimitReached ? `<p class="sold-out-note">${cartLimitMessage()}</p>` : ""}
               ${soldOut ? `<p class="sold-out-note">${textFor("sold_out_note")}</p>` : ""}
             </div>
           </div>`;
       }
 
       function renderMenu() {
-        const selectedMeal = $("mealFilter").value;
-        const items = menuItems.filter((item) => item.available !== false
-          && serviceIsActiveForItem(item)
-          && (selectedMeal === "All" || itemMealSlots(item).includes(selectedMeal))
-          && matchesMenuPreference(item, selectedPreference)
-          && (selectedMenuSource === "all" || menuSourceOf(item) === selectedMenuSource));
+        const items = visibleMenuItems();
         const groups = ["pantry", "restaurant"].filter((source) => selectedMenuSource === "all" || selectedMenuSource === source);
         $("menuList").innerHTML = items.length ? groups.map((source) => {
           const rows = items.filter((item) => menuSourceOf(item) === source);
@@ -1533,7 +1733,12 @@
             <div class="section-title compact-title"><div><h2>${sourceLabel(source)}</h2><p>${sourceNote(source)}</p></div></div>
             <div class="customer-menu-grid">${rows.map(menuItemCard).join("")}</div>
           </div>`;
-        }).join("") : `<div class="empty">${textFor("no_food_available")}</div>`;
+        }).join("") : `<div class="empty">${selectedMenuSource === "restaurant" ? "No restaurants are available for your selected train route." : foodSearchTerm.trim() ? "No matching food item found. Try another dish, cuisine or keyword." : textFor("no_food_available")}</div>`;
+        $("foodSearchHint").textContent = foodSearchTerm.trim()
+          ? `${items.length} matching item(s) found for "${foodSearchTerm.trim()}".`
+          : "Search across Restaurant and Train Pantry menus.";
+        if (searchAnalyticsTimer) clearTimeout(searchAnalyticsTimer);
+        searchAnalyticsTimer = setTimeout(() => captureFoodSearchAnalytics(items.length), 900);
         lucide.createIcons();
         renderCart();
       }
@@ -1542,7 +1747,7 @@
         const lines = [...cart.values()];
         const count = lines.reduce((sum, line) => sum + line.qty, 0);
         const total = lines.reduce((sum, line) => sum + line.qty * sellingPriceOf(line), 0);
-        $("cartCount").textContent = `${count} ${count === 1 ? textFor("item") : textFor("items")}`;
+        $("cartCount").textContent = `${count}/${maxTotalCartQty()} ${count === 1 ? textFor("item") : textFor("items")}`;
         $("cartTotal").textContent = money(total);
         $("placeOrderBtn").disabled = count === 0;
         document.querySelector(".cart-bar")?.classList.toggle("show", count > 0);
@@ -1595,6 +1800,7 @@
       function renderCartReview() {
         const lines = [...cart.values()];
         const pricing = cartPricing(lines);
+        const totalLimitReached = cartLimitReached(lines);
         $("cartReviewList").innerHTML = lines.map((line) => `
           <div class="item">
             <div class="row between">
@@ -1609,7 +1815,7 @@
               <div class="row">
                 <button class="icon-btn" data-review-minus="${line.id}" title="Reduce"><i data-lucide="minus"></i></button>
                 <b style="min-width:24px;text-align:center;">${Number(line.qty || 0)}</b>
-                <button class="icon-btn" data-review-plus="${line.id}" title="Add"><i data-lucide="plus"></i></button>
+                <button class="icon-btn" data-review-plus="${line.id}" title="Add" ${totalLimitReached || Number(line.qty || 0) >= maxQtyForItem(line) ? "disabled" : ""}><i data-lucide="plus"></i></button>
               </div>
             </div>
           </div>`).join("") || `<div class="empty">Your cart is empty.</div>`;
@@ -1619,9 +1825,10 @@
           .slice(0, 4);
         $("addonSuggestionList").innerHTML = addOns.length ? `
           <div class="section-title compact-title"><div><h2>Add-on Suggestions</h2><p>Complete your order with frequently bought items.</p></div></div>
-          ${addOns.map((item) => `<div class="item addon-item"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(sourceLabel(menuSourceOf(item)))} | ${money(sellingPriceOf(item))}</p></div><button class="btn secondary" data-addon-plus="${item.id}"><i data-lucide="plus"></i> Add</button></div>`).join("")}` : "";
+          ${addOns.map((item) => `<div class="item addon-item"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(sourceLabel(menuSourceOf(item)))} | ${money(sellingPriceOf(item))}</p></div><button class="btn secondary" data-addon-plus="${item.id}" ${totalLimitReached ? "disabled" : ""}><i data-lucide="plus"></i> Add</button></div>`).join("")}` : "";
         $("cartItemsTotal").textContent = money(pricing.itemsTotal);
         $("chargeBreakup").innerHTML = `
+          <div class="row between"><span>Total cart quantity limit</span><b>${totalCartQty(lines)} / ${maxTotalCartQty()}</b></div>
           <div class="row between"><span>Free delivery above</span><b>${money(pricing.freeDeliveryMin)}</b></div>
           <div class="row between"><span>Delivery charge</span><b>${money(pricing.deliveryCharge)}</b></div>
           <div class="row between"><span>Processing charge</span><b>${money(pricing.processingCharge)}</b></div>
@@ -1683,6 +1890,7 @@
           toast(`Maximum ${maxQty} unit(s) available for this item.`);
           return;
         }
+        if (plus && !canAddMoreToCart()) return;
         current.qty += plus ? 1 : -1;
         if (current.qty <= 0) cart.delete(id); else cart.set(id, current);
         renderMenu();
@@ -1690,6 +1898,10 @@
 
       $("mealFilter").addEventListener("change", () => {
         renderDeliveryWindows();
+        renderMenu();
+      });
+      $("foodSearchInput").addEventListener("input", () => {
+        foodSearchTerm = $("foodSearchInput").value;
         renderMenu();
       });
       $("sourceSegments").addEventListener("click", (event) => {
@@ -1781,6 +1993,7 @@
           toast(`Maximum ${maxQty} unit(s) available for this item.`);
           return;
         }
+        if (!canAddMoreToCart()) return;
         current.qty += 1;
         cart.set(item.id, current);
         $("productDetailModal").classList.add("hidden");
@@ -1800,6 +2013,7 @@
           toast(`Maximum ${maxQty} unit(s) available for this item.`);
           return;
         }
+        if (plus && !canAddMoreToCart()) return;
         current.qty += plus ? 1 : -1;
         if (current.qty <= 0) cart.delete(id); else cart.set(id, current);
         renderCart();
@@ -1812,7 +2026,14 @@
         if (!add) return;
         const item = menuItems.find((entry) => entry.id === add.dataset.addonPlus);
         if (!item) return;
-        cart.set(item.id, { ...item, qty: (cart.get(item.id)?.qty || 0) + 1 });
+        const currentQty = cart.get(item.id)?.qty || 0;
+        const maxQty = maxQtyForItem(item);
+        if (currentQty >= maxQty) {
+          toast(`Maximum ${maxQty} unit(s) available for this item.`);
+          return;
+        }
+        if (!canAddMoreToCart()) return;
+        cart.set(item.id, { ...item, qty: currentQty + 1 });
         renderMenu();
         renderCartReview();
       });
@@ -1834,32 +2055,47 @@
         } catch (error) {
           return toast(error.message);
         }
+        const invalidRestaurantLines = [...cart.values()].filter((line) => !restaurantRouteMatch(line).eligible);
+        if (invalidRestaurantLines.length) {
+          invalidRestaurantLines.forEach((line) => cart.delete(line.id));
+          renderMenu();
+          return toast("Some restaurant items were removed because their station is not on this train route.");
+        }
+        if (totalCartQty() > maxTotalCartQty()) return toast(cartLimitMessage());
         const confirmBtn = $("confirmOrderBtn");
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = `<i data-lucide="loader-2"></i> Placing`;
         lucide.createIcons();
-        const items = [...cart.values()].map((line) => ({
-          itemId: line.id,
-          name: line.name,
-          category: line.category || "",
-          qty: line.qty,
-          price: sellingPriceOf(line),
-          sellingPrice: sellingPriceOf(line),
-          costPrice: costPriceOf(line),
-          itemImage: line.itemImage || "",
-          source: line.source || "pantry",
-          sourceType: line.sourceType || line.source || "pantry",
-          fulfillmentSource: fulfillmentSourceOf(line),
-          supplierId: line.supplierId || line.baseKitchenId || "",
-          supplierName: line.supplierName || line.baseKitchenName || "",
-          supplierPhone: line.supplierPhone || line.partnerPhone || "",
-          partnerId: fulfillmentSourceOf(line) === "partner" ? line.partnerId || line.supplierId || "" : "",
-          partnerName: fulfillmentSourceOf(line) === "partner" ? line.partnerName || line.supplierName || "" : "",
-          partnerPhone: fulfillmentSourceOf(line) === "partner" ? line.partnerPhone || line.supplierPhone || "" : "",
-          baseKitchenId: line.baseKitchenId || (fulfillmentSourceOf(line) === "base-kitchen" ? line.supplierId || "" : ""),
-          baseKitchenName: line.baseKitchenName || (fulfillmentSourceOf(line) === "base-kitchen" ? line.supplierName || "" : ""),
-          mealSlots: itemMealSlots(line)
-        }));
+        const items = [...cart.values()].map((line) => {
+          const routeMatch = restaurantRouteMatch(line);
+          const stationName = routeMatch.stop ? stopDisplayName(routeMatch.stop, routeMatch.station) : itemSupplierStationRaw(line);
+          return {
+            itemId: line.id,
+            name: line.name,
+            category: line.category || "",
+            qty: line.qty,
+            price: sellingPriceOf(line),
+            sellingPrice: sellingPriceOf(line),
+            costPrice: costPriceOf(line),
+            itemImage: line.itemImage || "",
+            source: line.source || "pantry",
+            sourceType: line.sourceType || line.source || "pantry",
+            fulfillmentSource: fulfillmentSourceOf(line),
+            supplierId: line.supplierId || line.baseKitchenId || "",
+            supplierName: line.supplierName || line.baseKitchenName || "",
+            supplierPhone: line.supplierPhone || line.partnerPhone || "",
+            station: stationName || "",
+            stationName: stationName || "",
+            supplierStation: stationName || "",
+            stationCode: routeMatch.stop?.code || line.stationCode || "",
+            partnerId: fulfillmentSourceOf(line) === "partner" ? line.partnerId || line.supplierId || "" : "",
+            partnerName: fulfillmentSourceOf(line) === "partner" ? line.partnerName || line.supplierName || "" : "",
+            partnerPhone: fulfillmentSourceOf(line) === "partner" ? line.partnerPhone || line.supplierPhone || "" : "",
+            baseKitchenId: line.baseKitchenId || (fulfillmentSourceOf(line) === "base-kitchen" ? line.supplierId || "" : ""),
+            baseKitchenName: line.baseKitchenName || (fulfillmentSourceOf(line) === "base-kitchen" ? line.supplierName || "" : ""),
+            mealSlots: itemMealSlots(line)
+          };
+        });
         refreshPaymentModes([...cart.values()]);
         const paymentMode = $("paymentMode").value || "UPI";
         if (paymentMode === "COD" && restaurantCodBlockedLines([...cart.values()]).length) {
@@ -2486,9 +2722,14 @@
       $("customerTrainSelect").addEventListener("change", () => {
         renderCurrentStationSelect();
         renderPassengerSummary();
+        clampCartToLiveStock();
         renderMenu();
       });
-      $("currentStationSelect").addEventListener("change", renderRestaurantStationPanel);
+      $("currentStationSelect").addEventListener("change", () => {
+        renderRestaurantStationPanel();
+        clampCartToLiveStock();
+        renderMenu();
+      });
       $("registrationModeSegments").addEventListener("click", (event) => {
         const btn = event.target.closest("[data-register-mode]");
         if (!btn) return;
@@ -2510,6 +2751,7 @@
       onLive("marketingSettings", (rows) => {
         marketingSettings = rows.find((row) => row.id === "default") || rows[0] || null;
         renderCart();
+        renderMenu();
       }, "updatedAt", "desc", 20);
       onLive("trainRoutes", (rows) => {
         trainRoutes = rows;
@@ -2523,6 +2765,16 @@
         supplierPaymentSettings = rows;
         if (!$("cartReviewModal").classList.contains("hidden")) renderCartReview();
       }, "updatedAt", "desc", 300);
+      onLive("baseKitchens", (rows) => {
+        baseKitchens = rows;
+        clampCartToLiveStock();
+        renderMenu();
+      }, "name", "asc", 300);
+      onLive("partners", (rows) => {
+        partners = rows;
+        clampCartToLiveStock();
+        renderMenu();
+      }, "restaurantName", "asc", 300);
       db.collection("trainMasters").orderBy("trainNumber").onSnapshot((snapshot) => {
         trainMasters = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((train) => train.active !== false);
         renderCustomerTrainSelect();

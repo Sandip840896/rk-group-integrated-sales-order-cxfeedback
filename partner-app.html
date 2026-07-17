@@ -126,7 +126,12 @@
           <label class="field"><span>Selling Rate</span><input class="input" name="sellingPrice" type="number" min="0" required></label>
           <label class="field"><span>Cost incl. packaging</span><input class="input" name="costPrice" type="number" min="0" required></label>
           <label class="field"><span>Opening Qty</span><input class="input" name="stockQty" type="number" min="0" value="0"></label>
-          <label class="field"><span>Linked Train</span><input class="input" name="linkedTrain" placeholder="12859 / 12860 / All"></label>
+          <div class="field"><span>Linked Trains</span>
+            <input class="input" id="partnerCatalogTrainSearch" type="search" placeholder="Search train number, name or route">
+            <label class="check-pill"><input type="checkbox" id="partnerCatalogAllTrains"> Select All Eligible Trains</label>
+            <small id="partnerCatalogTrainHelp">Only trains halting at the partner station for at least 4 minutes are shown.</small>
+            <div id="partnerCatalogTrainPicker" class="picker-list"></div>
+          </div>
           <label class="field"><span>Food Image</span><input class="input" name="itemImageFile" type="file" accept="image/*"></label>
         </div>
         <label class="field"><span>Product Detail</span><textarea class="textarea" name="description" placeholder="Ingredients, packing, serving size"></textarea></label>
@@ -186,6 +191,8 @@
       let partnerDispatchRiderSearchTerm = "";
       const selectedPartnerDispatchOrderIds = new Set();
       let trainRoutes = [];
+      let trainMasters = [];
+      const partnerCatalogSelectedTrains = new Set();
       let partnerSession = JSON.parse(sessionStorage.getItem("rkPartnerSession") || "null");
       let partnerAccessMode = partnerSession ? "authenticated" : "login";
       const indianRailRoutes = Array.isArray(window.indianRailRouteMasterData?.routes) ? window.indianRailRouteMasterData.routes : [];
@@ -292,6 +299,7 @@
             authMode: "firebase-management",
             managementAccess: true,
             role,
+            pageRights: admin.pageRights || {},
             status: "approved"
           };
         } catch (error) {
@@ -318,6 +326,7 @@
             partnerAccessMode = "authenticated";
             sessionStorage.setItem("rkPartnerSession", JSON.stringify(partnerSession));
             renderPartnerAccess();
+            applyPageRightsToTabs(partnerSession, "partner-app", "dashboard");
             showAccessMessage("Partner management session recognized.", "success");
             return;
           } catch (error) {
@@ -392,6 +401,38 @@
       function partnerName() {
         const phone = partnerPhone();
         return statusRows.find((row) => rowMatchesPartner(row, phone))?.restaurantName || statusRows.find((row) => rowMatchesPartner(row, phone))?.supplierName || phone || "RK Partner";
+      }
+
+      function partnerStation() {
+        const row = statusRows.find((entry) =>
+          rowMatchesPartner(entry, partnerPhone()) && (entry.station || entry.nearestStation || entry.stationCode || entry.city)
+        );
+        return row?.station || row?.nearestStation || row?.city || partnerSession?.station || partnerSession?.nearestStation || "";
+      }
+
+      function partnerEligibleCatalogTrains() {
+        return eligibleCatalogTrains(partnerStation(), trainRoutes, trainMasters, indianRailRoutes);
+      }
+
+      function renderPartnerCatalogTrainPicker() {
+        const station = partnerStation();
+        const eligible = partnerEligibleCatalogTrains();
+        const eligibleNumbers = new Set(eligible.map((train) => train.trainNumber));
+        [...partnerCatalogSelectedTrains].forEach((number) => {
+          if (!eligibleNumbers.has(number)) partnerCatalogSelectedTrains.delete(number);
+        });
+        const query = $("partnerCatalogTrainSearch").value.trim().toLowerCase();
+        const rows = eligible.filter((train) =>
+          `${train.trainNumber} ${train.trainName || ""} ${train.yardName || ""}`.toLowerCase().includes(query)
+        ).slice(0, 100);
+        $("partnerCatalogAllTrains").disabled = !eligible.length;
+        $("partnerCatalogAllTrains").checked = Boolean(eligible.length) && partnerCatalogSelectedTrains.size === eligible.length;
+        $("partnerCatalogTrainHelp").textContent = station
+          ? `${eligible.length} eligible train(s) at ${station}. Minimum scheduled halt: 4 minutes.`
+          : "This partner has no station configured. Update the partner station before cataloging.";
+        $("partnerCatalogTrainPicker").innerHTML = rows.map((train) =>
+          `<label class="check-pill"><input type="checkbox" data-partner-catalog-train="${escapeHtml(train.trainNumber)}" ${partnerCatalogSelectedTrains.has(train.trainNumber) ? "checked" : ""}> ${escapeHtml(trainLabel(train))} · ${train.haltMinutes} min halt</label>`
+        ).join("") || `<div class="empty">No eligible train found for this station and search.</div>`;
       }
 
       function stationRows() {
@@ -753,6 +794,8 @@
         if (phone.length !== 10) return toast("Enter partner phone used for enlistment.");
         const selectedMealSlots = [...form.querySelectorAll("[name='mealSlots']:checked")].map((box) => box.value);
         if (!selectedMealSlots.length) return toast("Choose at least one meal category.");
+        const linkedTrains = [...partnerCatalogSelectedTrains];
+        if (!linkedTrains.length) return toast("Choose at least one eligible train.");
         setSubmitState(form, "saving", "Submitting...");
         try {
           const image = await compressImage(form.itemImageFile.files[0], 520, 0.7);
@@ -765,7 +808,8 @@
             sellingPrice: Number(data.sellingPrice || 0),
             costPrice: Number(data.costPrice || 0),
             stockQty: Number(data.stockQty || 0),
-            linkedTrain: data.linkedTrain || "All",
+            linkedTrain: linkedTrains.join(", "),
+            linkedTrains,
             description: data.description || "",
             itemImage: image,
             sourceType: "partner",
@@ -782,6 +826,8 @@
           $("dashboardPhone").value = phone;
           form.reset();
           document.querySelectorAll("#partnerMealSlots input").forEach((box, idx) => { box.checked = idx === 0; });
+          partnerCatalogSelectedTrains.clear();
+          renderPartnerCatalogTrainPicker();
           finishSubmitState(form, "Submitted");
           toast("Catalog request sent for quality approval.");
         } catch (error) {
@@ -792,6 +838,21 @@
       });
 
       $("partnerDownloadCatalogCsvBtn").addEventListener("click", () => downloadCatalogBulkTemplate());
+      $("partnerCatalogTrainSearch").addEventListener("input", renderPartnerCatalogTrainPicker);
+      $("partnerCatalogAllTrains").addEventListener("change", () => {
+        partnerCatalogSelectedTrains.clear();
+        if ($("partnerCatalogAllTrains").checked) {
+          partnerEligibleCatalogTrains().forEach((train) => partnerCatalogSelectedTrains.add(train.trainNumber));
+        }
+        renderPartnerCatalogTrainPicker();
+      });
+      $("partnerCatalogTrainPicker").addEventListener("change", (event) => {
+        const box = event.target.closest("[data-partner-catalog-train]");
+        if (!box) return;
+        if (box.checked) partnerCatalogSelectedTrains.add(box.dataset.partnerCatalogTrain);
+        else partnerCatalogSelectedTrains.delete(box.dataset.partnerCatalogTrain);
+        renderPartnerCatalogTrainPicker();
+      });
       $("partnerUploadCatalogBulkBtn").addEventListener("click", async () => {
         if (!isApprovedPartnerSession()) return toast("Login with an approved Partner ID first.");
         const button = $("partnerUploadCatalogBulkBtn");
@@ -812,7 +873,14 @@
               const costPrice = Number(row.costPrice);
               if (!Number.isFinite(sellingPrice) || sellingPrice < 0) throw new Error("invalid sellingPrice");
               if (!Number.isFinite(costPrice) || costPrice < 0) throw new Error("invalid costPrice");
-              const linkedTrains = catalogBulkList(row.linkedTrains, ["All"]);
+              const requestedTrains = catalogBulkList(row.linkedTrains, ["All"]);
+              const eligibleNumbers = partnerEligibleCatalogTrains().map((train) => train.trainNumber);
+              const linkedTrains = requestedTrains.includes("All")
+                ? eligibleNumbers
+                : requestedTrains.filter((number) => eligibleNumbers.includes(number));
+              if (!linkedTrains.length || linkedTrains.length !== (requestedTrains.includes("All") ? eligibleNumbers.length : requestedTrains.length)) {
+                throw new Error("Linked trains must halt at the partner station for at least 4 minutes.");
+              }
               const image = await catalogBulkImage(row, images);
               await compatAdd("catalogRequests", "catalogRequest", {
                 name: row.itemName, category: mealSlots[0], mealSlots,
@@ -886,6 +954,7 @@
         $("partnerCatalogPendingList").innerHTML = "";
         catalogCards.forEach(({ card }) => { if (card) $("partnerCatalogPendingList").appendChild(card.cloneNode(true)); });
         if (!catalogCards.length) $("partnerCatalogPendingList").innerHTML = `<div class="empty">No catalog approval request yet.</div>`;
+        renderPartnerCatalogTrainPicker();
         lucide.createIcons();
       }
 
@@ -897,7 +966,14 @@
           const field = (name) => document.querySelector(`[data-status-edit="${row.id}"][data-field="${name}"]`)?.value || "";
           const slots = [...document.querySelectorAll(`[data-status-meal="${row.id}"]:checked`)].map((box) => box.value);
           if (!slots.length) return toast("Choose at least one meal category.");
-          const linkedTrains = catalogBulkList(field("linkedTrains"), ["All"]);
+          const requestedTrains = catalogBulkList(field("linkedTrains"), ["All"]);
+          const eligibleNumbers = partnerEligibleCatalogTrains().map((train) => train.trainNumber);
+          const linkedTrains = requestedTrains.includes("All")
+            ? eligibleNumbers
+            : requestedTrains.filter((number) => eligibleNumbers.includes(number));
+          if (!linkedTrains.length || linkedTrains.length !== (requestedTrains.includes("All") ? eligibleNumbers.length : requestedTrains.length)) {
+            return toast("Every linked train must halt at the partner station for at least 4 minutes.");
+          }
           const replacementImage = await compressImage(document.querySelector(`[data-status-image="${row.id}"]`)?.files?.[0], 520, 0.7);
           const nextStatus = ["returned", "rejected"].includes(String(row.status || "").toLowerCase()) ? "resubmitted" : String(row.status || "pending").toLowerCase();
           const payload = {
@@ -910,7 +986,7 @@
             cuisine: field("cuisine") || "North Indian",
             type: field("type") || "veg",
             linkedTrains,
-            linkedTrain: linkedTrains.includes("All") ? "All" : linkedTrains.join(", "),
+            linkedTrain: linkedTrains.join(", "),
             description: field("description"),
             status: nextStatus,
             senderEditedAt: FieldValue.serverTimestamp(),
@@ -1098,10 +1174,12 @@
       document.querySelector("#catalogForm [name='partnerPhone']").value = partnerSession?.phone || "";
       renderPartnerAccess();
       renderStationOptions();
+      renderPartnerCatalogTrainPicker();
       onLive("customerOrders", (rows) => { partnerOrders = rows; renderDashboard(); }, "createdAt", "desc", 250);
       onLive("feedbacks", (rows) => { partnerFeedbacks = rows; renderDashboard(); }, "timestamp", "desc", 250);
       onLiveCompat("deliveryPartners", "deliveryPartner", (rows) => { deliveryPartners = rows; if (!$("partnerDispatchRiderModal").classList.contains("hidden")) renderPartnerDispatchRiders(); }, "updatedAt", "desc", 250);
-      onLive("trainRoutes", (rows) => { trainRoutes = rows; renderStationOptions(); }, "updatedAt", "desc", 300);
+      onLive("trainRoutes", (rows) => { trainRoutes = rows; renderStationOptions(); renderPartnerCatalogTrainPicker(); }, "updatedAt", "desc", 300);
+      onLive("trainMasters", (rows) => { trainMasters = rows; renderPartnerCatalogTrainPicker(); }, "trainNumber", "asc", 300);
     });
   </script>
 </body>

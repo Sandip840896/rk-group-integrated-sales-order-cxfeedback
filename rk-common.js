@@ -172,6 +172,68 @@ function trainMatches(left, right) {
   return [...leftKeys].some((key) => rightKeys.has(key));
 }
 
+const catalogMinimumHaltMinutes = 4;
+
+function catalogStationValue(entity) {
+  if (!entity) return "";
+  const explicit = entity.station || entity.nearestStation || entity.stationCode;
+  if (explicit) return explicit;
+  const id = String(entity.id || entity.baseKitchenId || "").trim();
+  const idCode = id.match(/^BK-([A-Z0-9]+)$/i)?.[1];
+  return idCode || entity.city || "";
+}
+
+function normalizedStationTokens(value) {
+  const text = typeof value === "object" && value
+    ? `${value.code || ""} ${value.station || value.name || ""}`
+    : String(value || "");
+  return new Set(text
+    .toLowerCase()
+    .replace(/[()\-_,./]+/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean));
+}
+
+function routeStopMatchesStation(stop, station) {
+  const wanted = normalizedStationTokens(station);
+  if (!wanted.size) return false;
+  const code = String(stop?.code || "").trim().toLowerCase();
+  const stationCode = [...wanted].find((token) => token === code);
+  if (code && stationCode) return true;
+  const stopName = String(stop?.station || stop?.name || "").trim().toLowerCase();
+  const selected = String(station || "").trim().toLowerCase();
+  if (stopName && (selected.includes(stopName) || stopName.includes(selected.replace(/\s*\([^)]*\)\s*/g, "").trim()))) return true;
+  const stopTokens = normalizedStationTokens(stop);
+  const common = [...wanted].filter((token) => stopTokens.has(token) && token.length > 2);
+  return common.length >= Math.min(2, wanted.size, stopTokens.size);
+}
+
+function eligibleCatalogTrains(station, liveRoutes = [], trainMasters = [], fallbackRoutes = []) {
+  if (!String(station || "").trim()) return [];
+  const routes = new Map();
+  [...fallbackRoutes, ...liveRoutes].forEach((route) => {
+    const number = String(route?.trainNumber || route?.id || "").trim();
+    if (number) routes.set(number, route);
+  });
+  const masters = new Map(trainMasters.map((train) => [String(train.trainNumber || train.id || "").trim(), train]));
+  return [...routes.entries()].flatMap(([number, route]) => {
+    const stop = (route.stops || []).find((entry) =>
+      routeStopMatchesStation(entry, station) && Number(entry.haltMinutes || 0) >= catalogMinimumHaltMinutes
+    );
+    if (!stop) return [];
+    const master = masters.get(number) || {};
+    if (master.active === false || route.active === false) return [];
+    return [{
+      trainNumber: number,
+      trainName: master.trainName || route.trainName || "",
+      yardName: master.yardName || route.yardName || "",
+      haltMinutes: Number(stop.haltMinutes || 0),
+      stationCode: stop.code || ""
+    }];
+  }).sort((a, b) => a.trainNumber.localeCompare(b.trainNumber, undefined, { numeric: true }));
+}
+
 function rakeMatches(left, right) {
   const a = String(left || "").trim();
   const b = String(right || "").trim();
@@ -859,6 +921,33 @@ function wireTabs(defaultTab) {
     btn.addEventListener("click", () => showTab(btn.dataset.tab));
   });
   showTab(defaultTab);
+}
+
+function appPageRights(profile, appId) {
+  const role = String(profile?.role || "").toLowerCase();
+  if (role === "super-admin") return ["all"];
+  const rights = profile?.pageRights || {};
+  const appRights = rights[appId] || rights[String(appId || "").toLowerCase()];
+  if (!appRights) return ["all"];
+  if (Array.isArray(appRights)) return appRights.map((page) => String(page));
+  if (typeof appRights === "string") return appRights.split(",").map((page) => page.trim()).filter(Boolean);
+  return ["all"];
+}
+
+function canAccessAppPage(profile, appId, pageId) {
+  const pages = appPageRights(profile, appId).map((page) => page.toLowerCase());
+  return pages.includes("all") || pages.includes(String(pageId || "").toLowerCase());
+}
+
+function applyPageRightsToTabs(profile, appId, preferredTab = "") {
+  const tabs = [...document.querySelectorAll("[data-tab]")];
+  const panels = [...document.querySelectorAll("[data-tab-panel]")];
+  const allowedTabs = tabs.filter((btn) => canAccessAppPage(profile, appId, btn.dataset.tab));
+  tabs.forEach((btn) => btn.classList.toggle("hidden", !canAccessAppPage(profile, appId, btn.dataset.tab)));
+  panels.forEach((panel) => panel.classList.toggle("hidden", !canAccessAppPage(profile, appId, panel.dataset.tabPanel)));
+  const firstAllowed = allowedTabs.find((btn) => btn.dataset.tab === preferredTab) || allowedTabs[0];
+  if (firstAllowed) showTab(firstAllowed.dataset.tab);
+  return allowedTabs.map((btn) => btn.dataset.tab);
 }
 
 async function ensureSeedData() {

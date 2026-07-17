@@ -124,6 +124,7 @@
       document.querySelectorAll("[data-tab-panel]").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.tabPanel !== button.dataset.tab));
       lucide.createIcons();
     }));
+    applyPageRightsToTabs(cfoProfile, "cfo-app", "overview");
     const state = { orders: [], staffSales: [], claims: [], advices: [] };
     const n = (v) => Number(v || 0);
     const status = (v) => String(v || "").toLowerCase();
